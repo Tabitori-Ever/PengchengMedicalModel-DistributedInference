@@ -67,13 +67,18 @@ def infer(req: FeatureRequest):
         infer_time = (time.perf_counter() - start) * 1000
         latency.observe(infer_time / 1000)
 
-        scores = output.numpy()[0]
-        idx = scores.argmax()
+        logits = output.numpy()[0]
+        # stable softmax -> real probability in [0,1] (was: raw logit, e.g.
+        # 4.86 -> displayed as "485.7%")
+        exp = np.exp(logits - logits.max())
+        probs = exp / exp.sum()
+        idx = int(probs.argmax())
 
         return {
             "class_id": int(idx),
             "class_name": categories[idx],
-            "score": float(scores[idx]),
+            "score": float(probs[idx]),
+            "logits": logits.tolist(),
             "latency_ms": infer_time
         }
     finally:

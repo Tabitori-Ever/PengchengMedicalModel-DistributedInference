@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import TaskResultView from '../components/TaskResultView';
@@ -198,19 +198,67 @@ function MedicalForm({ onDone, busy, setBusy, onErr }: FormProps) {
 }
 
 // --------------------------- alexnet ---------------------------
+const SAMPLES = Array.from({ length: 6 }, (_, i) => ({
+  url: `${import.meta.env.BASE_URL}samples/sample-0${i + 1}.jpg`,
+  label: `内置样本 ${i + 1}`,
+}));
+
+type AlexMode = 'dataset' | 'upload' | 'noise';
+
+/** Downscale any image source (URL/file/bitmap) into 224x224 float CHW. */
+async function to224(src: CanvasImageSource): Promise<number[][][]> {
+  const w = 224, h = 224;
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(src, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+  const out: number[][][] = [];
+  for (let c = 0; c < 3; c++) {
+    const ch: number[][] = [];
+    for (let y = 0; y < h; y++) {
+      const row: number[] = new Array(w);
+      for (let x = 0; x < w; x++) row[x] = data[(y * w + x) * 4 + c] / 255;
+      ch.push(row);
+    }
+    out.push(ch);
+  }
+  return out;
+}
+
+async function loadSample(url: string): Promise<number[][][]> {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  return to224(img);
+}
+
+async function fileTo224(file: File): Promise<number[][][]> {
+  const bmp = await createImageBitmap(file);
+  return to224(bmp);
+}
+
 function AlexForm({ onDone, busy, setBusy, onErr }: FormProps) {
   const [hospital, setHospital] = useState('hospital-a');
   const [priority, setPriority] = useState(5);
   const [deadline, setDeadline] = useState('10s');
-  const [mode, setMode] = useState<'random' | 'upload'>('random');
+  const [mode, setMode] = useState<AlexMode>('dataset');
+  const [sampleIdx, setSampleIdx] = useState(() => Math.floor(Math.random() * SAMPLES.length));
   const [fileInfo, setFileInfo] = useState('');
 
   const submit = async () => {
     setBusy(true); onErr('');
     try {
-      const image = mode === 'random'
-        ? randomImage()
-        : await fileToImage();
+      let image: number[][][];
+      if (mode === 'dataset') {
+        image = await loadSample(SAMPLES[sampleIdx].url);
+      } else if (mode === 'upload') {
+        const input = document.getElementById('imgfile') as HTMLInputElement;
+        if (!input?.files?.[0]) throw new Error('请选择图片文件');
+        image = await fileTo224(input.files[0]);
+      } else {
+        image = randomImage();
+      }
       const r = await api.submitAlexNet({
         hospital, priority, deadline, image,
       });
@@ -219,30 +267,10 @@ function AlexForm({ onDone, busy, setBusy, onErr }: FormProps) {
     finally { setBusy(false); }
   };
 
-  const fileToImage = async (): Promise<number[][][]> => {
-    const input = document.getElementById('imgfile') as HTMLInputElement;
-    if (!input?.files?.[0]) throw new Error('请选择图片文件');
-    const bmp = await createImageBitmap(input.files[0]);
-    const w = 224, h = 224;
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(bmp, 0, 0, w, h);
-    const { data } = ctx.getImageData(0, 0, w, h);
-    const out: number[][][] = [];
-    for (let c = 0; c < 3; c++) {
-      const ch: number[][] = [];
-      for (let y = 0; y < h; y++) {
-        const row: number[] = [];
-        for (let x = 0; x < w; x++) {
-          row.push(data[(y * w + x) * 4 + c] / 255);
-        }
-        ch.push(row);
-      }
-      out.push(ch);
-    }
-    setFileInfo(`已载入并缩放至 224×224`);
-    return out;
+  const nextSample = () => {
+    let n = Math.floor(Math.random() * SAMPLES.length);
+    if (n === sampleIdx && SAMPLES.length > 1) n = (n + 1) % SAMPLES.length;
+    setSampleIdx(n);
   };
 
   return (
@@ -261,17 +289,37 @@ function AlexForm({ onDone, busy, setBusy, onErr }: FormProps) {
       </Field>
       <Field label="输入图像">
         <div className="btnrow">
-          <button className={`mini ${mode === 'random' ? 'on' : ''}`}
-            onClick={() => setMode('random')}>随机噪声图</button>
+          <button className={`mini ${mode === 'dataset' ? 'on' : ''}`}
+            onClick={() => setMode('dataset')}>内置样本集</button>
           <button className={`mini ${mode === 'upload' ? 'on' : ''}`}
             onClick={() => setMode('upload')}>上传图片</button>
+          <button className={`mini ${mode === 'noise' ? 'on' : ''}`}
+            onClick={() => setMode('noise')}>随机噪声</button>
         </div>
+
+        {mode === 'dataset' && (
+          <div className="sample-pick">
+            <img className="sample-thumb"
+              src={SAMPLES[sampleIdx].url} alt={SAMPLES[sampleIdx].label} />
+            <div className="sample-side">
+              <div className="muted xs">内置轻量样本集：6 张真实照片（本机内置，无外网依赖），提交时随机抽取。</div>
+              <div className="btnrow">
+                <button className="mini" onClick={nextSample}>🎲 换一张（当前 {SAMPLES[sampleIdx].label}）</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {mode === 'upload' && (
           <>
             <input id="imgfile" type="file" accept="image/*"
               onChange={(e) => setFileInfo(e.target.files?.[0] ? '已选择文件' : '')} />
             <div className="muted xs">{fileInfo}</div>
           </>
+        )}
+
+        {mode === 'noise' && (
+          <div className="muted xs">纯随机噪声不包含实际类别语义，分类结果与置信度仅供流水线链路测试。</div>
         )}
       </Field>
       <Field label="优先级">

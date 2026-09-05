@@ -1,11 +1,11 @@
 import axios from 'axios';
 import type {
-  ApplyResult, ClusterDefault, ClusterStatus, Patient, TaskItem,
+  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, Patient, TaskItem,
   TaskResult, TaskStats, ValidateResp,
 } from './types';
 
 // Same origin in production (scheduler serves /app + REST API).
-const http = axios.create({ baseURL: '/', timeout: 30000 });
+const http = axios.create({ baseURL: '/', timeout: 20000 });
 
 export const api = {
   // ---- tasks ----
@@ -56,6 +56,10 @@ export const api = {
   // ---- cluster ----
   clusterStatus: async (): Promise<ClusterStatus> =>
     (await http.get('/cluster/status')).data,
+
+  /** Lightweight snapshot for dashboards (fast). */
+  clusterSummary: async (): Promise<ClusterSummary> =>
+    (await http.get('/cluster/summary')).data,
 
   clusterDefault: async (): Promise<ClusterDefault> =>
     (await http.get('/cluster/default')).data,

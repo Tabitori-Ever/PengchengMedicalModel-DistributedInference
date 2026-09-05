@@ -54,7 +54,7 @@ spec:
 
       containers:
       - name: part2
-        image: 10.29.182.66:5000/k8s-repo/alexnet-part2:v9
+        image: 10.29.182.66:5000/k8s-repo/alexnet-part2:v2.0.1
         imagePullPolicy: IfNotPresent
 
         ports:

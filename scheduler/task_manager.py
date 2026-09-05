@@ -54,6 +54,10 @@ def update_task(task_id: str, updates: dict):
                 "finished": 100
             }
             task["progress"] = stage_progress.get(updates["stage"], task.get("progress", 0))
+        # 终态任务不再需要原始输入：医疗输入可达数 MB~10MB，
+        # 保留会让 /tasks 与 /tasks/stats 每次全量传输解析而严重变慢。
+        if task.get("status") in ("finished", "failed", "completed"):
+            task.pop("input", None)
         save_task(task)
         return task
     return None

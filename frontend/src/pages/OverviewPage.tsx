@@ -5,32 +5,30 @@ import { useTicker } from '../hooks';
 import StatCard from '../components/StatCard';
 import Badge from '../components/Badge';
 import { fmtTime, MODEL_COLOR, MODEL_LABEL } from '../utils';
-import type { ClusterStatus, TaskItem, TaskStats } from '../types';
+import type { ClusterSummary, TaskItem, TaskStats } from '../types';
 
 export default function OverviewPage() {
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [cluster, setCluster] = useState<ClusterStatus | null>(null);
+  const [summary, setSummary] = useState<ClusterSummary | null>(null);
   const [err, setErr] = useState('');
 
   const refresh = async () => {
     try {
       const [s, t, c] = await Promise.all([
-        api.taskStats(), api.listTasks(), api.clusterStatus(),
+        api.taskStats(), api.listTasks(), api.clusterSummary(),
       ]);
-      setStats(s); setTasks(t.slice(0, 8)); setCluster(c); setErr('');
+      setStats(s); setTasks(t.slice(0, 8)); setSummary(c); setErr('');
     } catch (e: any) {
       setErr(e?.message || '加载失败');
     }
   };
   useEffect(() => { refresh(); }, []);
-  useTicker(refresh, 5000);
+  useTicker(refresh, 8000);
 
-  const readyNodes = (cluster?.nodes || []).filter((n) => n.ready).length;
-  const entityCount = Object.keys(cluster?.entities || {}).length;
-  const podTotal = Object.values(cluster?.entities || {}).reduce(
-    (acc, e) => acc + (e.pods || []).length, 0)
-    + (cluster?.readonly || []).reduce((acc, d) => acc + (d.pods || []).length, 0);
+  const readyNodes = (summary?.nodes || []).filter((n) => n.ready).length;
+  const entityCount = summary?.editable ?? 0;
+  const podTotal = (summary?.editable_pods ?? 0) + (summary?.readonly_pods ?? 0);
 
   return (
     <div className="page">
@@ -65,8 +63,8 @@ export default function OverviewPage() {
       {err && <div className="errbox">{err}</div>}
 
       <section className="stats-grid">
-        <StatCard label="节点（就绪/总数）" value={`${readyNodes}/${cluster?.nodes?.length ?? 0}`}
-          tone="default" hint={cluster?.ok === false ? 'K8s 状态不可用' : undefined} />
+        <StatCard label="节点（就绪/总数）" value={`${readyNodes}/${summary?.nodes?.length ?? 0}`}
+          tone="default" hint={summary?.ok === false ? 'K8s 状态不可用' : undefined} />
         <StatCard label="业务实体（可编辑）" value={entityCount} tone="blue"
           hint="hospital-a/b + clinic-1/2 等" />
         <StatCard label="运行中 Pod" value={podTotal} tone="cyan" hint="含只读基础设施" />

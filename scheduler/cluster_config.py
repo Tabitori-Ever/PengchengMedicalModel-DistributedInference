@@ -34,7 +34,7 @@ IMAGE_HOSPITAL = f"{REGISTRY}/hospital:v2.0"
 # 注意：clinic/scheduler 的 v2.0.1 修复了 metrics 用量解析/part2 探测，
 # 默认模型必须指向修复版，否则 reset 会把运行中的镜像“降级”回有 bug 的 v2.0。
 IMAGE_CLINIC = f"{REGISTRY}/clinic:v2.0.1"
-IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0.3"
+IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0.5"
 
 DEFAULT_RESOURCES = {
     "hospital": {

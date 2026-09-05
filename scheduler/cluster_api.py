@@ -111,9 +111,34 @@ def _deployment_affinity(dep) -> dict:
     return {"affinity": "fixed", "node": None}
 
 
-def _live_editable(apps, core) -> Dict[str, dict]:
-    """Map editable deployment -> live editor model."""
+def _selector_match(pod_labels: dict, selector: dict) -> bool:
+    """True when pod labels satisfy all key=value pairs of a Deployment selector."""
+    return all(pod_labels.get(k) == v for k, v in (selector or {}).items())
+
+
+def _select_pods(pods_all, match_labels: dict) -> List[dict]:
+    out = []
+    for p in pods_all:
+        if not _selector_match(p.metadata.labels or {}, match_labels):
+            continue
+        out.append({
+            "name": p.metadata.name,
+            "node": p.spec.node_name,
+            "ready": _pod_ready(p),
+            "phase": p.status.phase,
+        })
+    return out
+
+
+def _live_editable(apps, core, pods_all=None) -> Dict[str, dict]:
+    """Map editable deployment -> live editor model.
+
+    Uses ONE namespace-wide pod list when provided (avoids N list-pods API
+    calls per deployment which previously starved the process under load).
+    """
     result: Dict[str, dict] = {}
+    if pods_all is None:
+        pods_all = core.list_namespaced_pod(NAMESPACE).items
     deps = apps.list_namespaced_deployment(NAMESPACE, label_selector="app in (hospital,clinic)")
     for dep in deps.items:
         eid = dep.metadata.name
@@ -133,17 +158,7 @@ def _live_editable(apps, core) -> Dict[str, dict]:
             k: v for k, v in (spec.template.metadata.labels or {}).items()
             if k not in ("app", "hospital", "clinic", "model", "stage")
         }
-        pods = []
-        selector = ",".join(f"{k}={v}" for k, v in
-                            (dep.spec.selector.match_labels or {}).items())
-        plist = core.list_namespaced_pod(NAMESPACE, label_selector=selector)
-        for p in plist.items:
-            pods.append({
-                "name": p.metadata.name,
-                "node": p.spec.node_name,
-                "ready": _pod_ready(p),
-                "phase": p.status.phase,
-            })
+        pods = _select_pods(pods_all, dep.spec.selector.match_labels or {})
         result[eid] = {
             "kind": kind,
             "affinity": aff["affinity"],
@@ -157,26 +172,18 @@ def _live_editable(apps, core) -> Dict[str, dict]:
     return result
 
 
-def _live_readonly(apps, core) -> List[dict]:
+def _live_readonly(apps, core, pods_all=None) -> List[dict]:
     """Read-only deployments (medical-server/part2/redis/scheduler/...)."""
     result: List[dict] = []
+    if pods_all is None:
+        pods_all = core.list_namespaced_pod(NAMESPACE).items
     deps = apps.list_namespaced_deployment(NAMESPACE)
     by_name = {d.metadata.name: d for d in deps.items}
     for app_name in cc.READONLY_APPS:
         dep = by_name.get(app_name)
         if not dep:
             continue
-        pods = []
-        selector = ",".join(f"{k}={v}" for k, v in
-                            (dep.spec.selector.match_labels or {}).items())
-        plist = core.list_namespaced_pod(NAMESPACE, label_selector=selector)
-        for p in plist.items:
-            pods.append({
-                "name": p.metadata.name,
-                "node": p.spec.node_name,
-                "ready": _pod_ready(p),
-                "phase": p.status.phase,
-            })
+        pods = _select_pods(pods_all, dep.spec.selector.match_labels or {})
         result.append({
             "name": app_name,
             "replicas": dep.spec.replicas or 0,
@@ -332,9 +339,60 @@ def cluster_status():
                          "memory": n.status.allocatable.get("memory")},
         })
 
-    # ---- editable entities & readonly deployments ----
-    payload["entities"] = _live_editable(apps, core)
-    payload["readonly"] = _live_readonly(apps, core)
+    # ---- editable entities & readonly deployments (single pod list) ----
+    pods_all = core.list_namespaced_pod(NAMESPACE).items
+    payload["entities"] = _live_editable(apps, core, pods_all)
+    payload["readonly"] = _live_readonly(apps, core, pods_all)
+    return payload
+
+
+@router.get("/summary")
+def cluster_summary():
+    """Lightweight cluster snapshot for dashboards (fast, no per-deployment
+    pod queries): node loads + counts only. Prevents heavy polling from
+    starving the scheduler process."""
+    payload: Dict[str, Any] = {
+        "version": cc.VERSION,
+        "ok": True,
+        "error": None,
+        "nodes": [],
+        "editable": 0,
+        "editable_pods": 0,
+        "readonly_pods": 0,
+    }
+    loads = _node_loads()
+    apps, core, err = get_kube_clients()
+    if err:
+        payload["ok"] = False
+        payload["error"] = err
+        return payload
+    for n in core.list_node().items:
+        labels = n.metadata.labels or {}
+        role = labels.get("role")
+        if not role and "node-role.kubernetes.io/control-plane" in labels:
+            role = "control-plane"
+        ready = any(c.type == "Ready" and c.status == "True"
+                    for c in n.status.conditions or [])
+        payload["nodes"].append({
+            "name": n.metadata.name, "role": role, "ready": ready,
+            "load": loads.get(n.metadata.name),
+            "capacity": {"cpu": n.status.allocatable.get("cpu"),
+                         "memory": n.status.allocatable.get("memory")},
+        })
+    pods_all = core.list_namespaced_pod(NAMESPACE).items
+    deps = apps.list_namespaced_deployment(
+        NAMESPACE, label_selector="app in (hospital,clinic)")
+    for dep in deps.items:
+        payload["editable"] += 1
+        payload["editable_pods"] += len(
+            _select_pods(pods_all, dep.spec.selector.match_labels or {}))
+    ro_deps = apps.list_namespaced_deployment(NAMESPACE)
+    by_name = {d.metadata.name: d for d in ro_deps.items}
+    for app_name in cc.READONLY_APPS:
+        dep = by_name.get(app_name)
+        if dep:
+            payload["readonly_pods"] += len(
+                _select_pods(pods_all, dep.spec.selector.match_labels or {}))
     return payload
 
 

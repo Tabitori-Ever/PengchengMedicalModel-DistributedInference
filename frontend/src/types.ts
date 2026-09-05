@@ -119,6 +119,16 @@ export interface ClusterDefault {
   editable: Record<string, EntityModel>;
 }
 
+export interface ClusterSummary {
+  version: string;
+  ok: boolean;
+  error?: string | null;
+  nodes: NodeInfo[];
+  editable: number;
+  editable_pods: number;
+  readonly_pods: number;
+}
+
 export interface ValidateResp {
   ok: boolean;
   errors: string[];

@@ -74,7 +74,7 @@ export default function ClusterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useTicker(refreshLive, 10000);
+  useTicker(refreshLive, 15000);
 
   const dirty = useMemo(
     () => !!desired && canonicalEntities(desired) !== lastSaved,

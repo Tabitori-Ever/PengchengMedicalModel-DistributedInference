@@ -23,7 +23,7 @@ export default function HistoryPage() {
     } catch (e: any) { setErr(e?.message || '获取任务列表失败'); }
   };
   useEffect(() => { refresh(); }, []);
-  useTicker(refresh, 3000);
+  useTicker(refresh, 5000);
 
   const filtered = useMemo(
     () => tasks.filter((t) =>
