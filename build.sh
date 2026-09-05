@@ -8,7 +8,9 @@ set -e
 
 REGISTRY="${REGISTRY:-10.29.182.66:5000}"
 PROJECT="${PROJECT:-k8s-repo}"
-TAG="${TAG:-v2.0}"
+# 注：clinic 与 scheduler 已在 v2.0 基础上修复后发布为 v2.0.1（本脚本默认 tag），
+# hospital 镜像 v2.0 内容未变（yaml 仍引用 hospital:v2.0）。
+TAG="${TAG:-v2.0.1}"
 
 echo "============================================"
 echo "Multi-Model Edge/Cloud Platform v2.0 Build"

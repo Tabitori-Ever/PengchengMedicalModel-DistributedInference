@@ -92,6 +92,37 @@ def read_own_memory() -> dict:
 
 
 # ========================== metrics-server helpers ============================
+def _parse_mem(value: str) -> Optional[int]:
+    """Parse a Kubernetes memory quantity ('478Mi', '1Gi', '1234', …) to bytes."""
+    if value is None:
+        return None
+    v = str(value).strip()
+    if not v:
+        return None
+    mult = 1
+    if v.endswith("Ki"):
+        mult = 1024; v = v[:-2]
+    elif v.endswith("Mi"):
+        mult = 1024 ** 2; v = v[:-2]
+    elif v.endswith("Gi"):
+        mult = 1024 ** 3; v = v[:-2]
+    elif v.endswith("Ti"):
+        mult = 1024 ** 4; v = v[:-2]
+    elif v.endswith("K"):
+        mult = 1000; v = v[:-1]
+    elif v.endswith("M"):
+        mult = 1000 ** 2; v = v[:-1]
+    elif v.endswith("G"):
+        mult = 1000 ** 3; v = v[:-1]
+    try:
+        return int(float(v) * mult)
+    except ValueError:
+        try:
+            return int(v)
+        except ValueError:
+            return None
+
+
 def _kube_request(path: str) -> dict:
     """GET a path on the kube-apiserver with the pod service-account token."""
     if not os.path.exists(SA_TOKEN_PATH):
@@ -139,39 +170,22 @@ def query_pod_memory(target_pod: str, namespace: str) -> dict:
     for c in pod.get("spec", {}).get("containers", []):
         res = c.get("resources", {})
         lim = (res.get("limits") or {}).get("memory")
-        if lim:
-            try:
-                if lim.endswith("Gi"):
-                    limits[c["name"]] = int(float(lim[:-2]) * 1024 ** 3)
-                elif lim.endswith("Mi"):
-                    limits[c["name"]] = int(float(lim[:-2]) * 1024 ** 2)
-                elif lim.endswith("Ki"):
-                    limits[c["name"]] = int(float(lim[:-2]) * 1024)
-                elif lim.endswith("G"):
-                    limits[c["name"]] = int(float(lim[:-1]) * 1000 ** 3)
-                elif lim.endswith("M"):
-                    limits[c["name"]] = int(float(lim[:-1]) * 1000 ** 2)
-                else:
-                    limits[c["name"]] = int(float(lim))
-            except ValueError:
-                pass
+        parsed = _parse_mem(lim) if lim else None
+        if parsed:
+            limits[c["name"]] = parsed
 
     containers = []
     total_usage = 0
     total_limit = 0
     for cm in metrics.get("containers", []):
-        usage = cm.get("usage", {}).get("memory", "0")
-        try:
-            usage_bytes = int(usage)
-        except ValueError:
-            usage_bytes = 0
+        usage = _parse_mem(cm.get("usage", {}).get("memory", "0")) or 0
         lim = limits.get(cm.get("name"), None)
-        total_usage += usage_bytes
+        total_usage += usage
         if lim:
             total_limit += lim
         containers.append({
             "name": cm.get("name"),
-            "usage_bytes": usage_bytes,
+            "usage_bytes": usage,
             "limit_bytes": lim,
         })
 

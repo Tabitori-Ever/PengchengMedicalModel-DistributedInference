@@ -240,7 +240,7 @@ def full_health_check():
         "clinic-1": "http://clinic-1-service:8007/health",
         "clinic-2": "http://clinic-2-service:8007/health",
         "medical_server": "http://medical-server-service:9001/health",
-        "part2": "http://part2-service:8002/health",
+        "part2": "http://part2-service:8002/",
     }
 
     for name, url in services.items():
