@@ -1,0 +1,19 @@
+# ==========================================================================
+# Node Labels - Edge/Cloud Topology
+# Apply with:
+#   kubectl label node node1 role=edge hospital=hospital-a --overwrite
+#   kubectl label node node2 role=edge hospital=hospital-b --overwrite
+#   kubectl label node node3 role=cloud zone=cloud-dc --overwrite
+# ==========================================================================
+
+# Verification commands:
+# kubectl get nodes --show-labels | grep -E "role|hospital|zone"
+
+# Expected result:
+# node1  role=edge   hospital=hospital-a
+# node2  role=edge   hospital=hospital-b
+# node3  role=cloud  zone=cloud-dc
+
+---
+# Taint node3 to prefer dedicated cloud workloads
+# kubectl taint node node3 role=cloud:NoSchedule

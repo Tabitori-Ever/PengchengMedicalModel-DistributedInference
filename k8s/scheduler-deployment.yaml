@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: scheduler
+  labels:
+    app: scheduler
+    component: control-plane
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: scheduler
+
+  template:
+    metadata:
+      labels:
+        app: scheduler
+        component: control-plane
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: desktop-jm5iec6
+
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+      containers:
+      - name: scheduler
+        image: 10.29.182.66:5000/k8s-repo/inference-scheduler:v2.0
+        imagePullPolicy: IfNotPresent
+
+        env:
+        # Hospital pods (medical worker + alexnet part1 merged, per hospital)
+        - name: HOSPITAL_A_URL
+          value: "http://hospital-a-service:8006"
+        - name: HOSPITAL_B_URL
+          value: "http://hospital-b-service:8006"
+        # Clinic pods (pod memory monitor)
+        - name: CLINIC_1_URL
+          value: "http://clinic-1-service:8007"
+        - name: CLINIC_2_URL
+          value: "http://clinic-2-service:8007"
+        # AlexNet part2 / medical server (cloud side, unchanged)
+        - name: PART2_URL
+          value: "http://part2-service:8002/infer"
+        - name: MEDICAL_SERVER_URL
+          value: "http://medical-server-service:9001/infer"
+        # Redis
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        # Concurrency
+        - name: MAX_CONCURRENT
+          value: "4"
+        - name: MAX_QUEUE_SIZE
+          value: "200"
+        # Model profile
+        - name: MODEL_PROFILE_PATH
+          value: "/app/model_profile.yaml"
+
+        ports:
+        - name: http
+          containerPort: 8000
+        - name: metrics
+          containerPort: 9000
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 10
+          failureThreshold: 5
+
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"

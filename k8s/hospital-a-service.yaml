@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: hospital-a-service
+  labels:
+    app: hospital
+    hospital: hospital-a
+
+spec:
+  selector:
+    app: hospital
+    hospital: hospital-a
+
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8006
+    targetPort: 8006
+
+  type: ClusterIP

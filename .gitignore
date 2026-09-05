@@ -1,0 +1,26 @@
+# ---------- Node / frontend ----------
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---------- Runtime / secrets ----------
+*.log
+.env
+.npm-cache/
+.docker-cfg/
+
+# ---------- Large binary / external artifacts ----------
+# 原始鹏城医疗模型代码（含 123MB+ 权重与样例影像），
+# 请从集群 /data/medical-model/weights、Harbor 镜像或本地归档恢复
+z-鹏城医疗模型代码/
+common/part2.pt
+common/part1.pt
+scheduler/latency_model.json
+prediction/latency_model.json

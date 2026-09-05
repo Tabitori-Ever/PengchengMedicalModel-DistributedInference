@@ -1,0 +1,83 @@
+# ==========================================================================
+# Clinic-2 Pod (v2.0) - memory-monitor task, co-located with hospital-b
+# on node2. Uses the clinic ServiceAccount (metrics-reader RBAC).
+# ==========================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: clinic-2
+  labels:
+    app: clinic
+    clinic: clinic-2
+    model: clinic
+    stage: mem
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: clinic
+      clinic: clinic-2
+
+  template:
+    metadata:
+      labels:
+        app: clinic
+        clinic: clinic-2
+        model: clinic
+        stage: mem
+
+    spec:
+      serviceAccountName: clinic
+      nodeSelector:
+        kubernetes.io/hostname: node2
+
+      containers:
+      - name: clinic
+        image: 10.29.182.66:5000/k8s-repo/clinic:v2.0
+        imagePullPolicy: IfNotPresent
+
+        env:
+        - name: CLINIC_NAME
+          value: "clinic-2"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+
+        ports:
+        - name: http
+          containerPort: 8007
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8007
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8007
+          initialDelaySeconds: 10
+          periodSeconds: 20
+          failureThreshold: 3
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

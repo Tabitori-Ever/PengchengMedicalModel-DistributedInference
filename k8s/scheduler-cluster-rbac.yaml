@@ -1,0 +1,34 @@
+# ==========================================================================
+# RBAC for the scheduler (v2.0 cluster editor)
+# Lets the scheduler pod read cluster state and edit (patch / create /
+# delete) the hospital/clinic deployments + their services in the default
+# namespace.  Scoped to the namespaced resources the cluster editor needs;
+# no cluster-wide node/namespace permissions are granted.
+# ==========================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-editor
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "patch", "update", "create", "delete"]
+- apiGroups: [""]
+  resources: ["services", "pods"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-editor-scheduler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-editor
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default

@@ -1,0 +1,79 @@
+# ==========================================================================
+# Hospital-b Pod (v2.0)
+# Merges the old medical-worker (DoubleTower front-end) + AlexNet part1
+# (Conv1-Conv5) into one pod pinned to node2.
+# Raw patient data never leaves this hospital pod.
+# ==========================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: hospital-b
+  labels:
+    app: hospital
+    hospital: hospital-b
+    model: medical
+    stage: worker
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: hospital
+      hospital: hospital-b
+
+  template:
+    metadata:
+      labels:
+        app: hospital
+        hospital: hospital-b
+        model: medical
+        stage: worker
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: node2
+
+      containers:
+      - name: hospital
+        image: 10.29.182.66:5000/k8s-repo/hospital:v2.0
+        imagePullPolicy: IfNotPresent
+
+        env:
+        - name: HOSPITAL_NAME
+          value: "hospital-b"
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MODEL_PATH
+          value: "/app/weights/best_model_fold1.pth"
+
+        ports:
+        - name: http
+          containerPort: 8006
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8006
+          initialDelaySeconds: 180
+          periodSeconds: 15
+          failureThreshold: 6
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8006
+          initialDelaySeconds: 240
+          periodSeconds: 30
+          failureThreshold: 5
+
+        resources:
+          requests:
+            cpu: "1500m"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "6Gi"

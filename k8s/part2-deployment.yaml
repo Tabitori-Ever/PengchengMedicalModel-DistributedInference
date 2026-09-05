@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: part2
+  labels:
+    app: part2
+    model: alexnet
+    stage: part2
+
+spec:
+  # 3 replicas + required per-hostname anti-affinity => exactly one part2 per node
+  # (node1/node2/node3 each host 1), so node3 (4C/8Gi) only keeps 1 part2
+  # alongside the 1 medical-server replica instead of being saturated by 4.
+  replicas: 3
+
+  selector:
+    matchLabels:
+      app: part2
+
+  template:
+    metadata:
+      labels:
+        app: part2
+        model: alexnet
+        stage: part2
+
+    spec:
+      # Primarily deploy on cloud node (node3) for FC computation
+      # But can fall back to edge nodes
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 80
+            preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values: ["cloud"]
+          - weight: 40
+            preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values: ["edge"]
+        podAntiAffinity:
+          # REQUIRED: never co-locate two part2 pods on the same node.
+          # Combined with replicas: 3 this pins the layout to 1 per node.
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app: part2
+
+      containers:
+      - name: part2
+        image: 10.29.182.66:5000/k8s-repo/alexnet-part2:v9
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - name: http
+          containerPort: 8002
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8002
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 5
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8002
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          failureThreshold: 5
+
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"

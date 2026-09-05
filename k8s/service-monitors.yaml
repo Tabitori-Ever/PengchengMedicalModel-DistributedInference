@@ -1,0 +1,80 @@
+# ==========================================================================
+# Prometheus ServiceMonitor CRDs for multi-model inference metrics
+# Requires: Prometheus Operator (kube-prometheus-stack)
+# ==========================================================================
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: scheduler-monitor
+  labels:
+    app: scheduler
+    release: monitoring
+
+spec:
+  selector:
+    matchLabels:
+      app: scheduler
+  endpoints:
+  - port: metrics
+    interval: 5s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: hospital-monitor
+  labels:
+    app: hospital
+    release: monitoring
+
+spec:
+  selector:
+    matchLabels:
+      app: hospital
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: clinic-monitor
+  labels:
+    app: clinic
+    release: monitoring
+
+spec:
+  selector:
+    matchLabels:
+      app: clinic
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: medical-server-monitor
+  labels:
+    app: medical-server
+    release: monitoring
+
+spec:
+  selector:
+    matchLabels:
+      app: medical-server
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics

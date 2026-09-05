@@ -1,0 +1,36 @@
+# ==========================================================================
+# RBAC for clinic pods (v2.0)
+# Grants the clinic ServiceAccount read access to pods and pod metrics so a
+# clinic can report the memory usage of an explicitly requested pod.
+# Self queries never need this (they read the local cgroup).
+# ==========================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: clinic
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-metrics-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clinic-pod-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pod-metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: clinic
+  namespace: default

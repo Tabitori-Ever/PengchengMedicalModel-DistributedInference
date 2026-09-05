@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: prediction
+  labels:
+    app: prediction
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: prediction
+
+  template:
+    metadata:
+      labels:
+        app: prediction
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: desktop-jm5iec6
+
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+      containers:
+      - name: prediction
+        image: 10.29.182.66:5000/k8s-repo/inference-prediction:v1.0
+        imagePullPolicy: IfNotPresent
+
+        env:
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: PROMETHEUS_URL
+          value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+        - name: MONITORING_URL
+          value: "http://monitoring-service:8005"
+
+        ports:
+        - name: http
+          containerPort: 8003
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8003
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8003
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: prediction-service
+  labels:
+    app: prediction
+
+spec:
+  selector:
+    app: prediction
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8003
+    targetPort: 8003
+    nodePort: 30083
+  type: NodePort

@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: monitoring
+  labels:
+    app: monitoring
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: monitoring
+
+  template:
+    metadata:
+      labels:
+        app: monitoring
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: desktop-jm5iec6
+
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+      containers:
+      - name: monitoring
+        image: 10.29.182.66:5000/k8s-repo/inference-monitoring:v1.0
+        imagePullPolicy: IfNotPresent
+
+        env:
+        - name: PROMETHEUS_URL
+          value: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+
+        ports:
+        - name: http
+          containerPort: 8005
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8005
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: monitoring-service
+  labels:
+    app: monitoring
+
+spec:
+  selector:
+    app: monitoring
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8005
+    targetPort: 8005
+    nodePort: 30090
+  type: NodePort

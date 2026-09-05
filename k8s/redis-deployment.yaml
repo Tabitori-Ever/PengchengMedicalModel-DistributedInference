@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: redis
+  labels:
+    app: redis
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: redis
+
+  template:
+    metadata:
+      labels:
+        app: redis
+
+    spec:
+      # Pin to one node so the hostPath AOF/RDB data stays with the pod
+      # (no StorageClass/PVC available in this cluster).
+      nodeSelector:
+        kubernetes.io/hostname: node3
+
+      containers:
+      - name: redis
+        # Use internal Harbor image (nodes have no egress to docker.io)
+        image: 10.29.182.66:5000/k8s-repo/redis:6-alpine
+        imagePullPolicy: IfNotPresent
+
+        # Persist task history / profiling data: AOF (appendfsync everysec)
+        # + periodic RDB snapshots on the node's hostPath volume.
+        # protected-mode off + bind all: same reachability as the image default
+        # the platform relied on before (reachable only via ClusterIP inside k8s).
+        command: ["redis-server", "--protected-mode", "no", "--bind", "0.0.0.0",
+                  "--appendonly", "yes", "--appendfsync", "everysec",
+                  "--save", "60", "1", "--dir", "/data"]
+
+        ports:
+        - containerPort: 6379
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+
+      volumes:
+      - name: redis-data
+        hostPath:
+          path: /data/redis-data
+          type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: redis-service
+  labels:
+    app: redis
+
+spec:
+  selector:
+    app: redis
+  ports:
+  - protocol: TCP
+    port: 6379
+    targetPort: 6379
+  type: ClusterIP
