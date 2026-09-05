@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useTicker } from '../hooks';
 import ClusterMap from '../components/ClusterMap';
 import PodPanel from '../components/PodPanel';
-import { canonicalEntities } from '../utils';
+import { canonicalEntities, IMG_CLINIC } from '../utils';
 import type { ApplyResult, ClusterDefault, ClusterStatus, EntityModel, EntityLive } from '../types';
 
 const EMPTY_RES: { requests: { cpu: string; memory: string }; limits: { cpu: string; memory: string } } = {
@@ -109,7 +109,8 @@ export default function ClusterPage() {
         ...d,
         [id]: {
           kind: 'clinic', affinity: 'fixed', node: addNode, replicas: 1,
-          image: '', resources: JSON.parse(JSON.stringify(EMPTY_RES)), labels: {},
+          image: IMG_CLINIC,
+          resources: JSON.parse(JSON.stringify(EMPTY_RES)), labels: {},
         },
       };
     });

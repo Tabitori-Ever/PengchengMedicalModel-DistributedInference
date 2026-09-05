@@ -13,6 +13,10 @@ export const MODEL_COLOR: Record<string, string> = {
   hospital: '#0ea5e9',  // sky (kind)
 };
 
+// Default image tags for newly added clinic pods (v2.0.1 = metrics fix)
+export const IMG_CLINIC = '10.29.182.66:5000/k8s-repo/clinic:v2.0.1';
+export const IMG_HOSPITAL = '10.29.182.66:5000/k8s-repo/hospital:v2.0';
+
 export const STATUS_LABEL: Record<string, string> = {
   running: '运行中',
   queued: '排队中',

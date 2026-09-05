@@ -26,6 +26,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY scheduler/ /app/scheduler/
 # v2.0: React frontend build output served at /app (mounted in api.py)
 COPY frontend/dist/ /app/frontend/dist/
+# v2.0.2: preprocessed test patients for /test/patients & /schedule/preprocessed
+COPY test/test_dataset.json /app/test/test_dataset.json
 COPY model_profile.yaml /app/
 
 EXPOSE 8000 9000

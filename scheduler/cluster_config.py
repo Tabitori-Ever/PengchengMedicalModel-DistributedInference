@@ -31,8 +31,10 @@ FIXED_NODES_READONLY = ["node3", "desktop-jm5iec6"]
 ALL_NODES = EDGE_NODES + FIXED_NODES_READONLY
 
 IMAGE_HOSPITAL = f"{REGISTRY}/hospital:v2.0"
-IMAGE_CLINIC = f"{REGISTRY}/clinic:v2.0"
-IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0"
+# 注意：clinic/scheduler 的 v2.0.1 修复了 metrics 用量解析/part2 探测，
+# 默认模型必须指向修复版，否则 reset 会把运行中的镜像“降级”回有 bug 的 v2.0。
+IMAGE_CLINIC = f"{REGISTRY}/clinic:v2.0.1"
+IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0.2"
 
 DEFAULT_RESOURCES = {
     "hospital": {
@@ -251,7 +253,9 @@ def canonicalize_entity(entity: dict, eid: str) -> Dict[str, Any]:
     merged["affinity"] = merged.get("affinity") or defaults.get("affinity", "fixed")
     merged["node"] = merged.get("node") or defaults.get("node")
     merged["replicas"] = int(merged.get("replicas", 1))
-    merged["image"] = merged.get("image") or defaults.get("image")
+    merged["image"] = (merged.get("image") or defaults.get("image")
+                       or (IMAGE_HOSPITAL if merged["kind"] == "hospital"
+                           else IMAGE_CLINIC))
     merged["resources"] = merged.get("resources") or defaults.get("resources")
     merged["labels"] = merged.get("labels") or {}
     return merged

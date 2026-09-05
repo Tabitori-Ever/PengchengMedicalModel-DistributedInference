@@ -363,6 +363,21 @@ def _patch_body_for(eid: str, entity: dict) -> Dict[str, Any]:
     return patch
 
 
+def _k8s_err(e: Exception, prefix: str = "") -> str:
+    """Human-readable message from a kubernetes ApiException (body carries
+    the real validation reason, e.g. empty image)."""
+    body = getattr(e, "body", None)
+    if body:
+        try:
+            parsed = json.loads(body)
+            msg = parsed.get("message") if isinstance(parsed, dict) else str(parsed)
+            if msg:
+                return (prefix + msg)[:500]
+        except Exception:
+            return (prefix + str(body))[:500]
+    return (prefix + str(e))[:500]
+
+
 # --------------------------------------------------------------------------- #
 # Apply / reset
 # --------------------------------------------------------------------------- #
@@ -389,7 +404,7 @@ def _apply_model(model: Dict[str, Any]) -> Dict[str, Any]:
                                "message": "已删除 clinic 部署与服务"})
             except Exception as e:
                 report.append({"name": eid, "action": "delete-failed",
-                               "message": str(e)[:200]})
+                               "message": _k8s_err(e, f"{eid} 删除失败: ")})
 
     # --- creates (new clinic pods) then patches ---
     for eid, ent in desired.items():
@@ -412,7 +427,7 @@ def _apply_model(model: Dict[str, Any]) -> Dict[str, Any]:
                                "message": f"已创建 clinic（{ent.get('node') or 'role=edge'}）"})
             except Exception as e:
                 report.append({"name": eid, "action": "create-failed",
-                               "message": str(e)[:200]})
+                               "message": _k8s_err(e, f"{eid} 创建失败: ")})
             continue
 
         # existing editable deployment -> patch
@@ -427,7 +442,7 @@ def _apply_model(model: Dict[str, Any]) -> Dict[str, Any]:
             })
         except Exception as e:
             report.append({"name": eid, "action": "patch-failed",
-                           "message": str(e)[:200]})
+                           "message": _k8s_err(e, f"{eid} 更新失败: ")})
 
     failed = [r for r in report if r["action"].endswith("failed")]
     return {"ok": len(failed) == 0, "errors": [r["message"] for r in failed],
@@ -468,5 +483,6 @@ def cluster_restart(req: RestartRequest):
     try:
         apps.patch_namespaced_deployment(name, NAMESPACE, body)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"重启失败: {str(e)[:200]}")
+        raise HTTPException(status_code=500,
+                            detail=_k8s_err(e, "重启失败: "))
     return {"ok": True, "deployment": name, "restartedAt": now}

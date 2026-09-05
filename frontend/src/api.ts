@@ -37,7 +37,11 @@ export const api = {
     hospital: string; priority: number; deadline: string; image: unknown;
   }): Promise<{ task_id: string }> =>
     (await http.post('/schedule/task', {
-      model: 'alexnet', ...body,
+      model: 'alexnet',
+      hospital: body.hospital,
+      priority: body.priority,
+      deadline: body.deadline,
+      input: { image: body.image },   // scheduler 期望 input.image
     })).data,
 
   submitClinic: async (body: {
