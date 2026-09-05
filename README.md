@@ -97,7 +97,7 @@
 ### 2. 构建并推送镜像（v2.0）
 
 ```bash
-bash build.sh        # 构建并推送 scheduler(v2.0.2)/hospital(v2.0)/clinic(v2.0.1)
+bash build.sh        # 构建并推送 scheduler(v2.0.3)/hospital(v2.0)/clinic(v2.0.1)
 ```
 
 ### 3. 部署
@@ -161,15 +161,16 @@ curl -s http://<control-plane>:30080/cluster/default
 
 | 镜像 | tag | 说明 |
 |---|---|---|
-| `k8s-repo/inference-scheduler` | v2.0.2 | 控制面 + /cluster API + React 前端(dist) + 内置测试患者数据 |
+| `k8s-repo/inference-scheduler` | v2.0.3 | 控制面 + /cluster API + React 前端(dist) + 内置测试患者数据 |
 | `k8s-repo/hospital` | v2.0 | worker + part1 合并，~1.8GB |
 | `k8s-repo/clinic` | v2.0.1 | 内存监控（metrics 用量解析修复） |
 | `k8s-repo/medical-server` / `k8s-repo/alexnet-part2` | v1.0 | 云端，未变更 |
 
 > tag 演进：v2.0 架构版 → v2.0.1（clinic metrics 量纲解析、scheduler part2 探测）→
 > v2.0.2（scheduler 内置 `/test/patients` 数据集、前端 AlexNet 请求改为 `input.image`、
-> 新增 clinic 默认镜像、reset 不再把 clinic 降级回旧版）。`build.sh` 按各镜像 tag 分别构建。
-> 详细演进见 [`版本记录.md`](版本记录.md)。
+> 新增 clinic 默认镜像、reset 不再把 clinic 降级回旧版）→
+> v2.0.3（节点负载改由 metrics-server 实时计算、提交结果内联展示任务详情）。
+> `build.sh` 按各镜像 tag 分别构建。详细演进见 [`版本记录.md`](版本记录.md)。
 
 ## 运维要点
 

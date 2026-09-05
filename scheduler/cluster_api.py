@@ -16,6 +16,7 @@ Endpoints:
     POST /cluster/restart  - rollout restart of one editable deployment
 """
 import json
+import os
 import time
 from datetime import datetime, timezone
 
@@ -188,16 +189,108 @@ def _live_readonly(apps, core) -> List[dict]:
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
+# ---- node load from kube metrics-server (fast, no Prometheus dependency) ----
+def _kube_api_get(path: str, timeout: float = 6.0):
+    """GET an aggregated/core API path using the scheduler SA token."""
+    token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    if not os.path.exists(token_path):
+        raise RuntimeError("not running in-cluster")
+    with open(token_path, "r") as f:
+        token = f.read().strip()
+    import ssl
+    import urllib.request
+    ctx = ssl.create_default_context()
+    if os.path.exists(ca_path):
+        ctx.load_verify_locations(ca_path)
+    else:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request("https://kubernetes.default.svc" + path)
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/json")
+    with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _parse_cpu_cores(value: str) -> Optional[float]:
+    """Parse a k8s CPU quantity into fractional cores."""
+    if not value:
+        return None
+    v = str(value).strip()
+    mult = 1.0
+    if v.endswith("n"):
+        mult, v = 1e-9, v[:-1]
+    elif v.endswith("u"):
+        mult, v = 1e-6, v[:-1]
+    elif v.endswith("m"):
+        mult, v = 1e-3, v[:-1]
+    try:
+        return round(float(v) * mult, 4)
+    except ValueError:
+        return None
+
+
+def _parse_mem_bytes(value: str) -> Optional[int]:
+    """Parse a k8s memory quantity ('1234Ki'/'1Gi'/'500Mi'/'123456') to bytes."""
+    if not value:
+        return None
+    v = str(value).strip()
+    mult = 1
+    for suf, m in (("Ki", 1024), ("Mi", 1024 ** 2), ("Gi", 1024 ** 3),
+                   ("Ti", 1024 ** 4), ("K", 1000), ("M", 1000 ** 2),
+                   ("G", 1000 ** 3), ("T", 1000 ** 4)):
+        if v.endswith(suf):
+            mult, v = m, v[:-len(suf)]
+            break
+    try:
+        return int(float(v) * mult)
+    except ValueError:
+        return None
+
+
+def _node_loads() -> Dict[str, dict]:
+    """Compute node CPU/mem usage percentages from metrics-server + allocatable.
+
+    Returns {node: {"cpu": 0-1, "memory": 0-1, "gpu": 0}}; never blocks for
+    long (single aggregated API call, short timeout).
+    """
+    try:
+        usage_by_node = {}
+        nodes_raw = _kube_api_get("/apis/metrics.k8s.io/v1beta1/nodes", 5.0)
+        for item in nodes_raw.get("items", []):
+            usage = item.get("usage", {})
+            cpu = _parse_cpu_cores(usage.get("cpu"))
+            mem = _parse_mem_bytes(usage.get("memory"))
+            usage_by_node[item["metadata"]["name"]] = (cpu, mem)
+
+        alloc = {}
+        apps, core, _ = get_kube_clients()
+        if not core:
+            return {}
+        for n in core.list_node().items:
+            a = n.status.allocatable or {}
+            alloc[n.metadata.name] = (a.get("cpu"), a.get("memory"))
+
+        result = {}
+        for name, (cpu_u, mem_u) in usage_by_node.items():
+            a = alloc.get(name, (None, None))
+            cpu_a = _parse_cpu_cores(a[0]) if a[0] else None
+            mem_a = _parse_mem_bytes(a[1]) if a[1] else None
+            result[name] = {
+                "cpu": round(cpu_u / cpu_a, 3) if (cpu_u and cpu_a) else 0.0,
+                "memory": round(mem_u / mem_a, 3) if (mem_u and mem_a) else 0.0,
+                "gpu": 0.0,
+            }
+        return result
+    except Exception:
+        return {}
+
+
 @router.get("/status")
 def cluster_status():
     """Live cluster topology + editable entities + readonly deployments."""
-    nodes_status = {}
-    try:
-        from .resource_monitor import ResourceMonitor
-        rm = ResourceMonitor()
-        nodes_status = rm.get_all_nodes()
-    except Exception:
-        pass
+    nodes_loads = _node_loads()
 
     payload: Dict[str, Any] = {
         "version": cc.VERSION,
@@ -213,9 +306,9 @@ def cluster_status():
         payload["ok"] = False
         payload["error"] = err
         payload["nodes"] = [
-            {"name": n, "role": info.get("role"), "load": {
-                "cpu": info.get("cpu", 0), "memory": info.get("memory", 0),
-                "gpu": info.get("gpu", 0)}} for n, info in nodes_status.items()
+            {"name": n, "role": nodes_loads.get(n, {}).get("role"),
+             "load": nodes_loads.get(n) or {
+                 "cpu": 0.0, "memory": 0.0, "gpu": 0.0}} for n in nodes_loads
         ]
         return payload
 
@@ -227,16 +320,9 @@ def cluster_status():
             role = labels["role"]
         elif "node-role.kubernetes.io/control-plane" in labels:
             role = "control-plane"
-        info = nodes_status.get(n.metadata.name, {})
         ready = any(c.type == "Ready" and c.status == "True"
                     for c in n.status.conditions or [])
-        load = None
-        if info:
-            load = {
-                "cpu": round(float(info.get("cpu", 0)), 3),
-                "memory": round(float(info.get("memory", 0)), 3),
-                "gpu": round(float(info.get("gpu", 0)), 3),
-            }
+        load = nodes_loads.get(n.metadata.name)
         payload["nodes"].append({
             "name": n.metadata.name,
             "role": role,

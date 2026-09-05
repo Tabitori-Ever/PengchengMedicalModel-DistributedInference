@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { useTicker } from '../hooks';
-import type { Patient, TaskResult } from '../types';
+import TaskResultView from '../components/TaskResultView';
+import type { Patient, TaskItem, TaskResult } from '../types';
 import { MODEL_LABEL } from '../utils';
 
 type Tab = 'medical' | 'alexnet' | 'clinic';
@@ -15,6 +15,37 @@ export default function SubmitPage() {
   const [err, setErr] = useState('');
   const [taskId, setTaskId] = useState('');
   const [poll, setPoll] = useState<TaskResult | null>(null);
+  const [item, setItem] = useState<TaskItem | null>(null);
+  const fetchedRef = useRef(false);
+
+  // poll the submitted task; once it reaches a terminal state, also load the
+  // full task record so the rich result (bpCR / class / memory / waterfall)
+  // is rendered right here on the submit page.
+  useEffect(() => {
+    if (!taskId) return undefined;
+    fetchedRef.current = false;
+    setPoll(null);
+    setItem(null);
+    let disposed = false;
+    const iv = window.setInterval(async () => {
+      try {
+        const r = await api.taskResult(taskId);
+        if (disposed) return;
+        setPoll(r);
+        if (['finished', 'completed', 'failed'].includes(r.status)) {
+          if (!fetchedRef.current) {
+            fetchedRef.current = true;
+            try {
+              const detail = await api.taskDetail(taskId);
+              if (!disposed) setItem(detail);
+            } catch { /* keep light result */ }
+          }
+          window.clearInterval(iv);
+        }
+      } catch { /* keep polling */ }
+    }, 1500);
+    return () => { disposed = true; window.clearInterval(iv); };
+  }, [taskId]);
 
   return (
     <div className="page narrow">
@@ -28,7 +59,7 @@ export default function SubmitPage() {
           <button
             key={t}
             className={`seg-btn ${tab === t ? 'on' : ''}`}
-            onClick={() => { setTab(t); setErr(''); setTaskId(''); setPoll(null); }}
+            onClick={() => { setTab(t); setErr(''); setTaskId(''); setPoll(null); setItem(null); }}
           >
             {MODEL_LABEL[t]}
           </button>
@@ -46,12 +77,15 @@ export default function SubmitPage() {
       {taskId && (
         <div className="card">
           <div className="card-headrow">
-            <h3 className="card-title">提交结果</h3>
-            <Link className="link" to={`/history`}>在任务记录中查看 →</Link>
+            <h3 className="card-title">提交结果 · {MODEL_LABEL[tab]}</h3>
+            <Link className="link" to="/history">在任务记录中查看 →</Link>
           </div>
-          <div className="mono">{taskId}</div>
-          <PollTask taskId={taskId} onPoll={setPoll} />
-          {poll && <MiniStatus poll={poll} />}
+          <div className="mono mb">{taskId}</div>
+          {poll ? (
+            <TaskResultView task={item} live={poll} />
+          ) : (
+            <div className="empty">等待调度器响应…</div>
+          )}
         </div>
       )}
 
@@ -342,24 +376,5 @@ function ClinicForm({ onDone, busy, setBusy, onErr }: FormProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-function PollTask({ taskId, onPoll }: { taskId: string; onPoll: (r: TaskResult) => void }) {
-  useTicker(async () => {
-    try {
-      const r = await api.taskResult(taskId);
-      onPoll(r);
-    } catch { /* keep polling */ }
-  }, 2000);
-  return null;
-}
+// (results now rendered inline on this page via TaskResultView)
 
-function MiniStatus({ poll }: { poll: TaskResult }) {
-  const s = poll.status;
-  return (
-    <div className={`mini-status st-${s}`}>
-      {s === 'finished' || s === 'completed' ? '✓ 已完成' :
-        s === 'failed' ? `✗ 失败：${poll.error || ''}` :
-          `运行中 · 阶段 ${poll.stage || ''}${poll.progress != null ? ` · ${poll.progress}%` : ''}`}
-    </div>
-  );
-}
