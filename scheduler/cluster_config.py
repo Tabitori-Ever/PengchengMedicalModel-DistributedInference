@@ -34,7 +34,7 @@ IMAGE_HOSPITAL = f"{REGISTRY}/hospital:v2.0"
 # 注意：clinic/scheduler 的 v2.0.1 修复了 metrics 用量解析/part2 探测，
 # 默认模型必须指向修复版，否则 reset 会把运行中的镜像“降级”回有 bug 的 v2.0。
 IMAGE_CLINIC = f"{REGISTRY}/clinic:v2.0.1"
-IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0.5"
+IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0.6"
 
 DEFAULT_RESOURCES = {
     "hospital": {
@@ -135,10 +135,15 @@ def validate_model(model: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(editable, dict):
         return {"ok": False, "errors": ["模型缺少 editable 对象"], "warnings": []}
 
-    # 1) default entities cannot be removed
+    # 1) default entities: hospitals are mandatory, clinics may be removed
+    #    (restorable at any time via POST /cluster/reset)
     for eid in DEFAULT_EDITABLE:
         if eid not in editable:
-            errors.append(f"默认实体 {eid} 不能移除")
+            if DEFAULT_EDITABLE[eid]["kind"] == "hospital":
+                errors.append(f"默认医院实体 {eid} 不能移除")
+            else:
+                warnings.append(
+                    f"默认 clinic {eid} 已被移除（点击“重置”可恢复）")
 
     # 2) per-entity checks
     for eid, ent in editable.items():

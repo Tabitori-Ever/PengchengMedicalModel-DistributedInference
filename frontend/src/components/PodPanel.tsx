@@ -139,10 +139,21 @@ export default function PodPanel({ id, ent, live, isDefault, edgeNodes, onChange
 
       <div className="pp-actions">
         <button className="btn secondary sm" onClick={() => onRestart(id)}>重启 (滚动更新)</button>
-        {!isDefault && (
-          <button className="btn danger sm" onClick={() => onDelete(id)}>移除该 Pod</button>
+        {ent.kind === 'clinic' && (
+          <button className="btn danger sm" onClick={() => onDelete(id)}>
+            删除该 Clinic Pod
+          </button>
         )}
       </div>
+      {ent.kind === 'clinic' ? (
+        <div className="muted xs">
+          删除后需点击「应用」才会从集群移除；「重置」可恢复默认（含 clinic-1/2）。
+        </div>
+      ) : (
+        <div className="muted xs">
+          hospital 为医院核心实体（承载医疗前端与 part1），不可删除；可拖动换节点或修改右侧参数。
+        </div>
+      )}
     </div>
   );
 }

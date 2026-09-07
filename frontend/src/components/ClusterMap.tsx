@@ -60,6 +60,8 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
   };
 
   const startDrag = (e: React.PointerEvent, id: string) => {
+    // select immediately (click and drag both pick this pod)
+    onPick(id);
     const ent = desired[id];
     if (!ent || ent.affinity !== 'fixed' || ent.replicas !== 1) return;
     e.stopPropagation();
@@ -196,7 +198,7 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
             className={`pod ${ent.kind} ${selected === id ? 'sel' : ''} ${pending ? 'pending' : ''}`}
             transform={`translate(${pos.x},${pos.y})`}
             onPointerDown={(e) => startDrag(e, id)}
-            onClick={(e) => { e.stopPropagation(); if (!drag) onPick(id); }}>
+            onClick={(e) => { e.stopPropagation(); onPick(id); }}>
             <circle r={r + 8} className="pod-halo" />
             <circle r={r} fill={KIND_COLOR[ent.kind]} stroke="#fff" strokeWidth={3}
               className={unready ? 'unready' : ''} />

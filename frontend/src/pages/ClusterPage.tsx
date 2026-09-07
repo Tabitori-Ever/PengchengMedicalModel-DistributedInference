@@ -120,13 +120,16 @@ export default function ClusterPage() {
   const removeClinic = (id: string) =>
     setDesired((d) => {
       if (!d) return d;
-      if (defaultIds.has(id)) {
-        notify('err', `${id} 是默认实体，不能移除`);
+      if (d[id]?.kind !== 'clinic') {
+        notify('err', `${id} 是医院核心实体，不能删除（可拖动换节点或改参数）`);
         return d;
       }
       const next = { ...d };
       delete next[id];
-      notify('ok', `${id} 已从草稿移除，点击“应用”后删除集群中的部署`);
+      const first = Object.keys(next).sort()[0];
+      setSelected(first || '');
+      notify('ok',
+        `${id} 已从草稿移除，点击“应用”后删除集群中的部署与实例；点击“重置”可恢复默认（含 clinic-1/2）`);
       return next;
     });
 

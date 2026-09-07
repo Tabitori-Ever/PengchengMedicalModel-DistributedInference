@@ -161,7 +161,7 @@ curl -s http://<control-plane>:30080/cluster/default
 
 | 镜像 | tag | 说明 |
 |---|---|---|
-| `k8s-repo/inference-scheduler` | v2.0.5 | 控制面 + /cluster API + React 前端(dist) + 内置测试患者数据 |
+| `k8s-repo/inference-scheduler` | v2.0.6 | 控制面 + /cluster API + React 前端(dist) + 内置测试患者数据 |
 | `k8s-repo/hospital` | v2.0 | worker + part1 合并，~1.8GB |
 | `k8s-repo/clinic` | v2.0.1 | 内存监控（metrics 用量解析修复） |
 | `k8s-repo/alexnet-part2` | v2.0.1 | FC 层（softmax 置信度归一化 ≤100%） |
@@ -171,7 +171,8 @@ curl -s http://<control-plane>:30080/cluster/default
 > v2.0.2（内置患者数据集、前端 AlexNet `input.image`、clinic 默认镜像）→
 > v2.0.3（节点负载 metrics-server 实时化、提交结果内联）→
 > v2.0.4/v2.0.5（新增 `/cluster/summary` 轻量快照、任务终态自动移除大体积 input、
-> AlexNet 内置轻量样本集、降低前端轮询频率）。
+> AlexNet 内置轻量样本集、降低前端轮询频率）→
+> v2.0.6（集群编辑器：点击任一 Pod 立即切换右侧详情、clinic Pod 可删除（重置可恢复））。
 > `build.sh` 按各镜像 tag 分别构建。详细演进见 [`版本记录.md`](版本记录.md)。
 
 ## 运维要点

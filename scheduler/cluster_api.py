@@ -537,9 +537,10 @@ def _apply_model(model: Dict[str, Any]) -> Dict[str, Any]:
     live = _live_editable(apps, core)
     report: List[dict] = []
 
-    # --- deletions: extra clinics that disappeared from the desired model ---
+    # --- deletions: any clinic absent from the desired model is removed
+    # (default clinic-1/clinic-2 included; reset restores them) ---
     for eid in live:
-        if eid not in cc.DEFAULT_EDITABLE and eid not in desired and live[eid]["kind"] == "clinic":
+        if eid not in desired and live[eid]["kind"] == "clinic":
             try:
                 apps.delete_namespaced_deployment(eid, NAMESPACE)
                 core.delete_namespaced_service(f"{eid}-service", NAMESPACE)
