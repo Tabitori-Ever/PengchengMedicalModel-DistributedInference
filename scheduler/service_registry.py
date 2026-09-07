@@ -67,7 +67,11 @@ def dc(path: str = "") -> str:
 
 
 def medical_server_url() -> str:
-    return MEDICAL_SERVER_URL
+    """Data center medical-server infer URL (normalizes trailing /infer)."""
+    base = MEDICAL_SERVER_URL
+    if base.endswith("/infer"):
+        return base
+    return base.rstrip("/") + "/infer"
 
 
 def pick_hospital(source: Optional[str], prefer: Optional[str] = None) -> str:

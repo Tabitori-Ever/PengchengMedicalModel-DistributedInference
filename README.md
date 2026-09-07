@@ -91,7 +91,7 @@ python test/run_v3_comprehensive.py --base http://localhost:30080
 
 | 镜像 | tag | 说明 |
 |---|---|---|
-| `k8s-repo/inference-scheduler` | v3.0 | 控制面(迁 node3) + /cluster/* + React 前端 + 测试数据 |
+| `k8s-repo/inference-scheduler` | v3.0.2 | 控制面(迁 node3) + /cluster/* + React 前端 + 测试数据 |
 | `k8s-repo/hospital` | v3.0 | 边：诊断 worker + v3 worker（无 part1） |
 | `k8s-repo/clinic` | v3.0 | 端：v3 worker + 日常 Job 入口 |
 | `k8s-repo/dc` | v3.0 | 数据中心：患者库 + 协同计算/备份 |

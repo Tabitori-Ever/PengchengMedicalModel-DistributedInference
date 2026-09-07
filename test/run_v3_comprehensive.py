@@ -48,6 +48,7 @@ def poll(task_id: str, wait: float = 600):
 
 
 def main():
+    global BASE
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default=BASE)
     ap.add_argument("--diagnosis", type=int, default=2)
@@ -55,7 +56,6 @@ def main():
     ap.add_argument("--sync", type=int, default=1)
     ap.add_argument("--routine", type=int, default=3)
     args = ap.parse_args()
-    global BASE
     BASE = args.base
 
     patients = get("/test/patients")

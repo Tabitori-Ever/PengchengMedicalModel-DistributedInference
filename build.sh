@@ -9,11 +9,12 @@ set -e
 
 REGISTRY="${REGISTRY:-10.29.182.66:5000}"
 PROJECT="${PROJECT:-k8s-repo}"
+SCHED_TAG="${SCHED_TAG:-v3.0.2}"
 TAG="${TAG:-v3.0}"
 
 echo "============================================"
 echo "v3.0 Build (data center / hospital / clinic)"
-echo "  Registry: ${REGISTRY}/${PROJECT}   Tag: ${TAG}"
+echo "  Registry: ${REGISTRY}/${PROJECT}   scheduler=${SCHED_TAG} other=${TAG}"
 echo ""
 
 # [0] Build frontend (React dist) - bundled into the scheduler image
@@ -21,8 +22,8 @@ echo "[0/5] Building frontend (React)..."
 (cd frontend && if [ -d node_modules ]; then npm run build; else npm ci && npm run build; fi)
 
 echo "[1/5] Building scheduler (incl. frontend + test dataset)..."
-docker build -t inference-scheduler:${TAG} -f scheduler/Dockerfile .
-docker tag inference-scheduler:${TAG} ${REGISTRY}/${PROJECT}/inference-scheduler:${TAG}
+docker build -t inference-scheduler:${SCHED_TAG} -f scheduler/Dockerfile .
+docker tag inference-scheduler:${SCHED_TAG} ${REGISTRY}/${PROJECT}/inference-scheduler:${SCHED_TAG}
 
 echo "[2/5] Building hospital (edge)..."
 docker build -t hospital:${TAG} -f hospital/Dockerfile .
@@ -37,7 +38,8 @@ docker build -t dc:${TAG} -f dc/Dockerfile .
 docker tag dc:${TAG} ${REGISTRY}/${PROJECT}/dc:${TAG}
 
 echo "[5/5] Pushing images..."
-for img in inference-scheduler hospital clinic dc; do
+docker push ${REGISTRY}/${PROJECT}/inference-scheduler:${SCHED_TAG}
+for img in hospital clinic dc; do
   docker push ${REGISTRY}/${PROJECT}/${img}:${TAG}
 done
 

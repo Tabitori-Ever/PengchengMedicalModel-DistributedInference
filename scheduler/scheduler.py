@@ -23,13 +23,13 @@ from urllib3.util.retry import Retry
 
 from .task_manager import create_task, update_task, complete_task, fail_task
 from .redis_client import (
-    get_task, enqueue_task, redis_set, REDIS_AVAILABLE,
+    get_task, enqueue_task, redis_set, redis_get, REDIS_AVAILABLE,
     get_queue_length as redis_queue_len,
 )
 from .metrics import inference_latency
 from .service_registry import (
-    MEDICAL_SERVER_URL, clinic_base, hospital_base,
-    is_clinic, is_source, pick_hospital, dc,
+    clinic_base, hospital_base, is_clinic, is_source,
+    medical_server_url, pick_hospital, dc,
 )
 from . import node_usage as usage
 from . import kubeops
@@ -171,7 +171,7 @@ class InferenceScheduler:
         sstart = time.perf_counter()
         try:
             r = _session().post(
-                MEDICAL_SERVER_URL,
+                medical_server_url(),
                 json={"dce_features": worker.get("dce_features"),
                       "dwi_features": worker.get("dwi_features"),
                       "clinical_features": worker.get("clinical_features"),

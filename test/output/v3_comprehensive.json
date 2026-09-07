@@ -1,0 +1,655 @@
+[
+  {
+    "kind": "diagnosis",
+    "source": "hospital-a",
+    "task_id": "202609070346401327",
+    "note": "医院直接执行",
+    "status": "completed",
+    "error": null,
+    "result": {
+      "initiator": {
+        "entity": "hospital-a",
+        "role": "edge",
+        "node": "node1",
+        "priority": 5,
+        "deadline": "120s",
+        "queued_at": "2026-09-07T03:46:40.451476"
+      },
+      "forwarded_to": null,
+      "stages": [
+        {
+          "name": "worker",
+          "actor": "hospital-a",
+          "node": "hospital-a",
+          "ms": 7093.36,
+          "detail": "医院 Pod 医疗前端"
+        },
+        {
+          "name": "server",
+          "actor": "datacenter",
+          "node": "node3",
+          "ms": 5876.74,
+          "detail": "DC medical-server"
+        }
+      ],
+      "result_detail": {
+        "predictions": [
+          {
+            "patient_id": "1404920",
+            "bpCR_probability": 0.442733,
+            "prediction": 0
+          }
+        ],
+        "bpCR_probability": 0.442733,
+        "worker_latency_ms": 15.462268998817308,
+        "server_latency_ms": 210.56989099997736
+      },
+      "metrics": {
+        "pipeline_total_ms": 13413.380255999982,
+        "e2e_total_ms": 13413.380255999982
+      }
+    }
+  },
+  {
+    "kind": "diagnosis",
+    "source": "clinic-1",
+    "task_id": "20260907034642b470",
+    "note": "clinic 发起(自动转诊)",
+    "status": "completed",
+    "error": null,
+    "result": {
+      "initiator": {
+        "entity": "clinic-1",
+        "role": "terminal",
+        "node": "node1",
+        "priority": 5,
+        "deadline": "120s",
+        "queued_at": "2026-09-07T03:46:42.064036"
+      },
+      "forwarded_to": "hospital-a",
+      "stages": [
+        {
+          "name": "worker",
+          "actor": "hospital-a",
+          "node": "hospital-a",
+          "ms": 10296.5,
+          "detail": "医院 Pod 医疗前端"
+        },
+        {
+          "name": "server",
+          "actor": "datacenter",
+          "node": "node3",
+          "ms": 1023.36,
+          "detail": "DC medical-server"
+        }
+      ],
+      "result_detail": {
+        "predictions": [
+          {
+            "patient_id": "1404920",
+            "bpCR_probability": 0.442733,
+            "prediction": 0
+          }
+        ],
+        "bpCR_probability": 0.442733,
+        "worker_latency_ms": 14.537884999299422,
+        "server_latency_ms": 402.38051600044855
+      },
+      "metrics": {
+        "pipeline_total_ms": 11697.607568999956,
+        "e2e_total_ms": 11697.607568999956
+      }
+    }
+  },
+  {
+    "kind": "compute",
+    "source": "hospital-a",
+    "task_id": "20260907034642904f",
+    "note": "",
+    "status": "completed",
+    "error": null,
+    "result": {
+      "initiator": {
+        "entity": "hospital-a",
+        "role": "edge",
+        "node": "node1",
+        "priority": 5,
+        "deadline": "120s",
+        "queued_at": "2026-09-07T03:46:42.292370"
+      },
+      "stages": [
+        {
+          "name": "compute",
+          "actor": "hospital-a",
+          "node": "node1",
+          "ms": 388.68,
+          "detail": "分区 1/3"
+        },
+        {
+          "name": "compute",
+          "actor": "datacenter",
+          "node": "node3",
+          "ms": 39.11,
+          "detail": "分区 2/3"
+        },
+        {
+          "name": "compute",
+          "actor": "hospital-b",
+          "node": "node2",
+          "ms": 72.26,
+          "detail": "分区 3/3"
+        }
+      ],
+      "produced": {
+        "instruments": 4,
+        "rows": 256,
+        "samples": 1024
+      },
+      "partitions": [
+        {
+          "partition": 0,
+          "count": 3,
+          "rows": 256,
+          "instruments": 4,
+          "intensity": 40,
+          "bytes": 163840,
+          "checksum": "c54a6e1c1b077b2c5d035885",
+          "cpu_ms": 3.93,
+          "actor": "hospital-a",
+          "node": "node1",
+          "role": "edge",
+          "pod": "hospital-a-78d98d9858-ln7v4",
+          "ms": 388.68
+        },
+        {
+          "partition": 1,
+          "count": 3,
+          "rows": 256,
+          "instruments": 4,
+          "intensity": 40,
+          "bytes": 163840,
+          "checksum": "03bc54ae629f8150339be0a5",
+          "cpu_ms": 1.03,
+          "actor": "datacenter",
+          "node": "node3",
+          "role": "cloud",
+          "pod": "dc-services",
+          "ms": 39.11
+        },
+        {
+          "partition": 2,
+          "count": 3,
+          "rows": 256,
+          "instruments": 4,
+          "intensity": 40,
+          "bytes": 163840,
+          "checksum": "765c37f955beff7dfd3e21b4",
+          "cpu_ms": 2.28,
+          "actor": "hospital-b",
+          "node": "node2",
+          "role": "edge",
+          "pod": "hospital-b-7869b5c985-5wgs8",
+          "ms": 72.26
+        }
+      ],
+      "result_detail": {
+        "partitions_ok": 3,
+        "total_bytes": 491520,
+        "aggregate_cpu_ms": 7.24,
+        "checksums": [
+          "c54a6e1c1b077b2c5d035885",
+          "03bc54ae629f8150339be0a5",
+          "765c37f955beff7dfd3e21b4"
+        ]
+      },
+      "metrics": {
+        "pipeline_total_ms": 506.4443620003658,
+        "e2e_total_ms": 506.4443620003658
+      }
+    }
+  },
+  {
+    "kind": "sync",
+    "source": "clinic-1",
+    "task_id": "20260907034642854f",
+    "note": "",
+    "status": "completed",
+    "error": null,
+    "result": {
+      "initiator": {
+        "entity": "clinic-1",
+        "role": "terminal",
+        "node": "node1",
+        "priority": 5,
+        "deadline": "120s",
+        "queued_at": "2026-09-07T03:46:42.612916"
+      },
+      "stages": [
+        {
+          "name": "sync",
+          "actor": "datacenter",
+          "node": "node3",
+          "ms": 1.0,
+          "detail": "cloud manifest + 备份"
+        }
+      ],
+      "result_detail": {
+        "db_version": "v3-db-1",
+        "cloud_items": 68,
+        "missing": 37,
+        "pulled": 37,
+        "failed_chunks": 0,
+        "bytes_pulled": 147968,
+        "pull_ms": 10958.07,
+        "concurrency": 4,
+        "bandwidth_mbps": 20.0,
+        "peers": [
+          "hospital-a",
+          "hospital-b",
+          "clinic-2",
+          "datacenter"
+        ],
+        "chunks": [
+          {
+            "id": "rec-v3-db-1-304755695",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "ea82dcfb51ae56e556c3b800",
+            "ms": 586.67
+          },
+          {
+            "id": "rec-v3-db-1-304755696",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "09a0f9f8d5792ffb414d43a1",
+            "ms": 415.62
+          },
+          {
+            "id": "rec-v3-db-1-304755697",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "5c4f4a875311dcc4546b3659",
+            "ms": 438.74
+          },
+          {
+            "id": "rec-v3-db-1-304755698",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "fb01e84e0ce9e1d852263d5c",
+            "ms": 401.13
+          },
+          {
+            "id": "rec-v3-db-1-304755699",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "9e276854017b73d28d34b163",
+            "ms": 663.38
+          },
+          {
+            "id": "rec-v3-db-1-304755701",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "8e7100ccb4fa8154a276d435",
+            "ms": 412.75
+          },
+          {
+            "id": "rec-v3-db-1-304755702",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "164cb39340ada40ac4cf54fe",
+            "ms": 450.3
+          },
+          {
+            "id": "rec-v3-db-1-304755705",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "32309d1df3f037836bbf6b2e",
+            "ms": 396.13
+          },
+          {
+            "id": "rec-v3-db-1-304755706",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "481e777cd35f2e4b1fcef9f3",
+            "ms": 631.74
+          },
+          {
+            "id": "rec-v3-db-1-304755707",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "9553969a7c88b130ed80ac73",
+            "ms": 408.89
+          },
+          {
+            "id": "rec-v3-db-1-304755708",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "d03f9b3b3d5b7175588b2084",
+            "ms": 527.04
+          },
+          {
+            "id": "rec-v3-db-1-304755712",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "9ebff4b6f3d2405a103c1e2c",
+            "ms": 401.75
+          },
+          {
+            "id": "rec-v3-db-1-304755715",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "f6e23b057e521afc0d4f1d0f",
+            "ms": 599.68
+          },
+          {
+            "id": "rec-v3-db-1-304755717",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "0fbd7c599a0d18136284581a",
+            "ms": 486.99
+          },
+          {
+            "id": "rec-v3-db-1-304755718",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "22f041a1637644d586efd9dc",
+            "ms": 499.29
+          },
+          {
+            "id": "rec-v3-db-1-304755721",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "af6094bb9fbad061d02b9234",
+            "ms": 465.66
+          },
+          {
+            "id": "rec-v3-db-1-304755722",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "71330444357bfc74ee229f0a",
+            "ms": 939.68
+          },
+          {
+            "id": "rec-v3-db-1-304755728",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "490b8bbf242e902e8af9ccc6",
+            "ms": 521.97
+          },
+          {
+            "id": "rec-v3-db-1-304755730",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "befcbdd21197eb4b321639f9",
+            "ms": 494.65
+          },
+          {
+            "id": "rec-v3-db-1-304755731",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "a9f87b4dcc2e2738cb426f04",
+            "ms": 402.95
+          },
+          {
+            "id": "rec-v3-db-1-304755732",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "5b4934b777e2fa9cbd6c15f3",
+            "ms": 589.97
+          },
+          {
+            "id": "rec-v3-db-1-304755733",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "f2e371a8b0b03be0a6460aef",
+            "ms": 511.21
+          },
+          {
+            "id": "rec-v3-db-1-304755734",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "17e8e1c6cd7f4ffbaf3848f7",
+            "ms": 534.14
+          },
+          {
+            "id": "rec-v3-db-1-304755736",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "b652023c79ea59dad8ebe379",
+            "ms": 401.57
+          },
+          {
+            "id": "rec-v3-db-1-304755738",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "4ddddfd221358adae5a5a961",
+            "ms": 549.31
+          },
+          {
+            "id": "rec-v3-db-1-304755739",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "cc0ae2d66e040a84b77f9516",
+            "ms": 413.06
+          },
+          {
+            "id": "rec-v3-db-1-304755741",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "e844b52fcd41609320a46790",
+            "ms": 520.42
+          },
+          {
+            "id": "rec-v3-db-1-304755745",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "bbf41f9eb1ab3a63e6e39ce0",
+            "ms": 401.29
+          },
+          {
+            "id": "rec-v3-db-1-304755746",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "025114920da6f558bd3e08ae",
+            "ms": 556.89
+          },
+          {
+            "id": "rec-v3-db-1-304755749",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "3b9c94230271fb796bfc4a86",
+            "ms": 443.98
+          },
+          {
+            "id": "rec-v3-db-1-304755752",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "538c3038d831d3e993217283",
+            "ms": 425.7
+          },
+          {
+            "id": "rec-v3-db-1-304755753",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 4096,
+            "hash": "e1bd8b005bd030537188d398",
+            "ms": 623.69
+          },
+          {
+            "id": "rec-v3-db-1-304755756",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "c8799fc4dc3db7a57d04ab3e",
+            "ms": 413.21
+          },
+          {
+            "id": "upd-check-1",
+            "ok": true,
+            "peer": "hospital-b",
+            "size": 4096,
+            "hash": "6a45abe8d429736471e8d8eb",
+            "ms": 408.66
+          },
+          {
+            "id": "upd-clinic-1-0",
+            "ok": true,
+            "peer": "clinic-2",
+            "size": 4096,
+            "hash": "dd2b30d78fab3d28dce2fa82",
+            "ms": 433.73
+          },
+          {
+            "id": "upd-clinic-1-1",
+            "ok": true,
+            "peer": "datacenter",
+            "size": 512,
+            "hash": "d161b7d28854893c7b282139",
+            "ms": 138.95
+          },
+          {
+            "id": "upd-clinic-1-2",
+            "ok": true,
+            "peer": "hospital-a",
+            "size": 4096,
+            "hash": "fbed60993551240cfc975be0",
+            "ms": 501.83
+          }
+        ],
+        "uploaded": 3,
+        "cloud_total": 4,
+        "backup": {
+          "backup_id": "bk-0907034654-3",
+          "ts": "2026-09-07 03:46:54",
+          "version": "v3-db-1",
+          "total_items": 68,
+          "chunk_bytes": 4096,
+          "hash": "e29fff287daa9903d4253ad7"
+        }
+      },
+      "metrics": {
+        "pipeline_total_ms": 11546.760367000388,
+        "e2e_total_ms": 11546.760367000388
+      }
+    }
+  },
+  {
+    "kind": "routine",
+    "source": "clinic-2",
+    "task_id": "20260907034642a881",
+    "note": "",
+    "status": "completed",
+    "error": null,
+    "result": {
+      "initiator": {
+        "entity": "clinic-2",
+        "role": "terminal",
+        "node": "node2",
+        "priority": 5,
+        "deadline": "120s",
+        "queued_at": "2026-09-07T03:46:42.722152"
+      },
+      "stages": [
+        {
+          "name": "routine",
+          "actor": "scheduler",
+          "node": "node3",
+          "ms": 1.0,
+          "detail": "生成 1 个一次性 Job pod"
+        }
+      ],
+      "result_detail": {
+        "jobs": [
+          {
+            "job": "routine-07034642a881-0",
+            "node": "node1",
+            "state": "succeeded",
+            "output": null,
+            "pod": "routine-07034642a881-0-sp7z4",
+            "deleted": true
+          }
+        ],
+        "succeeded": 1
+      },
+      "metrics": {
+        "pipeline_total_ms": 6379.698679000285,
+        "e2e_total_ms": 6379.698679000285
+      }
+    }
+  },
+  {
+    "kind": "routine",
+    "source": "clinic-2",
+    "task_id": "202609070346423ecb",
+    "note": "",
+    "status": "completed",
+    "error": null,
+    "result": {
+      "initiator": {
+        "entity": "clinic-2",
+        "role": "terminal",
+        "node": "node2",
+        "priority": 5,
+        "deadline": "120s",
+        "queued_at": "2026-09-07T03:46:42.834944"
+      },
+      "stages": [
+        {
+          "name": "routine",
+          "actor": "scheduler",
+          "node": "node3",
+          "ms": 1.0,
+          "detail": "生成 1 个一次性 Job pod"
+        }
+      ],
+      "result_detail": {
+        "jobs": [
+          {
+            "job": "routine-070346423ecb-0",
+            "node": "node1",
+            "state": "succeeded",
+            "output": null,
+            "pod": "routine-070346423ecb-0-k2fls",
+            "deleted": true
+          }
+        ],
+        "succeeded": 1
+      },
+      "metrics": {
+        "pipeline_total_ms": 7297.2167049993,
+        "e2e_total_ms": 7297.2167049993
+      }
+    }
+  }
+]
