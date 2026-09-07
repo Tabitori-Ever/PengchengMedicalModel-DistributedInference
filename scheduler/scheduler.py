@@ -127,11 +127,14 @@ class InferenceScheduler:
                 "deadline": task.get("deadline"),
                 "queued_at": task.get("queued_at")}
 
-    def _finish(self, task_id: str, start: float, result: dict, model: str):
+    def _finish(self, task_id: str, start: float, result: dict, model: str,
+                queue_wait_ms: float = 0.0, extra_metrics: Optional[dict] = None):
         pipeline = (time.perf_counter() - start) * 1000
-        result.setdefault("metrics", {})
-        result["metrics"].update({"pipeline_total_ms": pipeline,
-                                  "e2e_total_ms": pipeline})
+        metrics = dict(extra_metrics or {})
+        metrics.update({"queue_wait_ms": round(queue_wait_ms, 2),
+                        "pipeline_total_ms": round(pipeline, 2),
+                        "e2e_total_ms": round(pipeline + queue_wait_ms, 2)})
+        result["metrics"] = metrics
         inference_latency.labels(model=model).observe(pipeline / 1000)
         complete_task(task_id, pipeline, result)
         redis_set(f"inference:result:{task_id}", json.dumps(
@@ -150,6 +153,7 @@ class InferenceScheduler:
         source = task.get("source", "hospital-a")
         inp = task.get("input", {}) or {}
         start = time.perf_counter()
+        queue_wait = _queue_wait_ms(task)
         hospital = pick_hospital(source, inp.get("target_hospital"))
         forwarded = hospital if is_clinic(source) else None
         update_task(task_id, {"stage": "worker", "node": hospital})
@@ -164,8 +168,10 @@ class InferenceScheduler:
         except Exception as e:
             fail_task(task_id, f"医院 worker 推理失败({hospital}): {e}")
             return
-        stages.append(_stage(task_id, "worker", hospital,
-                             (time.perf_counter() - wstart) * 1000,
+        worker_rtt = (time.perf_counter() - wstart) * 1000
+        worker_compute = float(worker.get("latency_ms") or 0.0)
+        worker_network = max(0.0, worker_rtt - worker_compute)
+        stages.append(_stage(task_id, "worker", hospital, worker_rtt,
                              "医院 Pod 医疗前端", hospital))
 
         sstart = time.perf_counter()
@@ -183,9 +189,13 @@ class InferenceScheduler:
         except Exception as e:
             fail_task(task_id, f"数据中心 medical-server 推理失败: {e}")
             return
-        stages.append(_stage(task_id, "server", "datacenter",
-                             (time.perf_counter() - sstart) * 1000,
+        server_rtt = (time.perf_counter() - sstart) * 1000
+        server_compute = float(server.get("latency_ms") or 0.0)
+        server_network = max(0.0, server_rtt - server_compute)
+        stages.append(_stage(task_id, "server", "datacenter", server_rtt,
                              "DC medical-server", "node3"))
+        pipeline = (time.perf_counter() - start) * 1000
+        inter = max(0.0, pipeline - worker_rtt - server_rtt)
 
         self._finish(task_id, start, {
             "initiator": self._initiator(task),
@@ -197,7 +207,15 @@ class InferenceScheduler:
                 "worker_latency_ms": worker.get("latency_ms"),
                 "server_latency_ms": server.get("latency_ms"),
             },
-        }, "diagnosis")
+        }, "diagnosis", queue_wait_ms=queue_wait, extra_metrics={
+            "worker_total_ms": round(worker_rtt, 2),
+            "worker_compute_ms": round(worker_compute, 2),
+            "worker_network_ms": round(worker_network, 2),
+            "inter_stage_ms": round(inter, 2),
+            "server_total_ms": round(server_rtt, 2),
+            "server_compute_ms": round(server_compute, 2),
+            "server_network_ms": round(server_network, 2),
+        })
 
     # ---------------------------------------------------------- compute ------
     def _run_compute(self, task: dict):
@@ -205,6 +223,7 @@ class InferenceScheduler:
         source = task.get("source", "hospital-a")
         inp = task.get("input", {}) or {}
         start = time.perf_counter()
+        queue_wait = _queue_wait_ms(task)
 
         instruments = int(inp.get("instruments", 4))
         rows = int(inp.get("rows", 256))
@@ -260,7 +279,7 @@ class InferenceScheduler:
                     sum(float(p.get("cpu_ms", 0)) for p in ok), 2),
                 "checksums": [p.get("checksum", "") for p in ok],
             },
-        }, "compute")
+        }, "compute", queue_wait_ms=queue_wait)
 
     # ------------------------------------------------------------- sync ------
     def _run_sync(self, task: dict):
@@ -268,6 +287,7 @@ class InferenceScheduler:
         source = task.get("source", "clinic-1")
         inp = task.get("input", {}) or {}
         start = time.perf_counter()
+        queue_wait = _queue_wait_ms(task)
 
         if not is_source(source):
             fail_task(task_id, f"非法的发起端 {source}")
@@ -347,11 +367,19 @@ class InferenceScheduler:
         for u in local.get("pending_updates", []):
             blob = _det_blob(u["uid"])
             pushed.append({"id": u["uid"], "blob": blob})
+        tu = time.perf_counter()
         try:
             up = s.post(dc("/db/upload"), json={"items": pushed}, timeout=30).json()
-            backup = s.post(dc("/db/backup"), json={}, timeout=30).json()
+            upload_ms = (time.perf_counter() - tu) * 1000
         except Exception as e:
-            fail_task(task_id, f"云端上传/备份失败: {e}")
+            fail_task(task_id, f"云端上传失败: {e}")
+            return
+        tb = time.perf_counter()
+        try:
+            backup = s.post(dc("/db/backup"), json={}, timeout=30).json()
+            backup_ms = (time.perf_counter() - tb) * 1000
+        except Exception as e:
+            fail_task(task_id, f"云端备份失败: {e}")
             return
 
         stages = [_stage(task_id, "sync", "datacenter", 1.0,
@@ -373,9 +401,15 @@ class InferenceScheduler:
                 "chunks": chunks[:80],
                 "uploaded": up.get("accepted", 0),
                 "cloud_total": up.get("total_uploaded", 0),
+                "upload_ms": round(upload_ms, 2),
+                "backup_ms": round(backup_ms, 2),
                 "backup": backup,
             },
-        }, "sync")
+        }, "sync", queue_wait_ms=queue_wait, extra_metrics={
+            "pull_ms": round(pull_ms, 2),
+            "upload_ms": round(upload_ms, 2),
+            "backup_ms": round(backup_ms, 2),
+        })
 
     # ---------------------------------------------------------- routine ------
     def _run_routine(self, task: dict):
@@ -383,6 +417,7 @@ class InferenceScheduler:
         source = task.get("source", "clinic-1")
         inp = task.get("input", {}) or {}
         start = time.perf_counter()
+        queue_wait = _queue_wait_ms(task)
 
         if not kubeops.available():
             fail_task(task_id, "Kubernetes Job 能力不可用")
@@ -402,6 +437,7 @@ class InferenceScheduler:
             args = {"rows": rows, "instruments": 3, "intensity": intensity,
                     "seed": 7 + i, "partition": i, "count": jobs_n}
             jr = {"job": job_name, "node": nodes[i], "state": "failed"}
+            jwall = time.perf_counter()
             if kubeops.create_routine_job(job_name, nodes[i], args):
                 deadline = time.time() + 180
                 while time.time() < deadline:
@@ -419,6 +455,7 @@ class InferenceScheduler:
                     jr["state"] = "timeout"
                 kubeops.delete_job(job_name)
                 jr["deleted"] = True
+                jr["wall_ms"] = round((time.perf_counter() - jwall) * 1000, 2)
             job_rows.append(jr)
 
         self._finish(task_id, start, {
@@ -429,7 +466,7 @@ class InferenceScheduler:
                 "jobs": job_rows,
                 "succeeded": sum(1 for j in job_rows if j.get("state") == "succeeded"),
             },
-        }, "routine")
+        }, "routine", queue_wait_ms=queue_wait)
 
     def get_task_result(self, task_id: str) -> dict:
         result_key = f"inference:result:{task_id}"

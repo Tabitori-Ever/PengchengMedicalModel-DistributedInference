@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { fmtMemBytes, fmtMs, MODEL_LABEL } from '../utils';
 import type { TaskItem, TaskResult } from '../types';
 
@@ -55,7 +55,7 @@ export default function TaskResultView({ task, live }: Props) {
         {kind === 'routine' && <RoutineBody result={result} />}
         {!kind && <GenericBody result={result} />}
       </div>
-      <StagesBlock result={result} />
+      <LatencySection kind={kind} result={result} />
     </div>
   );
 }
@@ -351,6 +351,154 @@ function StagesBlock({ result }: { result: any }) {
       </div>
     </>
   );
+}
+
+interface LatRow { label: string; ms?: number | null; note?: string; sub?: { label: string; ms?: number | null }[]; strong?: boolean }
+
+// ------------------ 时延统计：默认汇总 + 可展开明细 ------------------
+export function LatencySection({ kind, result }: { kind: string; result: any }) {
+  const [open, setOpen] = useState(false);
+  const m: any = result?.metrics || {};
+  const rows = latencyRows(kind, result);
+  const hasRows = rows.some((r) => r.ms != null);
+  const nums = rows
+    .flatMap((r) => [r.ms, ...(r.sub || []).map((x) => x.ms)])
+    .filter((x): x is number => x != null && Number(x) > 0);
+  const maxMs = Math.max(...nums, 1);
+
+  return (
+    <div className="lat-sec">
+      <div className="lat-head">
+        <h4 className="sub-title">时延统计</h4>
+        {hasRows && (
+          <button className="mini lat-toggle" onClick={() => setOpen((o) => !o)}>
+            {open ? '▾ 收起详细时延' : '▸ 展开详细时延'}
+          </button>
+        )}
+      </div>
+
+      {/* 默认：当前统计（汇总） */}
+      <div className="chips-line lat-summary">
+        <span className="mini-chip">端到端 <b>{fmtMs(m.e2e_total_ms)}</b></span>
+        <span className="mini-chip">流水线 <b>{fmtMs(m.pipeline_total_ms)}</b></span>
+        <span className="mini-chip">队列等待 <b>{fmtMs(m.queue_wait_ms)}</b></span>
+        {kindSummary(kind, result).map((c) => (
+          <span className="mini-chip" key={c[0]}>{c[0]} <b>{c[1]}</b></span>
+        ))}
+      </div>
+
+      {/* 展开：各阶段详细时延（瀑布） */}
+      {open && hasRows && (
+        <div className="wf lat-rows">
+          {rows.map((r, i) => (
+            <Fragment key={i}>
+              <LatRowView row={r} max={maxMs} />
+              {(r.sub || []).map((sub, j) => (
+                <LatRowView key={`${i}-${j}`} row={{ label: sub.label, ms: sub.ms, note: sub.ms == null ? undefined : undefined }} max={maxMs} sub />
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      )}
+      {!hasRows && <div className="muted xs">该任务未返回分阶段计时数据。</div>}
+    </div>
+  );
+}
+
+function LatRowView({ row, max, sub }: { row: LatRow; max: number; sub?: boolean }) {
+  const ms = row.ms != null ? Number(row.ms) : null;
+  return (
+    <div className="wf-row">
+      <span className={`wf-lbl ${sub ? 'sub' : ''} ${row.strong ? 'strong' : ''}`}>
+        {row.label}{row.note ? <span className="muted xs"> · {row.note}</span> : null}
+      </span>
+      <div className="wf-bar">
+        {ms != null && ms > 0 && (
+          <div className="wf-fill" style={{ width: `${Math.max((ms / max) * 100, 0.8)}%`, background: '#6366f1' }} />
+        )}
+      </div>
+      <span className="wf-val mono">{ms != null ? fmtMs(ms) : '—'}</span>
+    </div>
+  );
+}
+
+/** kind-specific extra summary chips (default-collapsed summary). */
+function kindSummary(kind: string, result: any): Array<[string, string]> {
+  const rd: any = result?.result_detail || {};
+  if (kind === 'diagnosis') {
+    const m: any = result?.metrics || {};
+    const worker = m.worker_total_ms != null ? Number(m.worker_total_ms) : null;
+    const server = m.server_total_ms != null ? Number(m.server_total_ms) : null;
+    return [
+      ['Worker', worker != null ? fmtMs(worker) : '—'],
+      ['Server', server != null ? fmtMs(server) : '—'],
+    ];
+  }
+  if (kind === 'compute') {
+    const parts: any[] = Array.isArray(result?.partitions) ? result.partitions : [];
+    const ok = parts.filter((p) => !p.failed);
+    const avg = ok.length
+      ? ok.reduce((a, p) => a + (Number(p.ms) || 0), 0) / ok.length
+      : 0;
+    return [['分区成功', `${ok.length}/${parts.length}`], ['分区平均', fmtMs(avg)], ['合计 CPU', fmtMs(rd.aggregate_cpu_ms)]];
+  }
+  if (kind === 'sync') {
+    return [
+      ['拉取', `${rd.pulled ?? '—'}/${rd.missing ?? '—'} 分块 · ${fmtMemBytes(rd.bytes_pulled)}`],
+      ['上传', `${rd.uploaded ?? '—'} 条`],
+      ['备份', rd.backup?.backup_id ? `✓ ${rd.backup.total_items} 条` : '—'],
+    ];
+  }
+  if (kind === 'routine') {
+    const jobs: any[] = Array.isArray(rd.jobs) ? rd.jobs : [];
+    const walls = jobs.map((j) => Number(j.wall_ms) || 0).filter((x) => x > 0);
+    const avg = walls.length ? walls.reduce((a, b) => a + b, 0) / walls.length : 0;
+    return [['Job 成功', `${rd.succeeded ?? '—'}/${jobs.length}`], ['Job 平均墙钟', fmtMs(avg)]];
+  }
+  return [];
+}
+
+/** expanded per-stage latency rows per task kind. */
+function latencyRows(kind: string, result: any): LatRow[] {
+  const m: any = result?.metrics || {};
+  const rd: any = result?.result_detail || {};
+  const rows: LatRow[] = [];
+  const push = (label: string, ms?: number | null, sub?: LatRow['sub'], strong?: boolean, note?: string) =>
+    rows.push({ label, ms: ms ?? null, sub, strong, note });
+
+  if (kind === 'diagnosis') {
+    push('队列等待', m.queue_wait_ms);
+    push('Worker（医院 Pod）', m.worker_total_ms, [
+      { label: '　计算', ms: m.worker_compute_ms },
+      { label: '　网络', ms: m.worker_network_ms },
+    ], true);
+    push('阶段间开销', m.inter_stage_ms);
+    push('Server（数据中心）', m.server_total_ms, [
+      { label: '　计算', ms: m.server_compute_ms },
+      { label: '　网络', ms: m.server_network_ms },
+    ], true);
+  } else if (kind === 'compute') {
+    push('队列等待', m.queue_wait_ms);
+    const parts: any[] = Array.isArray(result?.partitions) ? result.partitions : [];
+    parts.forEach((p, i) => push(`分区 ${i + 1} · ${p.actor || '?'}`, p.ms,
+      [{ label: '　CPU', ms: p.cpu_ms }], false,
+      p.failed ? p.error || '失败' : `${p.rows ?? '?'} 行`));
+  } else if (kind === 'sync') {
+    push('队列等待', m.queue_wait_ms);
+    push('P2P 拉取', m.pull_ms ?? rd.pull_ms, [
+      { label: '　分块', ms: null }, { label: '　字节', ms: null },
+    ], true, `${rd.pulled ?? '—'}/${rd.missing ?? '—'} 分块 · ${fmtMemBytes(rd.bytes_pulled)}`);
+    push('云上传', m.upload_ms ?? rd.upload_ms, undefined, false, `${rd.uploaded ?? '—'} 条`);
+    push('云备份', m.backup_ms ?? rd.backup_ms, undefined, false, rd.backup?.backup_id || '—');
+  } else if (kind === 'routine') {
+    push('队列等待', m.queue_wait_ms);
+    const jobs: any[] = Array.isArray(rd.jobs) ? rd.jobs : [];
+    jobs.forEach((j) => push(`Job ${j.job?.replace(/^routine-/i, '') ?? '?'} · ${j.node || '?'}`,
+      j.wall_ms, [{ label: '　CPU', ms: j.output?.cpu_ms }], false, j.state === 'succeeded' ? '已执行并删除' : j.state));
+  }
+  push('流水线总计', m.pipeline_total_ms, undefined, true);
+  push('端到端总计', m.e2e_total_ms, undefined, true);
+  return rows;
 }
 
 function stageColor(i: number): string {

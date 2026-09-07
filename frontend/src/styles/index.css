@@ -432,3 +432,12 @@ input[type='file'] { padding: 8px; }
   .sidebar-foot { display: none; }
   .content { padding: 22px 14px 50px; }
 }
+
+/* latency stats: default summary + expandable detailed waterfall */
+.lat-sec { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.lat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.lat-head .sub-title { margin-bottom: 8px; }
+.lat-toggle { white-space: nowrap; }
+.lat-summary { margin: 4px 0 2px; }
+.lat-rows { margin-top: 10px; padding: 8px 6px 2px; background: #f8fafc; border-radius: 10px; }
+.wf-lbl.strong { color: #0f172a; font-weight: 700; }
