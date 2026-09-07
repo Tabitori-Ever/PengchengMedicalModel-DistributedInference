@@ -1,21 +1,39 @@
-// Small shared helpers & lookups
+// Small shared helpers & lookups (v3.0: four kinds 诊断/计算/通信/日常)
+
+import type { HospitalId, ModelKind, SourceId } from './types';
+
+export const MODELS: ModelKind[] = ['diagnosis', 'compute', 'sync', 'routine'];
 
 export const MODEL_LABEL: Record<string, string> = {
-  medical: '医疗 bpCR',
-  alexnet: 'AlexNet 分类',
-  clinic: '内存监控',
+  diagnosis: '诊断',
+  compute: '计算',
+  sync: '通信',
+  routine: '日常',
 };
 
 export const MODEL_COLOR: Record<string, string> = {
-  medical: '#7c3aed',   // violet
-  alexnet: '#ea580c',   // orange
-  clinic: '#0891b2',    // cyan
-  hospital: '#0ea5e9',  // sky (kind)
+  diagnosis: '#0284c7',   // sky
+  compute: '#7c3aed',     // violet
+  sync: '#0e7490',        // teal/cyan dark
+  routine: '#d97706',     // amber
 };
 
-// Default image tags for newly added clinic pods (v2.0.1 = metrics fix)
-export const IMG_CLINIC = '10.29.182.66:5000/k8s-repo/clinic:v2.0.1';
-export const IMG_HOSPITAL = '10.29.182.66:5000/k8s-repo/hospital:v2.0';
+// task sources: hospital = 边 (edge node), clinic = 端 (terminal pod)
+export const SOURCES: SourceId[] = ['hospital-a', 'hospital-b', 'clinic-1', 'clinic-2'];
+export const HOSPITALS: HospitalId[] = ['hospital-a', 'hospital-b'];
+
+export const SOURCE_ROLE: Record<string, '边' | '端'> = {
+  'hospital-a': '边',
+  'hospital-b': '边',
+  'clinic-1': '端',
+  'clinic-2': '端',
+};
+
+export const ROLE_TEXT: Record<string, string> = {
+  edge: '边',
+  terminal: '端',
+  '?': '?',
+};
 
 export const STATUS_LABEL: Record<string, string> = {
   running: '运行中',
@@ -23,7 +41,20 @@ export const STATUS_LABEL: Record<string, string> = {
   finished: '已完成',
   completed: '已完成',
   failed: '失败',
+  not_found: '未找到',
 };
+
+export const STATUS_COLOR: Record<string, string> = {
+  running: '#2563eb',
+  queued: '#a16207',
+  finished: '#16a34a',
+  completed: '#16a34a',
+  failed: '#dc2626',
+};
+
+// Default image tags used by the cluster editor when adding new pods (v3.0)
+export const IMG_CLINIC = '10.29.182.66:5000/k8s-repo/clinic:v3.0';
+export const IMG_HOSPITAL = '10.29.182.66:5000/k8s-repo/hospital:v3.0';
 
 export const KIND_LABEL: Record<string, string> = {
   hospital: '医院 Hospital',

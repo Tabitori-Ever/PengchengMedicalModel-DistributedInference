@@ -1,53 +1,47 @@
 #!/bin/bash
 #
-# Build script v2.0 - Hospital / Clinic Pod Architecture
-# 各镜像当前 tag（与 k8s/*.yaml 一致）：
-#   scheduler = v2.0.2（含 test 数据集 + React 前端；修复 part2 探测）
-#   clinic    = v2.0.1（修复 metrics 用量解析）
-#   hospital  = v2.0  （worker + part1 合并，内容未变）
+# Build script v3.0 - 云/边/端 (data center / hospital / clinic)
+# AlexNet(part1/part2) removed. Four task types.
+# 镜像 tag 均为 v3.0（与 k8s/*.yaml 一致）：
+#   inference-scheduler / hospital / clinic / dc
 #
 set -e
 
 REGISTRY="${REGISTRY:-10.29.182.66:5000}"
 PROJECT="${PROJECT:-k8s-repo}"
-SCHED_TAG="${SCHED_TAG:-v2.0.6}"
-CLINIC_TAG="${CLINIC_TAG:-v2.0.1}"
-HOSP_TAG="${HOSP_TAG:-v2.0}"
+TAG="${TAG:-v3.0}"
 
 echo "============================================"
-echo "Multi-Model Edge/Cloud Platform v2.0 Build"
-echo "============================================"
-echo "  Registry: ${REGISTRY}/${PROJECT}"
-echo "  scheduler=${SCHED_TAG}  clinic=${CLINIC_TAG}  hospital=${HOSP_TAG}"
+echo "v3.0 Build (data center / hospital / clinic)"
+echo "  Registry: ${REGISTRY}/${PROJECT}   Tag: ${TAG}"
 echo ""
 
 # [0] Build frontend (React dist) - bundled into the scheduler image
-echo "[0/4] Building frontend (React)..."
-if [ -d frontend/node_modules ]; then
-    (cd frontend && npm run build)
-else
-    (cd frontend && npm ci && npm run build)
-fi
+echo "[0/5] Building frontend (React)..."
+(cd frontend && if [ -d node_modules ]; then npm run build; else npm ci && npm run build; fi)
 
-echo "[1/4] Building scheduler (incl. frontend + test dataset)..."
-docker build -t inference-scheduler:${SCHED_TAG} -f scheduler/Dockerfile .
-docker tag inference-scheduler:${SCHED_TAG} ${REGISTRY}/${PROJECT}/inference-scheduler:${SCHED_TAG}
+echo "[1/5] Building scheduler (incl. frontend + test dataset)..."
+docker build -t inference-scheduler:${TAG} -f scheduler/Dockerfile .
+docker tag inference-scheduler:${TAG} ${REGISTRY}/${PROJECT}/inference-scheduler:${TAG}
 
-echo "[2/4] Building hospital (worker + part1 merged)..."
-docker build -t hospital:${HOSP_TAG} -f hospital/Dockerfile .
-docker tag hospital:${HOSP_TAG} ${REGISTRY}/${PROJECT}/hospital:${HOSP_TAG}
+echo "[2/5] Building hospital (edge)..."
+docker build -t hospital:${TAG} -f hospital/Dockerfile .
+docker tag hospital:${TAG} ${REGISTRY}/${PROJECT}/hospital:${TAG}
 
-echo "[3/4] Building clinic (memory monitor)..."
-docker build -t clinic:${CLINIC_TAG} -f clinic/Dockerfile .
-docker tag clinic:${CLINIC_TAG} ${REGISTRY}/${PROJECT}/clinic:${CLINIC_TAG}
+echo "[3/5] Building clinic (terminal)..."
+docker build -t clinic:${TAG} -f clinic/Dockerfile .
+docker tag clinic:${TAG} ${REGISTRY}/${PROJECT}/clinic:${TAG}
 
-echo "[4/4] Pushing images..."
-docker push ${REGISTRY}/${PROJECT}/inference-scheduler:${SCHED_TAG}
-docker push ${REGISTRY}/${PROJECT}/hospital:${HOSP_TAG}
-docker push ${REGISTRY}/${PROJECT}/clinic:${CLINIC_TAG}
+echo "[4/5] Building dc (patient-db + compute worker)..."
+docker build -t dc:${TAG} -f dc/Dockerfile .
+docker tag dc:${TAG} ${REGISTRY}/${PROJECT}/dc:${TAG}
+
+echo "[5/5] Pushing images..."
+for img in inference-scheduler hospital clinic dc; do
+  docker push ${REGISTRY}/${PROJECT}/${img}:${TAG}
+done
 
 echo ""
 echo "============================================"
-echo "Build complete!"
+echo "v3.0 Build complete!"
 echo "============================================"
-echo ""

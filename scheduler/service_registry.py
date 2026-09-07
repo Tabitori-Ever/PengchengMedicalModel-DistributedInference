@@ -1,108 +1,100 @@
-"""
-Entity service registry (v2.0).
+"""Entity service registry (v3.0).
 
-With the pod-ised architecture, hospitals and clinics are real pods reachable
-through per-entity ClusterIP services.  The scheduler resolves the HTTP base
-URL of an entity through this registry instead of one shared service per
-role (part1-service / medical-worker-service, which no longer exist).
+v3.0 topology: edge hospitals (worker front-end + v3 worker), terminal
+clinics (initiators + v3 worker) and the data center (cloud node3) which
+hosts medical-server, dc-services (patient DB) and this scheduler.
 
-Overridable through environment variables so local development can point to
-localhost ports:
-    HOSPITAL_A_URL / HOSPITAL_B_URL / CLINIC_1_URL / CLINIC_2_URL
+Overridable with env vars for local development:
+  HOSPITAL_A_URL / HOSPITAL_B_URL / CLINIC_1_URL / CLINIC_2_URL
+  MEDICAL_SERVER_URL / DC_SERVICES_URL
 """
 import os
 from typing import Dict, Optional
 
-# Service URLs inside the cluster
 HOSPITAL_SERVICES: Dict[str, str] = {
     "hospital-a": os.getenv("HOSPITAL_A_URL", "http://hospital-a-service:8006"),
     "hospital-b": os.getenv("HOSPITAL_B_URL", "http://hospital-b-service:8006"),
 }
-
 CLINIC_SERVICES: Dict[str, str] = {
     "clinic-1": os.getenv("CLINIC_1_URL", "http://clinic-1-service:8007"),
     "clinic-2": os.getenv("CLINIC_2_URL", "http://clinic-2-service:8007"),
 }
 
-# Keep cloud-side services (unchanged from v1.x)
 MEDICAL_SERVER_URL = os.getenv(
     "MEDICAL_SERVER_URL", "http://medical-server-service:9001")
-PART2_URL = os.getenv("PART2_URL", "http://part2-service:8002")
-
-# Bypass corporate proxy for internal K8s service calls
-_no_proxy_additions = (
-    "hospital-a-service,hospital-b-service,clinic-1-service,clinic-2-service,"
-    "medical-worker-service,part1-service,medical-server-service,part2-service,"
-    ".svc.cluster.local,.cluster.local"
-)
-for _env_var in ("NO_PROXY", "no_proxy"):
-    _current = os.environ.get(_env_var, "")
-    if _no_proxy_additions not in _current:
-        os.environ[_env_var] = (_current + "," + _no_proxy_additions).strip(",")
+DC_URL = os.getenv("DC_SERVICES_URL", "http://dc-services:8010")
 
 HOSPITALS = ("hospital-a", "hospital-b")
 CLINICS = ("clinic-1", "clinic-2")
+ALL_SOURCES = HOSPITALS + CLINICS
 
-# Runtime-added entities (created through the cluster editor, e.g. clinic-3).
-# Kept in a process-local dict; registered by scheduler/cluster_api.py when a
-# new clinic Deployment is created and unregistered when it is deleted.
-_EXTRA_CLINICS: Dict[str, str] = {}
-
-
-def register_clinic(name: str, base_url: Optional[str] = None) -> None:
-    if base_url is None:
-        base_url = f"http://{name}-service:8007"
-    _EXTRA_CLINICS[name] = base_url
-    CLINIC_SERVICES[name] = base_url
+# bypass corporate proxy for internal svc calls
+_no_proxy = ("hospital-a-service,hospital-b-service,clinic-1-service,"
+             "clinic-2-service,medical-server-service,dc-services,"
+             ".svc.cluster.local,.cluster.local")
+for _env in ("NO_PROXY", "no_proxy"):
+    cur = os.environ.get(_env, "")
+    if _no_proxy not in cur:
+        os.environ[_env] = (cur + "," + _no_proxy).strip(",")
 
 
-def unregister_clinic(name: str) -> None:
-    _EXTRA_CLINICS.pop(name, None)
-    CLINIC_SERVICES.pop(name, None)
+def is_hospital(source: str) -> bool:
+    return source in HOSPITAL_SERVICES
 
 
-def hospital_base_url(hospital: str) -> Optional[str]:
-    return HOSPITAL_SERVICES.get(hospital)
+def is_clinic(source: str) -> bool:
+    return source in CLINIC_SERVICES
 
 
-def clinic_base_url(clinic: str) -> Optional[str]:
+def is_source(source: Optional[str]) -> bool:
+    return source in HOSPITAL_SERVICES or source in CLINIC_SERVICES
+
+
+def hospital_base(source: str) -> Optional[str]:
+    if source in HOSPITAL_SERVICES:
+        return HOSPITAL_SERVICES[source]
+    if source in CLINIC_SERVICES:
+        return None
+    return HOSPITAL_SERVICES.get("hospital-a")
+
+
+def clinic_base(clinic: str) -> Optional[str]:
     return CLINIC_SERVICES.get(clinic)
 
 
-def hospital_medical_infer_url(hospital: str) -> Optional[str]:
-    base = hospital_base_url(hospital)
-    return (base + "/medical/infer") if base else None
+def dc(path: str = "") -> str:
+    return DC_URL + path
 
 
-def hospital_alexnet_infer_url(hospital: str) -> Optional[str]:
-    base = hospital_base_url(hospital)
-    return (base + "/alexnet/infer") if base else None
+def medical_server_url() -> str:
+    return MEDICAL_SERVER_URL
 
 
-def clinic_mem_query_url(clinic: str) -> Optional[str]:
-    base = clinic_base_url(clinic)
-    return (base + "/query/mem") if base else None
+def pick_hospital(source: Optional[str], prefer: Optional[str] = None) -> str:
+    """Resolve the hospital used for the diagnosis worker stage.
 
-
-def pick_hospital(source: Optional[str]) -> Optional[str]:
-    """Resolve the hospital a task should run its edge stage on.
-
-    If the task carries a hospital/source id that is registered, use it;
-    otherwise fall back to the first registered hospital (hospital-a).
+    Clinic-originated diagnosis is forwarded to a hospital: explicit
+    preference first, else the most-free hospital edge node.
     """
+    if prefer in HOSPITAL_SERVICES:
+        return prefer
     if source in HOSPITAL_SERVICES:
         return source
-    for h in HOSPITALS:
-        if h in HOSPITAL_SERVICES:
-            return h
-    return None
+    try:
+        from .node_usage import most_free_edge
+        best = most_free_edge()  # 'node1' | 'node2'
+        if best in ("node1", "node2"):
+            return "hospital-a" if best == "node1" else "hospital-b"
+    except Exception:
+        pass
+    return "hospital-a"
 
 
-def pick_clinic(source: Optional[str]) -> Optional[str]:
-    """Resolve the clinic a memory-monitor task should run on."""
-    if source in CLINIC_SERVICES:
-        return source
-    for c in CLINICS:
-        if c in CLINIC_SERVICES:
-            return c
-    return None
+# Editor-created extra clinic entities: expose as schedulable sources too.
+def register_clinic(name: str, base_url: Optional[str] = None) -> None:
+    CLINIC_SERVICES.setdefault(name, base_url or f"http://{name}-service:8007")
+
+
+def unregister_clinic(name: str) -> None:
+    if name not in ("clinic-1", "clinic-2"):
+        CLINIC_SERVICES.pop(name, None)

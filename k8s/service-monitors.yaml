@@ -78,3 +78,22 @@ spec:
   - port: http
     interval: 30s
     path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: dc-services-monitor
+  labels:
+    app: dc-services
+    release: monitoring
+
+spec:
+  selector:
+    matchLabels:
+      app: dc-services
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics

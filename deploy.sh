@@ -1,92 +1,64 @@
 #!/bin/bash
 #
-# Deploy script v2.0 - Hospital / Clinic Pod Architecture
-# Order: RBAC -> infrastructure -> hospital pods -> clinic pods ->
-#        cloud services -> scheduler -> legacy cleanup
+# Deploy script v3.0 - data center / hospital / clinic
+# Order: RBAC -> dc services -> hospital -> clinic -> medical-server ->
+#        scheduler (moved to node3) -> legacy cleanup -> rollouts
 #
 set -e
 
 echo "============================================"
-echo "Deploying Multi-Model Edge/Cloud Platform v2.0"
-echo "  (hospital + clinic pod architecture)"
+echo "Deploying v3.0 (云/边/端 · 四类任务)"
 echo "============================================"
 
-# Phase 0: Node labels (verify first)
-echo ""
-echo "[Phase 0] Verify node labels:"
-echo "  kubectl get nodes --show-labels | grep -E 'role|hospital|zone'"
-echo "  Expected: node1 role=edge; node2 role=edge; node3 role=cloud"
-echo ""
-
-# Phase 1: RBAC (clinic metrics reader + scheduler cluster editor)
-echo "[Phase 1] Deploying RBAC..."
+echo "[Phase 1] RBAC (clinic metrics + scheduler editor + routine Jobs)..."
 kubectl apply -f k8s/clinic-rbac.yaml
 kubectl apply -f k8s/scheduler-cluster-rbac.yaml
-echo "  RBAC deployed"
 
-# Phase 2: Infrastructure (unchanged from v1.x)
-echo "[Phase 2] Deploying infrastructure..."
+echo "[Phase 2] Infrastructure (redis/monitoring/prediction)..."
 kubectl apply -f k8s/redis-deployment.yaml
 kubectl apply -f k8s/monitoring-deployment.yaml
-kubectl apply -f k8s/prediction-deployment.yaml
-echo "  Infrastructure deployed"
+kubectl apply -f k8s/prediction-deployment.yaml 2>/dev/null || true
 
-# Phase 3: Hospital pods (worker + alexnet part1 merged)
-echo "[Phase 3] Deploying hospital pods..."
-kubectl apply -f k8s/hospital-a-deployment.yaml
-kubectl apply -f k8s/hospital-a-service.yaml
-kubectl apply -f k8s/hospital-b-deployment.yaml
-kubectl apply -f k8s/hospital-b-service.yaml
-echo "  Hospital pods deployed"
+echo "[Phase 3] Data center services (patient-db + compute worker)..."
+kubectl apply -f k8s/dc-services.yaml
 
-# Phase 4: Clinic pods (memory monitor)
-echo "[Phase 4] Deploying clinic pods..."
-kubectl apply -f k8s/clinic-1-deployment.yaml
-kubectl apply -f k8s/clinic-1-service.yaml
-kubectl apply -f k8s/clinic-2-deployment.yaml
-kubectl apply -f k8s/clinic-2-service.yaml
-echo "  Clinic pods deployed"
+echo "[Phase 4] Hospital pods (edge)..."
+kubectl apply -f k8s/hospital-a-deployment.yaml -f k8s/hospital-a-service.yaml
+kubectl apply -f k8s/hospital-b-deployment.yaml -f k8s/hospital-b-service.yaml
 
-# Phase 5: Cloud-side model services (medical-server / part2, unchanged)
-echo "[Phase 5] Deploying cloud-side services..."
+echo "[Phase 5] Clinic pods (terminal)..."
+kubectl apply -f k8s/clinic-1-deployment.yaml -f k8s/clinic-1-service.yaml
+kubectl apply -f k8s/clinic-2-deployment.yaml -f k8s/clinic-2-service.yaml
+
+echo "[Phase 6] Medical server (data center)..."
 kubectl apply -f k8s/medical-server-deployment.yaml
 kubectl apply -f k8s/medical-server-service.yaml
-kubectl apply -f k8s/part2-deployment.yaml
-kubectl apply -f k8s/part2-service.yaml
-echo "  Cloud services deployed"
 
-# Phase 6: Scheduler (v2.0)
-echo "[Phase 6] Deploying scheduler..."
+echo "[Phase 7] Scheduler (moved to node3 = data center)..."
 kubectl apply -f k8s/scheduler-deployment.yaml
 kubectl apply -f k8s/scheduler-service.yaml
-echo "  Scheduler deployed"
 
-# Phase 7: Wait for hospital + clinic rollouts
-echo "[Phase 7] Waiting for rollouts..."
-kubectl rollout status deployment/hospital-a --timeout=600s || true
-kubectl rollout status deployment/hospital-b --timeout=600s || true
+echo "[Phase 8] Waiting for rollouts..."
+kubectl rollout status deployment/dc-services --timeout=300s || true
+kubectl rollout status deployment/hospital-a --timeout=900s || true
+kubectl rollout status deployment/hospital-b --timeout=900s || true
 kubectl rollout status deployment/clinic-1 --timeout=300s || true
 kubectl rollout status deployment/clinic-2 --timeout=300s || true
 kubectl rollout status deployment/scheduler --timeout=300s || true
 
-# Phase 8: Legacy cleanup (part1 / medical-worker replaced by hospital pods)
-echo "[Phase 8] Cleaning up legacy deployments (part1 / medical-worker)..."
-kubectl delete deployment part1 medical-worker 2>/dev/null || echo "  (already removed)"
-kubectl delete service part1-service medical-worker-service 2>/dev/null || echo "  (already removed)"
+echo "[Phase 9] Legacy cleanup (part2 / alexnet removed in v3.0)..."
+kubectl delete deployment part2 --ignore-not-found || true
+kubectl delete service part2-service --ignore-not-found || true
+kubectl delete servicemonitor alexnet-part1-monitor alexnet-part2-monitor \
+  --ignore-not-found -n monitoring 2>/dev/null || true
+
+echo "[Phase 10] ServiceMonitors..."
+kubectl apply -f k8s/service-monitors.yaml 2>/dev/null || echo "  ServiceMonitors skipped"
 
 echo ""
 echo "============================================"
-echo "Deployment complete!"
+echo "v3.0 deployment complete!"
 echo "============================================"
+kubectl get pods -o wide | grep -E "hospital|clinic|scheduler|dc-services|medical-server|redis" || true
 echo ""
-echo "Checking status:"
-kubectl get pods -o wide | grep -E "hospital|clinic|scheduler|medical-server|part2|redis|monitoring|prediction" || true
-echo ""
-kubectl get svc | grep -E "hospital|clinic|scheduler|medical-server|part2|redis" || true
-echo ""
-echo "Access scheduler (frontend) at: http://<control-plane>:30080/app"
-echo ""
-echo "Run tests:"
-echo "  python test/submit_task.py --hospital hospital-a --model medical --priority 9"
-echo "  python test/query_result.py <task_id> --wait"
-echo "  python test/e2e_test.py --model clinic"
+echo "Frontend: http://<control-plane>:30080/app  (NodePort 30080)"

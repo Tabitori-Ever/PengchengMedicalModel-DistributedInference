@@ -1,11 +1,56 @@
 import axios from 'axios';
 import type {
-  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, Patient, TaskItem,
-  TaskResult, TaskStats, ValidateResp,
+  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, HospitalId,
+  Patient, SourceId, TaskItem, TaskResult, TaskStats, ValidateResp,
 } from './types';
 
-// Same origin in production (scheduler serves /app + REST API).
+// Same origin in production (scheduler serves /app + REST API under /).
 const http = axios.create({ baseURL: '/', timeout: 20000 });
+
+export interface SubmitResp {
+  task_id: string;
+  status: string;
+}
+
+/** Body accepted by POST /schedule/diagnosis */
+export interface DiagnosisBody {
+  source: SourceId;
+  patient_id?: string;
+  target_hospital?: HospitalId | 'auto' | null;
+  priority?: number;
+  deadline?: string;
+}
+
+/** Body accepted by POST /schedule/compute */
+export interface ComputeBody {
+  source: SourceId;
+  instruments?: number;
+  rows?: number;
+  intensity?: number;
+  partition_count?: number;
+  priority?: number;
+  deadline?: string;
+}
+
+/** Body accepted by POST /schedule/sync */
+export interface SyncBody {
+  source: SourceId;
+  bandwidth_mbps?: number;
+  concurrency?: number;
+  chunk_kb?: number;
+  priority?: number;
+  deadline?: string;
+}
+
+/** Body accepted by POST /schedule/routine */
+export interface RoutineBody {
+  source: SourceId;
+  jobs?: number;
+  rows?: number;
+  intensity?: number;
+  priority?: number;
+  deadline?: string;
+}
 
 export const api = {
   // ---- tasks ----
@@ -21,33 +66,24 @@ export const api = {
   taskResult: async (id: string): Promise<TaskResult> =>
     (await http.get(`/task/result/${id}`)).data,
 
-  clearTasks: async (): Promise<{ count: number }> =>
-    (await http.delete('/tasks/clear')).data,
-
   deleteTask: async (id: string): Promise<{ message: string }> =>
     (await http.delete(`/tasks/${id}`)).data,
 
-  // ---- submit ----
-  submitPreprocessed: async (body: {
-    patient_id: string; hospital: string; priority: number; deadline: string;
-  }): Promise<{ task_id: string }> =>
-    (await http.post('/schedule/preprocessed', body)).data,
+  clearTasks: async (): Promise<{ count: number }> =>
+    (await http.delete('/tasks/clear')).data,
 
-  submitAlexNet: async (body: {
-    hospital: string; priority: number; deadline: string; image: unknown;
-  }): Promise<{ task_id: string }> =>
-    (await http.post('/schedule/task', {
-      model: 'alexnet',
-      hospital: body.hospital,
-      priority: body.priority,
-      deadline: body.deadline,
-      input: { image: body.image },   // scheduler 期望 input.image
-    })).data,
+  // ---- submit: four v3 task kinds ----
+  submitDiagnosis: async (body: DiagnosisBody): Promise<SubmitResp> =>
+    (await http.post('/schedule/diagnosis', body)).data,
 
-  submitClinic: async (body: {
-    clinic: string; target_pod?: string; namespace?: string; priority: number;
-  }): Promise<{ task_id: string }> =>
-    (await http.post('/schedule/clinic', body)).data,
+  submitCompute: async (body: ComputeBody): Promise<SubmitResp> =>
+    (await http.post('/schedule/compute', body)).data,
+
+  submitSync: async (body: SyncBody): Promise<SubmitResp> =>
+    (await http.post('/schedule/sync', body)).data,
+
+  submitRoutine: async (body: RoutineBody): Promise<SubmitResp> =>
+    (await http.post('/schedule/routine', body)).data,
 
   // ---- test dataset ----
   patients: async (): Promise<Patient[]> =>
@@ -76,3 +112,9 @@ export const api = {
   clusterRestart: async (deployment: string): Promise<{ ok: boolean }> =>
     (await http.post('/cluster/restart', { deployment })).data,
 };
+
+/** Send 'auto' target_hospital as null so the backend picks the least-loaded hospital. */
+export function normalizeTarget(t?: HospitalId | 'auto' | null): HospitalId | undefined {
+  if (!t || t === 'auto') return undefined;
+  return t;
+}

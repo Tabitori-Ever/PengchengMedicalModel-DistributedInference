@@ -171,7 +171,7 @@ export default function ClusterPage() {
   };
 
   const reset = async () => {
-    if (!window.confirm('恢复当前版本(v2.0)的默认集群配置？未应用的草稿将被丢弃。')) return;
+    if (!window.confirm(`恢复当前版本（v${live?.version || '3.0'}）的默认集群配置？未应用的草稿将被丢弃。`)) return;
     setBusy(true);
     try {
       const def = await api.clusterDefault();
@@ -203,11 +203,11 @@ export default function ClusterPage() {
     <div className="page wide">
       <header className="page-head row">
         <div>
-          <h1>集群编排 <span className="ver-tag">v{live?.version || '2.0'}</span></h1>
+          <h1>集群编排 <span className="ver-tag">v{live?.version || '3.0'}</span></h1>
           <p>
-            大圆圈 = 节点（外环显示 CPU/内存负载）；小圆圈 = 任务 Pod。
+            大圆圈 = 节点（外环显示 CPU/内存负载）；小圆圈 = 业务 Pod。
             拖拽 hospital / clinic Pod 到其它边缘节点，或在右侧面板调整副本/亲和/资源/镜像等运维参数，
-            最后点击「应用」下发集群，或「重置」恢复当前版本默认拓扑。
+            最后点击「应用」下发集群，或「重置」恢复默认拓扑（仅含 hospital-a/b 与 clinic-1/2）。
           </p>
         </div>
         <div className="toolbar">

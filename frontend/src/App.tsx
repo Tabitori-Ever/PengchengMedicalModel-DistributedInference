@@ -4,6 +4,7 @@ import ClusterPage from './pages/ClusterPage';
 import HistoryPage from './pages/HistoryPage';
 import OverviewPage from './pages/OverviewPage';
 import SubmitPage from './pages/SubmitPage';
+import TestPage from './pages/TestPage';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route path="/" element={<OverviewPage />} />
           <Route path="/submit" element={<SubmitPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/test" element={<TestPage />} />
           <Route path="/cluster" element={<ClusterPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

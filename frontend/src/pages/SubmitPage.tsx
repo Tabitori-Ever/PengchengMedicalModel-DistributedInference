@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
-import TaskResultView from '../components/TaskResultView';
-import type { Patient, TaskItem, TaskResult } from '../types';
-import { MODEL_LABEL } from '../utils';
+import { api, normalizeTarget } from '../api';
+import TaskResultView, { isTerminalStatus } from '../components/TaskResultView';
+import SourcePicker from '../components/SourcePicker';
+import type { HospitalId, ModelKind, Patient, SourceId, TaskItem, TaskResult } from '../types';
+import { MODEL_LABEL, MODELS } from '../utils';
 
-type Tab = 'medical' | 'alexnet' | 'clinic';
-
-const DEADLINES = ['10s', '30s', '60s', '120s', '300s'];
+const DEADLINES = ['10s', '30s', '60s', '120s', '300s'] as const;
 
 export default function SubmitPage() {
-  const [tab, setTab] = useState<Tab>('medical');
+  const [tab, setTab] = useState<ModelKind>('diagnosis');
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState('');
   const [taskId, setTaskId] = useState('');
@@ -18,9 +17,8 @@ export default function SubmitPage() {
   const [item, setItem] = useState<TaskItem | null>(null);
   const fetchedRef = useRef(false);
 
-  // poll the submitted task; once it reaches a terminal state, also load the
-  // full task record so the rich result (bpCR / class / memory / waterfall)
-  // is rendered right here on the submit page.
+  // poll the submitted task; once it reaches a terminal state, load the full
+  // task record so the rich v3 result payload renders right here.
   useEffect(() => {
     if (!taskId) return undefined;
     fetchedRef.current = false;
@@ -32,7 +30,7 @@ export default function SubmitPage() {
         const r = await api.taskResult(taskId);
         if (disposed) return;
         setPoll(r);
-        if (['finished', 'completed', 'failed'].includes(r.status)) {
+        if (isTerminalStatus(r.status)) {
           if (!fetchedRef.current) {
             fetchedRef.current = true;
             try {
@@ -47,19 +45,23 @@ export default function SubmitPage() {
     return () => { disposed = true; window.clearInterval(iv); };
   }, [taskId]);
 
+  const switchTab = (t: ModelKind) => {
+    setTab(t); setErr(''); setTaskId(''); setPoll(null); setItem(null);
+  };
+
   return (
     <div className="page narrow">
       <header className="page-head">
         <h1>任务提交</h1>
-        <p>三类任务：医疗 bpCR 预测、AlexNet 图像分类、Pod 内存监控（clinic）。</p>
+        <p>四类任务：诊断（bpCR）、计算、通信（患者库同步）、日常（例行 Job）。由医院（边）/ 诊所（端）发起。</p>
       </header>
 
       <div className="seg">
-        {(['medical', 'alexnet', 'clinic'] as Tab[]).map((t) => (
+        {MODELS.map((t) => (
           <button
             key={t}
             className={`seg-btn ${tab === t ? 'on' : ''}`}
-            onClick={() => { setTab(t); setErr(''); setTaskId(''); setPoll(null); setItem(null); }}
+            onClick={() => switchTab(t)}
           >
             {MODEL_LABEL[t]}
           </button>
@@ -67,9 +69,10 @@ export default function SubmitPage() {
       </div>
 
       <div className="card form-card">
-        {tab === 'medical' && <MedicalForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
-        {tab === 'alexnet' && <AlexForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
-        {tab === 'clinic' && <ClinicForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
+        {tab === 'diagnosis' && <DiagnosisForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
+        {tab === 'compute' && <ComputeForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
+        {tab === 'sync' && <SyncForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
+        {tab === 'routine' && <RoutineForm onDone={done} busy={running} setBusy={setRunning} onErr={setErr} />}
       </div>
 
       {err && <div className="errbox">{err}</div>}
@@ -78,7 +81,7 @@ export default function SubmitPage() {
         <div className="card">
           <div className="card-headrow">
             <h3 className="card-title">提交结果 · {MODEL_LABEL[tab]}</h3>
-            <Link className="link" to="/history">在任务记录中查看 →</Link>
+            <Link className="link" to="/history">在任务记录查看 →</Link>
           </div>
           <div className="mono mb">{taskId}</div>
           {poll ? (
@@ -97,6 +100,8 @@ export default function SubmitPage() {
 }
 
 // ---------------------------------------------------------------------------
+// small shared form building blocks
+// ---------------------------------------------------------------------------
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="field">
@@ -106,15 +111,46 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Slider({
-  value, onChange,
-}: { value: number; onChange: (v: number) => void }) {
+function RangeRow({
+  value, onChange, min, max, step = 1, unit = '',
+}: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; unit?: string }) {
   return (
     <div className="slider-row">
-      <input type="range" min={1} max={10} value={value}
+      <input type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))} />
-      <span className="mono">P{value}</span>
+      <span className="mono">{value}{unit}</span>
     </div>
+  );
+}
+
+function BtnGroup<T extends string>({
+  value, onChange, options, labels,
+}: { value: T; onChange: (v: T) => void; options: readonly T[]; labels?: Record<string, string> }) {
+  return (
+    <div className="btnrow">
+      {options.map((o) => (
+        <button key={o} className={`mini ${value === o ? 'on' : ''}`}
+          onClick={() => onChange(o)}>{labels?.[o] ?? o}</button>
+      ))}
+    </div>
+  );
+}
+
+function CommonFields({
+  priority, setPriority, deadline, setDeadline,
+}: {
+  priority: number; setPriority: (n: number) => void;
+  deadline: string; setDeadline: (s: string) => void;
+}) {
+  return (
+    <>
+      <Field label="优先级">
+        <RangeRow value={priority} onChange={setPriority} min={1} max={10} />
+      </Field>
+      <Field label="截止时间（可选）">
+        <BtnGroup value={deadline} onChange={setDeadline} options={DEADLINES} />
+      </Field>
+    </>
   );
 }
 
@@ -135,19 +171,27 @@ interface FormProps {
   onErr: (e: string) => void;
 }
 
-// --------------------------- medical bpCR ---------------------------
-function MedicalForm({ onDone, busy, setBusy, onErr }: FormProps) {
+// ---------------------------------------------------------------------------
+// 诊断 diagnosis — bpCR DoubleTower
+// ---------------------------------------------------------------------------
+function DiagnosisForm({ onDone, busy, setBusy, onErr }: FormProps) {
   const { patients, patErr } = usePatients();
-  const [hospital, setHospital] = useState('hospital-a');
+  const [source, setSource] = useState<SourceId>('hospital-a');
   const [patient, setPatient] = useState('');
+  const [target, setTarget] = useState<HospitalId | 'auto'>('auto');
   const [priority, setPriority] = useState(5);
-  const [deadline, setDeadline] = useState('30s');
+  const [deadline, setDeadline] = useState('60s');
+  const isClinic = source.startsWith('clinic');
 
   const submit = async () => {
     if (!patient) { onErr('请选择测试患者'); return; }
     setBusy(true); onErr('');
     try {
-      const r = await api.submitPreprocessed({ patient_id: patient, hospital, priority, deadline });
+      const r = await api.submitDiagnosis({
+        source, patient_id: patient,
+        target_hospital: isClinic ? normalizeTarget(target) : undefined,
+        priority, deadline,
+      });
       onDone(r.task_id);
     } catch (e: any) { onErr(e?.response?.data?.detail ?? e?.message); }
     finally { setBusy(false); }
@@ -156,229 +200,62 @@ function MedicalForm({ onDone, busy, setBusy, onErr }: FormProps) {
   return (
     <>
       <p className="form-desc">
-        鹏城医疗模型（DoubleTower）bpCR 预测：医院 Pod 处理 DCE/DWI 前端特征，
-        云端 medical-server 完成骨干网络与融合分类。患者原始数据不离开所选医院。
+        鹏城医疗 DoubleTower bpCR 预测：医院 Pod（边）提取 DCE/DWI/临床/影像组学特征 →
+        云端 medical-server 完成骨干融合分类。诊所（端）发起时将自动转诊到空闲医院。
       </p>
-      <Field label="患者来源医院（worker 前端所在 Hospital Pod）">
-        <div className="btnrow">
-          {['hospital-a', 'hospital-b'].map((h) => (
-            <button key={h} className={`mini ${hospital === h ? 'on' : ''}`}
-              onClick={() => setHospital(h)}>{h}</button>
-          ))}
-        </div>
+      <Field label="发起端（医院=边直接执行 · 诊所=端转诊）">
+        <SourcePicker value={source} onChange={setSource} />
       </Field>
-      <Field label="测试患者">
+      <Field label="测试患者（必选）">
         {patErr ? <div className="muted">{patErr}</div> : (
           <select value={patient} onChange={(e) => setPatient(e.target.value)}>
             <option value="">选择患者…</option>
             {patients.map((p) => (
               <option key={p.patient_id} value={p.patient_id}>
-                {p.patient_id}{p.bpCR != null ? ` · bpCR=${p.bpCR}` : ''}
+                {p.patient_id}{p.bpCR != null ? ` · bpCR=${p.bpCR}` : ''}{p.hospital ? ` · ${p.hospital}` : ''}
               </option>
             ))}
           </select>
         )}
       </Field>
-      <Field label="优先级">
-        <Slider value={priority} onChange={setPriority} />
-      </Field>
-      <Field label="截止时间">
-        <div className="btnrow">
-          {DEADLINES.map((d) => (
-            <button key={d} className={`mini ${deadline === d ? 'on' : ''}`}
-              onClick={() => setDeadline(d)}>{d}</button>
-          ))}
+      {isClinic ? (
+        <Field label="转诊目标医院">
+          <BtnGroup value={target} onChange={setTarget}
+            options={['auto', 'hospital-a', 'hospital-b'] as const}
+            labels={{ auto: '自动（最空闲）' }} />
+        </Field>
+      ) : (
+        <div className="muted xs mb" style={{ marginTop: -6 }}>
+          ℹ️ 医院发起时直接在本医院执行（不转诊）；诊所发起时可指定转诊目标。
         </div>
-      </Field>
+      )}
+      <CommonFields priority={priority} setPriority={setPriority}
+        deadline={deadline} setDeadline={setDeadline} />
       <button className="btn primary wide" disabled={busy || !patient} onClick={submit}>
-        提交医疗推理任务
+        提交诊断任务
       </button>
     </>
   );
 }
 
-// --------------------------- alexnet ---------------------------
-const SAMPLES = Array.from({ length: 6 }, (_, i) => ({
-  url: `${import.meta.env.BASE_URL}samples/sample-0${i + 1}.jpg`,
-  label: `内置样本 ${i + 1}`,
-}));
-
-type AlexMode = 'dataset' | 'upload' | 'noise';
-
-/** Downscale any image source (URL/file/bitmap) into 224x224 float CHW. */
-async function to224(src: CanvasImageSource): Promise<number[][][]> {
-  const w = 224, h = 224;
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(src, 0, 0, w, h);
-  const { data } = ctx.getImageData(0, 0, w, h);
-  const out: number[][][] = [];
-  for (let c = 0; c < 3; c++) {
-    const ch: number[][] = [];
-    for (let y = 0; y < h; y++) {
-      const row: number[] = new Array(w);
-      for (let x = 0; x < w; x++) row[x] = data[(y * w + x) * 4 + c] / 255;
-      ch.push(row);
-    }
-    out.push(ch);
-  }
-  return out;
-}
-
-async function loadSample(url: string): Promise<number[][][]> {
-  const img = new Image();
-  img.src = url;
-  await img.decode();
-  return to224(img);
-}
-
-async function fileTo224(file: File): Promise<number[][][]> {
-  const bmp = await createImageBitmap(file);
-  return to224(bmp);
-}
-
-function AlexForm({ onDone, busy, setBusy, onErr }: FormProps) {
-  const [hospital, setHospital] = useState('hospital-a');
+// ---------------------------------------------------------------------------
+// 计算 compute — multi-pod collaborative partition compute
+// ---------------------------------------------------------------------------
+function ComputeForm({ onDone, busy, setBusy, onErr }: FormProps) {
+  const [source, setSource] = useState<SourceId>('hospital-a');
+  const [instruments, setInstruments] = useState(4);
+  const [rows, setRows] = useState(512);
+  const [intensity, setIntensity] = useState(60);
+  const [partitionCount, setPartitionCount] = useState(3);
   const [priority, setPriority] = useState(5);
-  const [deadline, setDeadline] = useState('10s');
-  const [mode, setMode] = useState<AlexMode>('dataset');
-  const [sampleIdx, setSampleIdx] = useState(() => Math.floor(Math.random() * SAMPLES.length));
-  const [fileInfo, setFileInfo] = useState('');
+  const [deadline, setDeadline] = useState('60s');
 
   const submit = async () => {
     setBusy(true); onErr('');
     try {
-      let image: number[][][];
-      if (mode === 'dataset') {
-        image = await loadSample(SAMPLES[sampleIdx].url);
-      } else if (mode === 'upload') {
-        const input = document.getElementById('imgfile') as HTMLInputElement;
-        if (!input?.files?.[0]) throw new Error('请选择图片文件');
-        image = await fileTo224(input.files[0]);
-      } else {
-        image = randomImage();
-      }
-      const r = await api.submitAlexNet({
-        hospital, priority, deadline, image,
-      });
-      onDone(r.task_id);
-    } catch (e: any) { onErr(e?.response?.data?.detail ?? e?.message); }
-    finally { setBusy(false); }
-  };
-
-  const nextSample = () => {
-    let n = Math.floor(Math.random() * SAMPLES.length);
-    if (n === sampleIdx && SAMPLES.length > 1) n = (n + 1) % SAMPLES.length;
-    setSampleIdx(n);
-  };
-
-  return (
-    <>
-      <p className="form-desc">
-        AlexNet 分布式图像分类：所选医院 Pod 内执行 part1（Conv1-5 + avgpool），
-        part2 全连接层由云端 part2 Pod 完成，返回 ImageNet 类别与置信度。
-      </p>
-      <Field label="图像来源（part1 执行所在 Hospital Pod）">
-        <div className="btnrow">
-          {['hospital-a', 'hospital-b'].map((h) => (
-            <button key={h} className={`mini ${hospital === h ? 'on' : ''}`}
-              onClick={() => setHospital(h)}>{h}</button>
-          ))}
-        </div>
-      </Field>
-      <Field label="输入图像">
-        <div className="btnrow">
-          <button className={`mini ${mode === 'dataset' ? 'on' : ''}`}
-            onClick={() => setMode('dataset')}>内置样本集</button>
-          <button className={`mini ${mode === 'upload' ? 'on' : ''}`}
-            onClick={() => setMode('upload')}>上传图片</button>
-          <button className={`mini ${mode === 'noise' ? 'on' : ''}`}
-            onClick={() => setMode('noise')}>随机噪声</button>
-        </div>
-
-        {mode === 'dataset' && (
-          <div className="sample-pick">
-            <img className="sample-thumb"
-              src={SAMPLES[sampleIdx].url} alt={SAMPLES[sampleIdx].label} />
-            <div className="sample-side">
-              <div className="muted xs">内置轻量样本集：6 张真实照片（本机内置，无外网依赖），提交时随机抽取。</div>
-              <div className="btnrow">
-                <button className="mini" onClick={nextSample}>🎲 换一张（当前 {SAMPLES[sampleIdx].label}）</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {mode === 'upload' && (
-          <>
-            <input id="imgfile" type="file" accept="image/*"
-              onChange={(e) => setFileInfo(e.target.files?.[0] ? '已选择文件' : '')} />
-            <div className="muted xs">{fileInfo}</div>
-          </>
-        )}
-
-        {mode === 'noise' && (
-          <div className="muted xs">纯随机噪声不包含实际类别语义，分类结果与置信度仅供流水线链路测试。</div>
-        )}
-      </Field>
-      <Field label="优先级">
-        <Slider value={priority} onChange={setPriority} />
-      </Field>
-      <Field label="截止时间">
-        <div className="btnrow">
-          {DEADLINES.map((d) => (
-            <button key={d} className={`mini ${deadline === d ? 'on' : ''}`}
-              onClick={() => setDeadline(d)}>{d}</button>
-          ))}
-        </div>
-      </Field>
-      <button className="btn primary wide" disabled={busy} onClick={submit}>
-        提交图像分类任务
-      </button>
-    </>
-  );
-}
-
-function randomImage(): number[][][] {
-  const size = 224;
-  const out: number[][][] = [];
-  for (let c = 0; c < 3; c++) {
-    const ch: number[][] = [];
-    for (let y = 0; y < size; y++) {
-      const row: number[] = new Array(size);
-      for (let x = 0; x < size; x++) row[x] = Math.random();
-      ch.push(row);
-    }
-    out.push(ch);
-  }
-  return out;
-}
-
-// --------------------------- clinic (memory monitor) ---------------------------
-function ClinicForm({ onDone, busy, setBusy, onErr }: FormProps) {
-  const [clinic, setClinic] = useState('clinic-1');
-  const [target, setTarget] = useState('');
-  const [priority, setPriority] = useState(5);
-  const [podNames, setPodNames] = useState<string[]>([]);
-
-  useEffect(() => {
-    api.clusterStatus().then((s) => {
-      const names = Object.values(s.entities || {}).flatMap((e) =>
-        (e.pods || []).map((p) => p.name));
-      const ro = (s.readonly || []).flatMap((d) =>
-        (d.pods || []).map((p) => p.name));
-      setPodNames([...new Set([...names, ...ro])]);
-    }).catch(() => setPodNames([]));
-  }, []);
-
-  const submit = async () => {
-    setBusy(true); onErr('');
-    try {
-      const r = await api.submitClinic({
-        clinic,
-        target_pod: target.trim() || undefined,
-        priority,
+      const r = await api.submitCompute({
+        source, instruments, rows, intensity,
+        partition_count: partitionCount, priority, deadline,
       });
       onDone(r.task_id);
     } catch (e: any) { onErr(e?.response?.data?.detail ?? e?.message); }
@@ -388,41 +265,129 @@ function ClinicForm({ onDone, busy, setBusy, onErr }: FormProps) {
   return (
     <>
       <p className="form-desc">
-        Clinic 任务：查询指定 Pod 的内存占用率（usage / limit）。
-        目标留空时默认查询所选 Clinic Pod <b>自身</b>（读取容器 cgroup，恒可用）；
-        填写目标 Pod 时由 Clinic 经 metrics-server 查询。
+        协同计算：发起端 + 数据中心 + 合作医院按分区并行计算（行 × 仪器），
+        每分区独立返回字节 / CPU / checksum，云端汇总校验。
       </p>
-      <Field label="执行查询的 Clinic Pod">
-        <div className="btnrow">
-          {['clinic-1', 'clinic-2'].map((c) => (
-            <button key={c} className={`mini ${clinic === c ? 'on' : ''}`}
-              onClick={() => setClinic(c)}>{c}</button>
-          ))}
-        </div>
+      <Field label="发起端">
+        <SourcePicker value={source} onChange={setSource} />
       </Field>
-      <Field label="目标 Pod（留空 = 默认查询自身）">
-        <input list="podlist" value={target} onChange={(e) => setTarget(e.target.value)}
-          placeholder="例如 hospital-a-xxxxxxxxxx-xxxxx" />
-        <datalist id="podlist">
-          {podNames.map((p) => <option key={p} value={p} />)}
-        </datalist>
-        {podNames.length > 0 && (
-          <div className="pod-sug">
-            {podNames.slice(0, 12).map((p) => (
-              <button key={p} className="mini" onClick={() => setTarget(p)}>{p}</button>
-            ))}
-          </div>
-        )}
+      <Field label={`仪器数：${instruments} 台`}>
+        <RangeRow value={instruments} onChange={setInstruments} min={1} max={8} />
       </Field>
-      <Field label="优先级">
-        <Slider value={priority} onChange={setPriority} />
+      <Field label={`数据行数：${rows}`}>
+        <RangeRow value={rows} onChange={setRows} min={64} max={1024} step={64} />
       </Field>
+      <Field label={`计算强度：${intensity}`}>
+        <RangeRow value={intensity} onChange={setIntensity} min={10} max={200} step={10} />
+      </Field>
+      <Field label={`分区数：${partitionCount}`}>
+        <RangeRow value={partitionCount} onChange={setPartitionCount} min={2} max={6} />
+      </Field>
+      <CommonFields priority={priority} setPriority={setPriority}
+        deadline={deadline} setDeadline={setDeadline} />
       <button className="btn primary wide" disabled={busy} onClick={submit}>
-        提交内存监控任务
+        提交计算任务
       </button>
     </>
   );
 }
 
-// (results now rendered inline on this page via TaskResultView)
+// ---------------------------------------------------------------------------
+// 通信 sync — patient-db P2P cloud sync + backup
+// ---------------------------------------------------------------------------
+function SyncForm({ onDone, busy, setBusy, onErr }: FormProps) {
+  const [source, setSource] = useState<SourceId>('clinic-1');
+  const [bandwidth, setBandwidth] = useState(20);
+  const [concurrency, setConcurrency] = useState(4);
+  const [chunkKb, setChunkKb] = useState<'4' | '8' | '16'>('4');
+  const [priority, setPriority] = useState(5);
+  const [deadline, setDeadline] = useState('60s');
 
+  const submit = async () => {
+    setBusy(true); onErr('');
+    try {
+      const r = await api.submitSync({
+        source, bandwidth_mbps: bandwidth, concurrency,
+        chunk_kb: Number(chunkKb), priority, deadline,
+      });
+      onDone(r.task_id);
+    } catch (e: any) { onErr(e?.response?.data?.detail ?? e?.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <>
+      <p className="form-desc">
+        患者库通信同步：端侧从各医院 / 云端 P2P 拉取缺失条目（模拟带宽限速），
+        上传本地待同步更新并触发云端全量备份。
+      </p>
+      <Field label="发起端（本侧副本持有者）">
+        <SourcePicker value={source} onChange={setSource} />
+      </Field>
+      <Field label={`模拟带宽：${bandwidth} Mbps`}>
+        <RangeRow value={bandwidth} onChange={setBandwidth} min={2} max={100} step={2} unit="M" />
+      </Field>
+      <Field label={`并发拉取：${concurrency}`}>
+        <RangeRow value={concurrency} onChange={setConcurrency} min={1} max={8} />
+      </Field>
+      <Field label="分块大小">
+        <BtnGroup value={chunkKb} onChange={setChunkKb} options={['4', '8', '16'] as const}
+          labels={{ '4': '4 KB', '8': '8 KB', '16': '16 KB' }} />
+      </Field>
+      <CommonFields priority={priority} setPriority={setPriority}
+        deadline={deadline} setDeadline={setDeadline} />
+      <button className="btn primary wide" disabled={busy} onClick={submit}>
+        提交通信任务
+      </button>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 日常 routine — ephemeral Kubernetes Jobs
+// ---------------------------------------------------------------------------
+function RoutineForm({ onDone, busy, setBusy, onErr }: FormProps) {
+  const [source, setSource] = useState<SourceId>('clinic-1');
+  const [jobs, setJobs] = useState(2);
+  const [rows, setRows] = useState(128);
+  const [intensity, setIntensity] = useState(30);
+  const [priority, setPriority] = useState(5);
+  const [deadline, setDeadline] = useState('60s');
+
+  const submit = async () => {
+    setBusy(true); onErr('');
+    try {
+      const r = await api.submitRoutine({
+        source, jobs, rows, intensity, priority, deadline,
+      });
+      onDone(r.task_id);
+    } catch (e: any) { onErr(e?.response?.data?.detail ?? e?.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <>
+      <p className="form-desc">
+        日常例行任务：调度器按空闲边缘节点生成一批一次性 K8s Job（含行列计算），
+        捕获 JSON 输出后自动删除，不常驻集群。
+      </p>
+      <Field label="发起端">
+        <SourcePicker value={source} onChange={setSource} />
+      </Field>
+      <Field label={`Job 数量：${jobs} 个`}>
+        <RangeRow value={jobs} onChange={setJobs} min={1} max={5} />
+      </Field>
+      <Field label={`数据行数：${rows}`}>
+        <RangeRow value={rows} onChange={setRows} min={64} max={1024} step={64} />
+      </Field>
+      <Field label={`计算强度：${intensity}`}>
+        <RangeRow value={intensity} onChange={setIntensity} min={10} max={200} step={10} />
+      </Field>
+      <CommonFields priority={priority} setPriority={setPriority}
+        deadline={deadline} setDeadline={setDeadline} />
+      <button className="btn primary wide" disabled={busy} onClick={submit}>
+        提交日常任务
+      </button>
+    </>
+  );
+}

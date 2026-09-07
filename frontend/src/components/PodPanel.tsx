@@ -151,7 +151,7 @@ export default function PodPanel({ id, ent, live, isDefault, edgeNodes, onChange
         </div>
       ) : (
         <div className="muted xs">
-          hospital 为医院核心实体（承载医疗前端与 part1），不可删除；可拖动换节点或修改右侧参数。
+          hospital 为医院核心实体（承载诊断 worker 前端与协同计算能力），不可删除；可拖动换节点或修改右侧参数。
         </div>
       )}
     </div>

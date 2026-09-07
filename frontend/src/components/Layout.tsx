@@ -4,6 +4,7 @@ const NAV = [
   { to: '/', label: '总览', icon: '◈' },
   { to: '/submit', label: '任务提交', icon: '＋' },
   { to: '/history', label: '任务记录', icon: '≡' },
+  { to: '/test', label: '综合测试', icon: '⚡' },
   { to: '/cluster', label: '集群编排', icon: '◉' },
 ];
 
@@ -15,8 +16,8 @@ export default function Layout() {
         <div className="brand">
           <div className="brand-mark">医</div>
           <div>
-            <div className="brand-name">云边协同推理</div>
-            <div className="brand-sub">Hospital · Clinic Pods v2.0</div>
+            <div className="brand-name">云边端协同推理</div>
+            <div className="brand-sub">Hospital · Clinic Pods v3.0</div>
           </div>
         </div>
         <nav className="nav">
@@ -35,7 +36,7 @@ export default function Layout() {
         <div className="sidebar-foot">
           <span className="pulse-dot" />
           数据不出院 · 算力云端化
-          <div className="foot-ver">v2.0 pod 化架构</div>
+          <div className="foot-ver">v3.0 四类任务编排</div>
         </div>
       </aside>
       <main className="content">

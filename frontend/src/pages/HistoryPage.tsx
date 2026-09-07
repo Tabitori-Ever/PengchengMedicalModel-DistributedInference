@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { useTicker } from '../hooks';
 import Badge from '../components/Badge';
-import TaskResultView from '../components/TaskResultView';
-import { fmtTime, MODEL_LABEL } from '../utils';
+import TaskResultView, { isTerminalStatus } from '../components/TaskResultView';
+import { fmtTime, MODEL_LABEL, MODELS } from '../utils';
 import type { TaskItem, TaskResult } from '../types';
 
 const STATUS_FILTERS = ['all', 'running', 'finished', 'failed'] as const;
-const MODEL_FILTERS = ['all', 'medical', 'alexnet', 'clinic'] as const;
+const STATUS_FILTER_LABEL: Record<string, string> = {
+  all: '全部', running: '运行中', finished: '已完成', failed: '失败',
+};
 
 export default function HistoryPage() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -43,17 +45,17 @@ export default function HistoryPage() {
     <div className="page">
       <header className="page-head">
         <h1>任务记录</h1>
-        <p>全部提交记录：医疗推理 / 图像分类 / 内存监控（clinic）。</p>
+        <p>全部提交记录：诊断 / 计算 / 通信 / 日常 四类任务。</p>
       </header>
 
       <div className="filterbar">
         <span className="filter-label">状态</span>
         {STATUS_FILTERS.map((f) => (
           <button key={f} className={`mini ${status === f ? 'on' : ''}`}
-            onClick={() => setStatus(f)}>{f === 'all' ? '全部' : f}</button>
+            onClick={() => setStatus(f)}>{STATUS_FILTER_LABEL[f]}</button>
         ))}
-        <span className="filter-label">模型</span>
-        {MODEL_FILTERS.map((f) => (
+        <span className="filter-label">类型</span>
+        {(['all', ...MODELS] as const).map((f) => (
           <button key={f} className={`mini ${model === f ? 'on' : ''}`}
             onClick={() => setModel(f)}>{f === 'all' ? '全部' : MODEL_LABEL[f]}</button>
         ))}
@@ -71,7 +73,7 @@ export default function HistoryPage() {
           ) : (
             <table className="datatable">
               <thead>
-                <tr><th>模型</th><th>状态</th><th>来源</th><th>阶段</th>
+                <tr><th>类型</th><th>状态</th><th>来源</th><th>阶段</th>
                   <th>耗时</th><th>时间</th></tr>
               </thead>
               <tbody>
@@ -113,8 +115,13 @@ function DetailPane({ id }: { id: string }) {
     try {
       const r = await api.taskResult(id);
       setLive(r);
-      if (r.status === 'finished' || r.status === 'completed' || r.status === 'failed') {
+      if (isTerminalStatus(r.status)) {
         finishedRef.current = true;
+        // refresh full record so the rich result payload (task.result) is present
+        try {
+          const detail = await api.taskDetail(id);
+          setItem(detail);
+        } catch { /* keep light poll result */ }
       }
     } catch { /* poll until available */ }
   }, 2000, !!id);
@@ -139,7 +146,7 @@ function DetailPane({ id }: { id: string }) {
       {item ? (
         <>
           <div className="kvrow">
-            <span>模型</span><Badge model={item.model} />
+            <span>类型</span><Badge model={item.model} />
             <span>状态</span><Badge status={live?.status || item.status} />
           </div>
           <div className="kvrow">

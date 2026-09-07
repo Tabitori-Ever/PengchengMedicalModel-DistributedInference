@@ -1,487 +1,476 @@
 """
-Core scheduler: orchestrates multi-model inference across edge and cloud nodes.
-Implements FromGPT.txt's intelligent scheduling architecture.
+v3.0 data-center scheduler.
+
+Four task types, all initiated by hospital (edge) or clinic (terminal) pods
+and executed cooperatively with the data center (cloud node3):
+  diagnosis - medical DoubleTower: hospital worker -> dc medical-server
+  compute   - instrument-stream simulation, multi-pod + dc collaborative math
+  sync      - patient-db P2P cloud sync + backup
+  routine   - scheduler spawns short-lived Kubernetes Jobs on free nodes,
+              captures their JSON output and deletes them afterwards.
 """
+import hashlib
 import json
 import os
 import time
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
 import requests
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
-
-from .task_manager import create_task, update_task, complete_task, fail_task
-from .redis_client import (
-    save_task, get_task, enqueue_task,
-    redis_set, redis_get, REDIS_AVAILABLE, get_queue_length as redis_queue_len
-)
-from .queue import PriorityTaskQueue
-from .resource_monitor import ResourceMonitor
-from .predictor import LatencyPredictor
-from .policy import SchedulingPolicy
-from .metrics import inference_latency, stage_latency
-from .service_registry import (
-    PART2_URL,
-    MEDICAL_SERVER_URL,
-    hospital_medical_infer_url,
-    hospital_alexnet_infer_url,
-    clinic_mem_query_url,
-    pick_hospital,
-    pick_clinic,
-)
-
-
-# ---- Shared requests Session with connection pooling and retry ----
-
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-_SESSION = None
+from .task_manager import create_task, update_task, complete_task, fail_task
+from .redis_client import (
+    get_task, enqueue_task, redis_set, REDIS_AVAILABLE,
+    get_queue_length as redis_queue_len,
+)
+from .metrics import inference_latency
+from .service_registry import (
+    MEDICAL_SERVER_URL, clinic_base, hospital_base,
+    is_clinic, is_source, pick_hospital, dc,
+)
+from . import node_usage as usage
+from . import kubeops
+
+_SESSION: Optional[requests.Session] = None
 
 
-def _get_session() -> requests.Session:
-    """Lazy-init a shared requests.Session with retry + connection pooling.
-
-    Connection pool size: 20 connections, enough for 4 workers + API handlers.
-    Retries: 3 attempts with exponential backoff for transient server errors.
-    """
+def _session() -> requests.Session:
     global _SESSION
     if _SESSION is None:
         _SESSION = requests.Session()
-        retry_strategy = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["POST", "GET"],
-        )
-        adapter = HTTPAdapter(
-            max_retries=retry_strategy,
-            pool_connections=10,
-            pool_maxsize=20,
-            pool_block=False,
-        )
-        _SESSION.mount("http://", adapter)
-        _SESSION.mount("https://", adapter)
+        retry = Retry(total=2, backoff_factor=0.3,
+                      status_forcelist=[429, 500, 502, 503, 504],
+                      allowed_methods=["POST", "GET"])
+        ad = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=40)
+        _SESSION.mount("http://", ad)
+        _SESSION.mount("https://", ad)
     return _SESSION
 
 
+ROLE_BY_ENTITY = {
+    "hospital-a": ("edge", "node1"), "hospital-b": ("edge", "node2"),
+    "clinic-1": ("terminal", "node1"), "clinic-2": ("terminal", "node2"),
+}
+
+
+def _queue_wait_ms(task: dict) -> float:
+    queued = task.get("queued_at") or task.get("start_time")
+    if not queued:
+        return 0.0
+    try:
+        return max(0.0, (datetime.utcnow() - datetime.fromisoformat(queued)).total_seconds() * 1000)
+    except Exception:
+        return 0.0
+
+
+def _stage(task_id: str, name: str, actor: str, ms: float,
+           detail: str = "", node: str = ""):
+    update_task(task_id, {"stage": name, "node": node or actor})
+    return {"name": name, "actor": actor, "node": node or actor,
+            "ms": round(float(ms), 2), "detail": detail}
+
+
 class InferenceScheduler:
-    """Unified scheduler for AlexNet and Medical model tasks."""
+    """v3.0 data-center scheduler."""
 
     def __init__(self, max_concurrent: int = 4, max_queue: int = 200):
         self.max_concurrent = max_concurrent
-        self.task_queue = PriorityTaskQueue(maxsize=max_queue)
-        self.resource_monitor = ResourceMonitor()
-        self.predictor = LatencyPredictor()
-        self.policy = SchedulingPolicy()
         self.active_tasks: Dict[str, Dict[str, Any]] = {}
 
-    def submit_task(self, hospital: str, model: str, priority: int,
-                    input_data: dict, deadline: str = "5s") -> dict:
-        """Submit a new inference task. Called by POST /schedule/task.
-
-        Task input data is stored in Redis. Only a lightweight task_ref
-        (task_id + metadata) is placed in queue, keeping memory minimal.
-        """
-        # Check queue capacity
-        if redis_queue_len() >= self.task_queue._maxsize:
+    # ------------------------------------------------------------ submit ----
+    def submit_task(self, model: str, source: str, priority: int = 5,
+                    input_data: dict = None, deadline: str = "30s") -> dict:
+        if not is_source(source):
+            raise RuntimeError(f"unknown initiator: {source}")
+        if redis_queue_len() >= int(os.getenv("MAX_QUEUE_SIZE", "200")):
             raise RuntimeError("Task queue is full, please try again later")
+        task = create_task(model=model, source=source, priority=priority,
+                           input_data=input_data or {}, deadline=deadline)
+        enqueue_task(task["id"], priority)
+        return {"task_id": task["id"], "status": "queued"}
 
-        # Create full task and persist to Redis (input data stays in Redis)
-        task = create_task(
-            model=model,
-            source=hospital,
-            priority=priority,
-            input_data=input_data,
-            deadline=deadline
-        )
-        task_id = task["id"]
-
-        # Queue only the task_id in Redis (shared across threads)
-        enqueue_task(task_id, priority)
-
-        print(f"[Scheduler] Task {task_id} queued: model={model}, "
-              f"hospital={hospital}, priority={priority}")
-
-        return {"task_id": task_id, "status": "queued"}
-
+    # ---------------------------------------------------------- dispatch ----
     def dispatch_task(self, task_ref: dict) -> bool:
-        """Dispatch a task to the appropriate worker/server.
-
-        Accepts a lightweight task_ref with task_id. Fetches the full
-        task data (including input) from Redis on demand.
-        """
         task_id = task_ref["id"]
-
-        # Fetch full task data from Redis (input stays in Redis, not in queue)
-        task_raw = get_task(task_id)
-        if not task_raw:
-            print(f"[Scheduler] Task {task_id} not found in Redis, skipping")
+        raw = get_task(task_id)
+        if not raw:
             return False
-        task = json.loads(task_raw)
-
-        model = task.get("model", "alexnet")
-
+        task = json.loads(raw)
+        model = task.get("model", "diagnosis")
         if task_id in self.active_tasks:
             return False
-
         self.active_tasks[task_id] = task
-
         try:
-            if model == "alexnet":
-                self._run_alexnet_pipeline(task)
-            elif model == "medical":
-                self._run_medical_pipeline(task)
-            elif model == "clinic":
-                self._run_clinic_pipeline(task)
+            pipe = {"diagnosis": self._run_diagnosis,
+                    "compute": self._run_compute,
+                    "sync": self._run_sync,
+                    "routine": self._run_routine}.get(model)
+            if not pipe:
+                fail_task(task_id, f"未知任务类型: {model}")
             else:
-                fail_task(task_id, f"Unknown model: {model}")
-        except Exception as e:
+                pipe(task)
+        except Exception as e:  # noqa: BLE001
             fail_task(task_id, str(e))
         finally:
             self.active_tasks.pop(task_id, None)
-
         return True
 
-    def _compute_queue_wait_ms(self, task: dict) -> float:
-        """Compute time spent waiting in queue before dispatch.
+    # ---------------------------------------------------------- helpers -----
+    def _initiator(self, task: dict) -> dict:
+        source = task.get("source", "hospital-a")
+        role, node = ROLE_BY_ENTITY.get(source, ("?", "?"))
+        return {"entity": source, "role": role, "node": node,
+                "priority": task.get("priority"),
+                "deadline": task.get("deadline"),
+                "queued_at": task.get("queued_at")}
 
-        Uses the task's queued_at (or start_time) timestamp and the current
-        perf_counter to estimate queue wait time. Returns 0 if timestamps
-        are unavailable.
-        """
-        queued_str = task.get("queued_at") or task.get("start_time")
-        if not queued_str:
-            return 0.0
-        try:
-            queued_dt = datetime.fromisoformat(queued_str)
-            now_dt = datetime.now(timezone.utc)
-            # queued_at is naive (no tz), so make now naive for comparison
-            now_naive = now_dt.replace(tzinfo=None)
-            wait_s = (now_naive - queued_dt).total_seconds()
-            return max(0.0, wait_s * 1000)
-        except (ValueError, TypeError):
-            return 0.0
+    def _finish(self, task_id: str, start: float, result: dict, model: str):
+        pipeline = (time.perf_counter() - start) * 1000
+        result.setdefault("metrics", {})
+        result["metrics"].update({"pipeline_total_ms": pipeline,
+                                  "e2e_total_ms": pipeline})
+        inference_latency.labels(model=model).observe(pipeline / 1000)
+        complete_task(task_id, pipeline, result)
+        redis_set(f"inference:result:{task_id}", json.dumps(
+            {"status": "completed", "result": result}))
 
-    def _run_alexnet_pipeline(self, task: dict):
-        """Execute AlexNet distributed inference pipeline."""
-        task_id = task["id"]
-        dispatch_start = time.perf_counter()
+    def _entity_url(self, entity: str) -> Optional[str]:
+        if entity in ("hospital-a", "hospital-b"):
+            return hospital_base(entity)
+        if entity in ("clinic-1", "clinic-2"):
+            return clinic_base(entity)
+        return None
 
-        # Compute queue wait time from submission to dispatch
-        queue_wait_ms = self._compute_queue_wait_ms(task)
-
-        # Stage 1: AlexNet part1 (Conv layers) runs inside a hospital pod
-        hospital = pick_hospital(task.get("source", ""))
-        if not hospital:
-            fail_task(task_id, "No hospital pod available for AlexNet part1")
-            return
-        part1_url = hospital_alexnet_infer_url(hospital)
-
-        update_task(task_id, {"stage": "part1", "node": hospital})
-
-        image_data = task.get("input", {}).get("image")
-        if not image_data:
-            fail_task(task_id, "No image data provided for AlexNet task")
-            return
-
-        session = _get_session()
-        part1_start = time.perf_counter()
-        try:
-            response = session.post(
-                part1_url,
-                json={"image": image_data},
-                timeout=120
-            )
-            response.raise_for_status()
-            part1_result = response.json()
-        except Exception as e:
-            fail_task(task_id, f"Part1 inference failed: {e}")
-            return
-        part1_roundtrip_ms = (time.perf_counter() - part1_start) * 1000
-        part1_compute_ms = part1_result.get("latency_ms", part1_roundtrip_ms)
-        part1_network_ms = max(0, part1_roundtrip_ms - part1_compute_ms)
-
-        # Stage 2: Part2 (FC layers) - cloud/edge part2 pods
-        nodes = self.resource_monitor.get_all_nodes()
-        part2_node = self.policy.select_target_node(
-            "alexnet", "part2", task.get("source", ""),
-            nodes, self.resource_monitor
-        )
-        if not part2_node:
-            part2_node = "node2"
-
-        update_task(task_id, {"stage": "part2", "node": part2_node})
-
-        part2_start = time.perf_counter()
-        try:
-            response = session.post(
-                PART2_URL,
-                json={"feature": part1_result.get("feature")},
-                timeout=120
-            )
-            response.raise_for_status()
-            part2_result = response.json()
-        except Exception as e:
-            fail_task(task_id, f"Part2 inference failed: {e}")
-            return
-        part2_roundtrip_ms = (time.perf_counter() - part2_start) * 1000
-        part2_compute_ms = part2_result.get("latency_ms", part2_roundtrip_ms)
-        part2_network_ms = max(0, part2_roundtrip_ms - part2_compute_ms)
-
-        pipeline_total_ms = (time.perf_counter() - dispatch_start) * 1000
-        e2e_total_ms = pipeline_total_ms + queue_wait_ms
-
-        # Inter-stage transfer time (gap between part1 end and part2 start)
-        inter_stage_ms = max(0, pipeline_total_ms - part1_roundtrip_ms - part2_roundtrip_ms)
-
-        # Record Prometheus metrics
-        inference_latency.labels(model="alexnet").observe(pipeline_total_ms / 1000)
-        stage_latency.labels(model="alexnet", stage="part1").observe(part1_roundtrip_ms / 1000)
-        stage_latency.labels(model="alexnet", stage="part2").observe(part2_roundtrip_ms / 1000)
-
-        result = {
-            "class_id": part2_result.get("class_id"),
-            "class_name": part2_result.get("class_name"),
-            "score": part2_result.get("score"),
-            "metrics": {
-                "queue_wait_ms": queue_wait_ms,
-                "part1_compute_ms": part1_compute_ms,
-                "part1_network_ms": part1_network_ms,
-                "part1_total_ms": part1_roundtrip_ms,
-                "inter_stage_ms": inter_stage_ms,
-                "part2_compute_ms": part2_compute_ms,
-                "part2_network_ms": part2_network_ms,
-                "part2_total_ms": part2_roundtrip_ms,
-                "pipeline_total_ms": pipeline_total_ms,
-                "e2e_total_ms": e2e_total_ms,
-            }
-        }
-
-        complete_task(task_id, pipeline_total_ms, result)
-        redis_set(f"inference:result:{task_id}", json.dumps({
-            "status": "completed",
-            "result": result
-        }))
-        print(f"[Scheduler] AlexNet task {task_id} completed in {pipeline_total_ms:.2f}ms "
-              f"(e2e: {e2e_total_ms:.2f}ms, queue_wait: {queue_wait_ms:.2f}ms)")
-
-    def _run_medical_pipeline(self, task: dict):
-        """Execute Medical model distributed inference pipeline."""
+    # ------------------------------------------------------- diagnosis -------
+    def _run_diagnosis(self, task: dict):
         task_id = task["id"]
         source = task.get("source", "hospital-a")
-        dispatch_start = time.perf_counter()
-
-        # Compute queue wait time from submission to dispatch
-        queue_wait_ms = self._compute_queue_wait_ms(task)
-
-        nodes = self.resource_monitor.get_all_nodes()
-
-        # Stage 1: Medical Worker (front-end) runs inside the SOURCE hospital pod.
-        # Patient data never leaves its own hospital pod/node.
-        hospital = pick_hospital(source)
-        if not hospital:
-            fail_task(task_id, "No hospital pod available for medical worker")
-            return
-        worker_url = hospital_medical_infer_url(hospital)
-
+        inp = task.get("input", {}) or {}
+        start = time.perf_counter()
+        hospital = pick_hospital(source, inp.get("target_hospital"))
+        forwarded = hospital if is_clinic(source) else None
         update_task(task_id, {"stage": "worker", "node": hospital})
 
-        session = _get_session()
-        worker_start = time.perf_counter()
+        stages = []
+        wstart = time.perf_counter()
         try:
-            response = session.post(
-                worker_url,
-                json=task.get("input", {}),
-                timeout=300
-            )
-            response.raise_for_status()
-            worker_result = response.json()
+            r = _session().post(hospital_base(hospital) + "/medical/infer",
+                                json=inp, timeout=300)
+            r.raise_for_status()
+            worker = r.json()
         except Exception as e:
-            fail_task(task_id, f"Medical worker inference failed: {e}")
+            fail_task(task_id, f"医院 worker 推理失败({hospital}): {e}")
             return
-        worker_roundtrip_ms = (time.perf_counter() - worker_start) * 1000
-        worker_compute_ms = worker_result.get("latency_ms", worker_roundtrip_ms)
-        worker_network_ms = max(0, worker_roundtrip_ms - worker_compute_ms)
+        stages.append(_stage(task_id, "worker", hospital,
+                             (time.perf_counter() - wstart) * 1000,
+                             "医院 Pod 医疗前端", hospital))
 
-        # Stage 2: Medical Server (cloud only) - must run on cloud node
-        server_node = self.policy.select_target_node(
-            "medical", "server", source,
-            nodes, self.resource_monitor
-        )
-        if not server_node:
-            server_node = "node3"
-
-        update_task(task_id, {"stage": "server", "node": server_node})
-
-        server_start = time.perf_counter()
+        sstart = time.perf_counter()
         try:
-            response = session.post(
+            r = _session().post(
                 MEDICAL_SERVER_URL,
-                json={
-                    "dce_features": worker_result.get("dce_features"),
-                    "dwi_features": worker_result.get("dwi_features"),
-                    "clinical_features": worker_result.get("clinical_features"),
-                    "radiomics_features": worker_result.get("radiomics_features"),
-                    "patient_ids": worker_result.get("patient_ids"),
-                },
-                timeout=300
-            )
-            response.raise_for_status()
-            server_result = response.json()
+                json={"dce_features": worker.get("dce_features"),
+                      "dwi_features": worker.get("dwi_features"),
+                      "clinical_features": worker.get("clinical_features"),
+                      "radiomics_features": worker.get("radiomics_features"),
+                      "patient_ids": worker.get("patient_ids")},
+                timeout=300)
+            r.raise_for_status()
+            server = r.json()
         except Exception as e:
-            fail_task(task_id, f"Medical server inference failed: {e}")
+            fail_task(task_id, f"数据中心 medical-server 推理失败: {e}")
             return
-        server_roundtrip_ms = (time.perf_counter() - server_start) * 1000
-        server_compute_ms = server_result.get("latency_ms", server_roundtrip_ms)
-        server_network_ms = max(0, server_roundtrip_ms - server_compute_ms)
+        stages.append(_stage(task_id, "server", "datacenter",
+                             (time.perf_counter() - sstart) * 1000,
+                             "DC medical-server", "node3"))
 
-        pipeline_total_ms = (time.perf_counter() - dispatch_start) * 1000
-        e2e_total_ms = pipeline_total_ms + queue_wait_ms
+        self._finish(task_id, start, {
+            "initiator": self._initiator(task),
+            "forwarded_to": forwarded,
+            "stages": stages,
+            "result_detail": {
+                "predictions": server.get("predictions", []),
+                "bpCR_probability": server.get("bpCR_probability"),
+                "worker_latency_ms": worker.get("latency_ms"),
+                "server_latency_ms": server.get("latency_ms"),
+            },
+        }, "diagnosis")
 
-        # Inter-stage transfer time (scheduler overhead between worker response and server request)
-        inter_stage_ms = max(0, pipeline_total_ms - worker_roundtrip_ms - server_roundtrip_ms)
+    # ---------------------------------------------------------- compute ------
+    def _run_compute(self, task: dict):
+        task_id = task["id"]
+        source = task.get("source", "hospital-a")
+        inp = task.get("input", {}) or {}
+        start = time.perf_counter()
 
-        # Record Prometheus metrics
-        inference_latency.labels(model="medical").observe(pipeline_total_ms / 1000)
-        stage_latency.labels(model="medical", stage="worker").observe(worker_roundtrip_ms / 1000)
-        stage_latency.labels(model="medical", stage="server").observe(server_roundtrip_ms / 1000)
+        instruments = int(inp.get("instruments", 4))
+        rows = int(inp.get("rows", 256))
+        intensity = int(inp.get("intensity", 40))
+        partition_count = max(2, min(int(inp.get("partition_count", 3)), 6))
+        seed = int(inp.get("seed", uuid.uuid4().int % (2 ** 20)))
 
-        result = {
-            "predictions": server_result.get("predictions", []),
-            "bpCR_probability": server_result.get("bpCR_probability"),
-            "metrics": {
-                "queue_wait_ms": queue_wait_ms,
-                "worker_compute_ms": worker_compute_ms,
-                "worker_network_ms": worker_network_ms,
-                "worker_total_ms": worker_roundtrip_ms,
-                "inter_stage_ms": inter_stage_ms,
-                "server_compute_ms": server_compute_ms,
-                "server_network_ms": server_network_ms,
-                "server_total_ms": server_roundtrip_ms,
-                "pipeline_total_ms": pipeline_total_ms,
-                "e2e_total_ms": e2e_total_ms,
-            }
-        }
+        partners = [source, "datacenter"]
+        other = "hospital-a" if source != "hospital-a" else "hospital-b"
+        if source not in ("hospital-a", "hospital-b"):
+            other = pick_hospital(source)
+        partners.append(other)
+        partners = partners[:partition_count]
+        update_task(task_id, {"stage": "compute"})
 
-        complete_task(task_id, pipeline_total_ms, result)
-        redis_set(f"inference:result:{task_id}", json.dumps({
-            "status": "completed",
-            "result": result
-        }))
-        print(f"[Scheduler] Medical task {task_id} completed in {pipeline_total_ms:.2f}ms "
-              f"(e2e: {e2e_total_ms:.2f}ms, queue_wait: {queue_wait_ms:.2f}ms)")
+        stages = []
+        partitions = []
+        for i, actor in enumerate(partners):
+            pstart = time.perf_counter()
+            try:
+                if actor == "datacenter":
+                    url = dc("/v3/compute")
+                else:
+                    url = self._entity_url(actor) + "/v3/compute"
+                r = _session().post(url, json={
+                    "rows": rows, "instruments": instruments,
+                    "intensity": intensity, "seed": seed + i,
+                    "partition": i, "count": len(partners)}, timeout=120)
+                r.raise_for_status()
+                res = r.json()
+            except Exception as e:
+                res = {"failed": True, "error": str(e)[:140],
+                       "partition": i, "actor": actor}
+            ms = (time.perf_counter() - pstart) * 1000
+            res["ms"] = round(ms, 2)
+            res.setdefault("actor", actor)
+            partitions.append(res)
+            stages.append(_stage(task_id, "compute", actor, ms,
+                                 detail=f"分区 {i+1}/{len(partners)}",
+                                 node=res.get("node", actor)))
 
-    def _run_clinic_pipeline(self, task: dict):
-        """Execute a clinic task: query a pod's memory usage.
+        ok = [p for p in partitions if not p.get("failed")]
+        self._finish(task_id, start, {
+            "initiator": self._initiator(task),
+            "stages": stages,
+            "produced": {"instruments": instruments, "rows": rows,
+                         "samples": instruments * rows},
+            "partitions": partitions,
+            "result_detail": {
+                "partitions_ok": len(ok),
+                "total_bytes": int(sum(p.get("bytes", 0) for p in ok)),
+                "aggregate_cpu_ms": round(
+                    sum(float(p.get("cpu_ms", 0)) for p in ok), 2),
+                "checksums": [p.get("checksum", "") for p in ok],
+            },
+        }, "compute")
 
-        The selected clinic pod answers; by default it reports its own memory
-        usage, otherwise the explicitly requested target pod.
-        """
+    # ------------------------------------------------------------- sync ------
+    def _run_sync(self, task: dict):
         task_id = task["id"]
         source = task.get("source", "clinic-1")
-        dispatch_start = time.perf_counter()
-
-        queue_wait_ms = self._compute_queue_wait_ms(task)
-
-        clinic = pick_clinic(source)
-        if not clinic:
-            fail_task(task_id, "No clinic pod available for memory query")
-            return
-        mem_url = clinic_mem_query_url(clinic)
-
-        update_task(task_id, {"stage": "mem", "node": clinic})
-
         inp = task.get("input", {}) or {}
-        body = {
-            "target_pod": inp.get("target_pod") or None,
-            "namespace": inp.get("namespace", "default"),
-        }
+        start = time.perf_counter()
 
-        session = _get_session()
-        mem_start = time.perf_counter()
-        try:
-            response = session.post(mem_url, json=body, timeout=30)
-            response.raise_for_status()
-            mem_result = response.json()
-        except Exception as e:
-            fail_task(task_id, f"Clinic memory query failed: {e}")
+        if not is_source(source):
+            fail_task(task_id, f"非法的发起端 {source}")
             return
-        clinic_roundtrip_ms = (time.perf_counter() - mem_start) * 1000
+        base = self._entity_url(source)
+        bandwidth_mbps = float(inp.get("bandwidth_mbps", 20.0))
+        concurrency = int(inp.get("concurrency", 4))
+        chunk_kb = int(inp.get("chunk_kb", 4))
 
-        pipeline_total_ms = (time.perf_counter() - dispatch_start) * 1000
-        e2e_total_ms = pipeline_total_ms + queue_wait_ms
+        s = _session()
+        try:
+            state = s.get(dc("/db/state"), timeout=20).json()
+            local = s.get(base + "/v3/sync/local", timeout=20).json()
+        except Exception as e:
+            fail_task(task_id, f"患者库/本地副本不可达: {e}")
+            return
 
-        # Record Prometheus metrics
-        inference_latency.labels(model="clinic").observe(pipeline_total_ms / 1000)
-        stage_latency.labels(model="clinic", stage="mem").observe(clinic_roundtrip_ms / 1000)
+        all_ids = state.get("ids", [])
+        held = set(local.get("holds", []) or [])
+        missing = [i for i in all_ids if i not in held]
+        if not missing:
+            missing = all_ids[:24]
 
-        result = {
-            "pod": mem_result.get("pod"),
-            "namespace": mem_result.get("namespace"),
-            "usage_bytes": mem_result.get("usage_bytes"),
-            "limit_bytes": mem_result.get("limit_bytes"),
-            "usage_percent": mem_result.get("usage_percent"),
-            "containers": mem_result.get("containers", []),
-            "measured_at": mem_result.get("measured_at"),
-            "source": mem_result.get("source"),
-            "clinic": clinic,
-            "metrics": {
-                "queue_wait_ms": queue_wait_ms,
-                "clinic_total_ms": clinic_roundtrip_ms,
-                "pipeline_total_ms": pipeline_total_ms,
-                "e2e_total_ms": e2e_total_ms,
+        peers = []
+        for ent in ("hospital-a", "hospital-b", "clinic-1", "clinic-2"):
+            if ent != source:
+                u = self._entity_url(ent)
+                if u:
+                    peers.append({"entity": ent, "url": u})
+        peers.append({"entity": "datacenter", "url": dc("/db/item/")})
+
+        update_task(task_id, {"stage": "sync"})
+        delay_per_kb = (1000.0 / (bandwidth_mbps * 1024.0)) if bandwidth_mbps else 0.0
+        chunks = []
+        ok_n = 0
+        pulled_bytes = 0
+        t0 = time.perf_counter()
+        for idx, mid in enumerate(missing):
+            peer = peers[idx % len(peers)]
+            started = time.perf_counter()
+            item = None
+            try:
+                if peer["entity"] == "datacenter":
+                    r = s.get(peer["url"] + mid, timeout=30)
+                else:
+                    r = s.get(peer["url"] + "/v3/sync/chunk/" + mid, timeout=30)
+                r.raise_for_status()
+                item = r.json()
+            except Exception:
+                try:  # fall back to cloud master
+                    r = s.get(dc("/db/item/") + mid, timeout=30)
+                    r.raise_for_status()
+                    item = r.json()
+                except Exception as e:
+                    chunks.append({"id": mid, "ok": False, "peer": peer["entity"],
+                                   "error": str(e)[:100]})
+                    continue
+            kb = int(item.get("size", 0)) / 1024.0
+            cost_ms = kb * delay_per_kb * 1000
+            time.sleep(max(0.0, min(1.5, cost_ms / 1000)))
+            chunks.append({"id": mid, "ok": True, "peer": peer["entity"],
+                           "size": item.get("size"), "hash": item.get("hash"),
+                           "ms": round((time.perf_counter() - started) * 1000
+                                       + cost_ms, 2)})
+            ok_n += 1
+            pulled_bytes += int(item.get("size", 0))
+        pull_ms = (time.perf_counter() - t0) * 1000
+
+        try:
+            s.post(base + "/v3/sync/accepted",
+                   json={"ids": [c["id"] for c in chunks if c.get("ok")]}, timeout=20)
+        except Exception:
+            pass
+
+        # push local pending updates -> cloud -> backup
+        pushed = []
+        for u in local.get("pending_updates", []):
+            blob = _det_blob(u["uid"])
+            pushed.append({"id": u["uid"], "blob": blob})
+        try:
+            up = s.post(dc("/db/upload"), json={"items": pushed}, timeout=30).json()
+            backup = s.post(dc("/db/backup"), json={}, timeout=30).json()
+        except Exception as e:
+            fail_task(task_id, f"云端上传/备份失败: {e}")
+            return
+
+        stages = [_stage(task_id, "sync", "datacenter", 1.0,
+                         "cloud manifest + 备份", "node3")]
+        self._finish(task_id, start, {
+            "initiator": self._initiator(task),
+            "stages": stages,
+            "result_detail": {
+                "db_version": state.get("db_version"),
+                "cloud_items": state.get("total_items"),
+                "missing": len(missing),
+                "pulled": ok_n,
+                "failed_chunks": len(chunks) - ok_n,
+                "bytes_pulled": pulled_bytes,
+                "pull_ms": round(pull_ms, 2),
+                "concurrency": concurrency,
+                "bandwidth_mbps": bandwidth_mbps,
+                "peers": [p["entity"] for p in peers],
+                "chunks": chunks[:80],
+                "uploaded": up.get("accepted", 0),
+                "cloud_total": up.get("total_uploaded", 0),
+                "backup": backup,
             },
-        }
+        }, "sync")
 
-        complete_task(task_id, pipeline_total_ms, result)
-        redis_set(f"inference:result:{task_id}", json.dumps({
-            "status": "completed",
-            "result": result
-        }))
-        print(f"[Scheduler] Clinic task {task_id} completed in {pipeline_total_ms:.2f}ms "
-              f"(pod={mem_result.get('pod')}, "
-              f"usage_percent={mem_result.get('usage_percent')})")
+    # ---------------------------------------------------------- routine ------
+    def _run_routine(self, task: dict):
+        task_id = task["id"]
+        source = task.get("source", "clinic-1")
+        inp = task.get("input", {}) or {}
+        start = time.perf_counter()
+
+        if not kubeops.available():
+            fail_task(task_id, "Kubernetes Job 能力不可用")
+            return
+        jobs_n = max(1, int(inp.get("jobs", 2)))
+        rows = int(inp.get("rows", 128))
+        intensity = int(inp.get("intensity", 30))
+        nodes = usage.free_edge_nodes()
+        while len(nodes) < jobs_n:
+            nodes = nodes + ["node1", "node2"]
+        nodes = nodes[:jobs_n]
+
+        update_task(task_id, {"stage": "routine"})
+        job_rows = []
+        for i in range(jobs_n):
+            job_name = f"routine-{task_id[-12:]}-{i}"
+            args = {"rows": rows, "instruments": 3, "intensity": intensity,
+                    "seed": 7 + i, "partition": i, "count": jobs_n}
+            jr = {"job": job_name, "node": nodes[i], "state": "failed"}
+            if kubeops.create_routine_job(job_name, nodes[i], args):
+                deadline = time.time() + 180
+                while time.time() < deadline:
+                    st = kubeops.job_status(job_name)
+                    if st["state"] == "succeeded":
+                        parsed = _last_json(kubeops.read_pod_log(
+                            st.get("pod_name", "")))
+                        jr.update({"state": "succeeded", "output": parsed,
+                                   "pod": st.get("pod_name")})
+                        break
+                    if st["state"] == "failed":
+                        break
+                    time.sleep(3)
+                else:
+                    jr["state"] = "timeout"
+                kubeops.delete_job(job_name)
+                jr["deleted"] = True
+            job_rows.append(jr)
+
+        self._finish(task_id, start, {
+            "initiator": self._initiator(task),
+            "stages": [_stage(task_id, "routine", "scheduler", 1.0,
+                              f"生成 {jobs_n} 个一次性 Job pod", "node3")],
+            "result_detail": {
+                "jobs": job_rows,
+                "succeeded": sum(1 for j in job_rows if j.get("state") == "succeeded"),
+            },
+        }, "routine")
 
     def get_task_result(self, task_id: str) -> dict:
-        """Get task result. Called by GET /task/result/{id}."""
         result_key = f"inference:result:{task_id}"
-        result_data = redis_get(result_key)
-
-        if result_data:
-            return json.loads(result_data)
-
-        task_data = get_task(task_id)
-        if task_data:
-            task = json.loads(task_data)
-            status = task.get("status", "unknown")
-            if status == "running":
-                return {
-                    "task_id": task_id,
-                    "status": "running",
-                    "stage": task.get("stage"),
-                    "progress": task.get("progress"),
-                    "node": task.get("node")
-                }
-            elif status == "failed":
-                return {
-                    "task_id": task_id,
-                    "status": "failed",
-                    "error": task.get("error")
-                }
-            elif status == "finished":
-                return {
-                    "task_id": task_id,
-                    "status": "finished",
-                    "result": task.get("result"),
-                    "duration_ms": task.get("duration_ms")
-                }
-
+        data = redis_get(result_key)
+        if data:
+            return json.loads(data)
+        raw = get_task(task_id)
+        if raw:
+            t = json.loads(raw)
+            if t.get("status") == "failed":
+                return {"task_id": task_id, "status": "failed",
+                        "error": t.get("error")}
+            if t.get("status") == "finished":
+                return {"task_id": task_id, "status": "finished",
+                        "result": t.get("result"),
+                        "duration_ms": t.get("duration_ms")}
+            if t.get("status") == "running":
+                return {"task_id": task_id, "status": "running",
+                        "stage": t.get("stage"), "progress": t.get("progress"),
+                        "node": t.get("node")}
         return {"task_id": task_id, "status": "not_found"}
 
     def get_queue_status(self) -> dict:
-        return {
-            "queue_length": redis_queue_len(),
-            "active_tasks": len(self.active_tasks),
-            "max_concurrent": self.max_concurrent,
-            "redis_available": REDIS_AVAILABLE
-        }
+        return {"queue_length": redis_queue_len(),
+                "active_tasks": len(self.active_tasks),
+                "redis_available": REDIS_AVAILABLE}
+
+
+def _det_blob(item_id: str) -> str:
+    """Deterministic payload identical to common.v3_common.chunk_blob."""
+    seed = int(hashlib.sha1(item_id.encode()).hexdigest()[:8], 16)
+    rnd = __import__("random").Random(seed)
+    return "".join(rnd.choice("0123456789abcdef") for _ in range(512))
+
+
+def _last_json(log: str) -> Optional[dict]:
+    for line in reversed((log or "").splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                return json.loads(line)
+            except Exception:
+                continue
+    return None

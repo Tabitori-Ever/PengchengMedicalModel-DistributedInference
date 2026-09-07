@@ -42,14 +42,11 @@ def update_task(task_id: str, updates: dict):
         if "stage" in updates:
             stage_progress = {
                 "scheduler": 0,
-                "preprocess": 5,
                 "worker": 30,
-                "part1": 30,
-                "conv": 30,
                 "server": 60,
-                "part2": 60,
-                "fc": 60,
-                "mem": 60,
+                "compute": 55,
+                "sync": 55,
+                "routine": 55,
                 "completed": 100,
                 "finished": 100
             }
@@ -90,9 +87,10 @@ def fail_task(task_id: str, error: str):
 
 def get_default_resources(model: str) -> dict:
     profiles = {
-        "alexnet": {"cpu": 2, "memory": "4G"},
-        "medical": {"cpu": 4, "memory": "8G", "gpu": 1},
-        "clinic": {"cpu": 1, "memory": "512M"}
+        "diagnosis": {"cpu": 4, "memory": "8G", "gpu": 1},
+        "compute": {"cpu": 2, "memory": "2G"},
+        "sync": {"cpu": 1, "memory": "1G"},
+        "routine": {"cpu": 1, "memory": "512M"}
     }
     return profiles.get(model, {"cpu": 1, "memory": "2G"})
 

@@ -22,7 +22,7 @@ import hashlib
 import json
 from typing import Dict, Any, List, Optional
 
-VERSION = "2.0"
+VERSION = "3.0"
 NAMESPACE = "default"
 REGISTRY = "10.29.182.66:5000/k8s-repo"
 
@@ -30,11 +30,10 @@ EDGE_NODES = ["node1", "node2"]
 FIXED_NODES_READONLY = ["node3", "desktop-jm5iec6"]
 ALL_NODES = EDGE_NODES + FIXED_NODES_READONLY
 
-IMAGE_HOSPITAL = f"{REGISTRY}/hospital:v2.0"
-# 注意：clinic/scheduler 的 v2.0.1 修复了 metrics 用量解析/part2 探测，
-# 默认模型必须指向修复版，否则 reset 会把运行中的镜像“降级”回有 bug 的 v2.0。
-IMAGE_CLINIC = f"{REGISTRY}/clinic:v2.0.1"
-IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v2.0.6"
+IMAGE_HOSPITAL = f"{REGISTRY}/hospital:v3.0"
+IMAGE_CLINIC = f"{REGISTRY}/clinic:v3.0"
+IMAGE_SCHEDULER = f"{REGISTRY}/inference-scheduler:v3.0"
+IMAGE_DC = f"{REGISTRY}/dc:v3.0"
 
 DEFAULT_RESOURCES = {
     "hospital": {
@@ -88,7 +87,8 @@ DEFAULT_EDITABLE: Dict[str, dict] = {
 }
 
 # Read-only deployments shown on the cluster map (not editable)
-READONLY_APPS = ["medical-server", "part2", "redis", "scheduler",
+# v3.0: part2 removed; data center services listed under readonly.
+READONLY_APPS = ["medical-server", "dc-services", "redis", "scheduler",
                  "monitoring", "prediction"]
 
 SELECTOR_LABELS = {

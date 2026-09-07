@@ -1,13 +1,19 @@
-// Shared API types for the v2.0 control plane
+// Shared API types for the v3.0 control plane
+// v3 keeps four task kinds: diagnosis / compute / sync / routine.
 
-export type ModelKind = 'medical' | 'alexnet' | 'clinic';
+export type ModelKind = 'diagnosis' | 'compute' | 'sync' | 'routine';
+
+export type SourceId = 'hospital-a' | 'hospital-b' | 'clinic-1' | 'clinic-2';
+export type HospitalId = 'hospital-a' | 'hospital-b';
+
+export type TaskStatus = 'queued' | 'running' | 'finished' | 'completed' | 'failed';
 
 export interface TaskItem {
   id: string;
-  model: string;
-  source?: string;
+  model: string;               // one of the four ModelKind values
+  source?: string;             // hospital-a | hospital-b | clinic-1 | clinic-2
   priority?: number;
-  status: string;
+  status: TaskStatus | string;
   stage?: string;
   node?: string;
   progress?: number;
@@ -15,8 +21,7 @@ export interface TaskItem {
   end_time?: string;
   duration_ms?: number;
   error?: string;
-  result?: any;
-  latency?: string;
+  result?: any;                // DiagnosisResult | ComputeResult | SyncResult | RoutineResult
 }
 
 export interface TaskStats {
@@ -34,33 +39,157 @@ export interface Patient {
   hospital?: string;
 }
 
+/** Live poll payload of GET /task/result/{id} */
 export interface TaskResult {
   task_id: string;
   status: string;
   stage?: string;
   progress?: number;
   node?: string;
-  result?: {
-    bpCR_probability?: number;
-    class_id?: number;
-    class_name?: string;
-    score?: number;
-    predictions?: { patient_id?: string; bpCR_probability?: number; prediction?: number }[];
-    usage_percent?: number;
-    usage_bytes?: number;
-    limit_bytes?: number;
-    source?: string;
-    pod?: string;
-    namespace?: string;
-    measured_at?: string;
-    metrics?: Record<string, number>;
-    [k: string]: any;
-  } | null;
+  result?: any;
   error?: string;
   duration_ms?: number;
 }
 
-// ---------------- cluster model ----------------
+// ---------------------------------------------------------------------------
+// v3 finished-task result payloads (stored by the scheduler under task.result)
+// ---------------------------------------------------------------------------
+export interface InitiatorInfo {
+  entity: string;              // hospital-a | hospital-b | clinic-1 | clinic-2
+  role: string;                // edge | terminal
+  node: string;
+  priority?: number;
+  deadline?: string;
+  queued_at?: string;
+}
+
+export interface StageInfo {
+  name: string;
+  actor: string;
+  node: string;
+  ms: number;
+  detail?: string;
+}
+
+export interface PredictionRow {
+  patient_id?: string;
+  bpCR_probability?: number;
+  prediction?: number;
+}
+
+// -------- diagnosis --------
+export interface DiagnosisResult {
+  initiator: InitiatorInfo;
+  forwarded_to?: 'hospital-a' | 'hospital-b' | null;
+  stages: StageInfo[];
+  result_detail: {
+    predictions?: PredictionRow[];
+    bpCR_probability?: number;
+    worker_latency_ms?: number;
+    server_latency_ms?: number;
+  };
+  metrics?: Record<string, number>;
+}
+
+// -------- compute --------
+export interface PartitionRow {
+  partition?: number;
+  actor?: string;
+  node?: string;
+  rows?: number;
+  bytes?: number;
+  checksum?: string;
+  cpu_ms?: number;
+  ms?: number;
+  failed?: boolean;
+  error?: string;
+  [k: string]: any;
+}
+
+export interface ComputeResult {
+  initiator: InitiatorInfo;
+  stages: StageInfo[];
+  produced: { instruments: number; rows: number; samples: number };
+  partitions: PartitionRow[];
+  result_detail: {
+    partitions_ok: number;
+    total_bytes: number;
+    aggregate_cpu_ms: number;
+    checksums: string[];
+  };
+  metrics?: Record<string, number>;
+}
+
+// -------- sync --------
+export interface SyncChunk {
+  id: string;
+  ok: boolean;
+  peer: string;
+  size?: number;
+  hash?: string;
+  ms?: number;
+  error?: string;
+}
+
+export interface SyncBackup {
+  backup_id?: string;
+  ts?: string;
+  total_items?: number;
+  hash?: string;
+  [k: string]: any;
+}
+
+export interface SyncResult {
+  initiator: InitiatorInfo;
+  stages: StageInfo[];
+  result_detail: {
+    db_version?: number | string;
+    cloud_items?: number;
+    missing?: number;
+    pulled?: number;
+    failed_chunks?: number;
+    bytes_pulled?: number;
+    pull_ms?: number;
+    concurrency?: number;
+    bandwidth_mbps?: number;
+    peers?: string[];
+    chunks?: SyncChunk[];
+    uploaded?: number;
+    cloud_total?: number;
+    backup?: SyncBackup;
+  };
+  metrics?: Record<string, number>;
+}
+
+// -------- routine --------
+export interface RoutineJob {
+  job: string;
+  node: string;
+  state: string;               // succeeded | failed | timeout
+  succeeded?: boolean;
+  timeout?: boolean;
+  deleted?: boolean;
+  pod?: string;
+  output?: { cpu_ms?: number; bytes?: number; checksum?: string; [k: string]: any };
+}
+
+export interface RoutineResult {
+  initiator: InitiatorInfo;
+  stages: StageInfo[];
+  result_detail: {
+    succeeded: number;
+    jobs: RoutineJob[];
+  };
+  metrics?: Record<string, number>;
+}
+
+export type TaskPayload =
+  | DiagnosisResult
+  | ComputeResult
+  | SyncResult
+  | RoutineResult;
+
+// ---------------- cluster model (unchanged) ----------------
 export type AffinityKind = 'fixed' | 'role-edge' | 'spread-edge';
 export type EntityKind = 'hospital' | 'clinic';
 

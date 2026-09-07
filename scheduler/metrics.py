@@ -9,17 +9,10 @@ inference_queue_length = Gauge(
     "inference_queue_length",
     "Current inference task queue length"
 )
-medical_task_running = Gauge(
-    "medical_task_running",
-    "Currently running medical model tasks"
-)
-alexnet_task_running = Gauge(
-    "alexnet_task_running",
-    "Currently running AlexNet tasks"
-)
-clinic_task_running = Gauge(
-    "clinic_task_running",
-    "Currently running clinic (memory-monitor) tasks"
+task_running = Gauge(
+    "task_running",
+    "Currently running tasks per model",
+    ["model"]
 )
 
 # ---- Node Resources ----

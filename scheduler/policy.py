@@ -15,15 +15,7 @@ except ImportError:
 
 # Try to load model profile from YAML, fall back to defaults
 MODEL_PROFILE = {
-    "alexnet": {
-        "part1": {"cpu": 2, "memory": "4G", "gpu": 0},
-        "part2": {"cpu": 4, "memory": "4G", "gpu": 0},
-        "constraints": {
-            "part1": {"allowed_roles": ["edge", "cloud", "control-plane"]},
-            "part2": {"allowed_roles": ["edge", "cloud", "control-plane"]},
-        }
-    },
-    "medical": {
+    "diagnosis": {
         "worker": {"cpu": 4, "memory": "8G", "gpu": 0},
         "server": {"cpu": 4, "memory": "8G", "gpu": 1},
         "constraints": {
@@ -31,12 +23,18 @@ MODEL_PROFILE = {
             "server": {"allowed_roles": ["cloud"]},
         }
     },
-    "clinic": {
-        "mem": {"cpu": 1, "memory": "512M", "gpu": 0},
-        "constraints": {
-            "mem": {"allowed_roles": ["edge"]},
-        }
-    }
+    "compute": {
+        "comp": {"cpu": 2, "memory": "2G", "gpu": 0},
+        "constraints": {"comp": {"allowed_roles": ["edge", "cloud"]}},
+    },
+    "sync": {
+        "sync": {"cpu": 1, "memory": "1G", "gpu": 0},
+        "constraints": {"sync": {"allowed_roles": ["edge", "cloud"]}},
+    },
+    "routine": {
+        "job": {"cpu": 1, "memory": "512M", "gpu": 0},
+        "constraints": {"job": {"allowed_roles": ["edge", "cloud"]}},
+    },
 }
 
 # Try loading from config file
@@ -57,12 +55,14 @@ class SchedulingPolicy:
     @staticmethod
     def get_model_stages(model: str) -> list:
         """Get the processing stages for a given model."""
-        if model == "alexnet":
-            return ["part1", "part2"]
-        elif model == "medical":
+        if model == "diagnosis":
             return ["worker", "server"]
-        elif model == "clinic":
-            return ["mem"]
+        elif model == "compute":
+            return ["compute"]
+        elif model == "sync":
+            return ["sync"]
+        elif model == "routine":
+            return ["routine"]
         return []
 
     @staticmethod

@@ -1,56 +1,55 @@
 # ==========================================================================
-# Model Resource Profile - Used by scheduler for resource-aware dispatch
+# v3.0 Model / Task Resource Profile
+# Used by the data-center scheduler for resource-aware decisions.
 # ==========================================================================
 models:
 
-  alexnet:
-    part1:
-      cpu: 2
-      memory: "4G"
-      gpu: 0
-      # AlexNet part1 (Conv1-Conv5+avgpool) can run on any node
-    part2:
-      cpu: 4
-      memory: "4G"
-      gpu: 0
-      # AlexNet part2 (FC1-FC3) prefers cloud but can run anywhere
-    constraints:
-      part1:
-        allowed_roles: ["edge", "cloud", "control-plane"]
-      part2:
-        allowed_roles: ["edge", "cloud", "control-plane"]
-
-  medical:
+  diagnosis:
     worker:
       cpu: 4
       memory: "8G"
       gpu: 0
-      # Medical worker runs ResNet front-end (conv1→maxpool) + clinical/radiomics encoding
-      # MUST run on edge node (hospital) - raw patient data stays local
+      # Medical DoubleTower front-end, MUST run on edge (hospital) pod
     server:
       cpu: 4
       memory: "8G"
       gpu: 1
-      # Medical server runs ResNet back-end (layer1-4) + fusion + classifier
-      # MUST run on cloud node (data center) - high computation
+      # DoubleTower back-end, runs on the data center (cloud node3)
     constraints:
       worker:
         allowed_roles: ["edge"]
-        # Worker must be on edge - patient data never leaves the hospital
       server:
         allowed_roles: ["cloud"]
-        # Server must be on cloud - centralized high-compute inference
 
-  clinic:
-    mem:
+  compute:
+    comp:
+      cpu: 2
+      memory: "2G"
+      gpu: 0
+      # Collaborative compute partition (edge pods + data center)
+    constraints:
+      comp:
+        allowed_roles: ["edge", "cloud"]
+
+  sync:
+    sync:
+      cpu: 1
+      memory: "1G"
+      gpu: 0
+      # Patient-db P2P cloud sync (network heavy)
+    constraints:
+      sync:
+        allowed_roles: ["edge", "cloud"]
+
+  routine:
+    job:
       cpu: 1
       memory: "512M"
       gpu: 0
-      # Clinic memory-monitor task: lightweight, runs on edge nodes
-      # (clinics co-locate with hospital pods on node1/node2)
+      # Short-lived Kubernetes Job created on the node with free resources
     constraints:
-      mem:
-        allowed_roles: ["edge"]
+      job:
+        allowed_roles: ["edge", "cloud"]
 
 # Priority levels:
 #   10 = Emergency (medical urgent)

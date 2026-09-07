@@ -5,7 +5,7 @@ metadata:
   name: scheduler
   labels:
     app: scheduler
-    component: control-plane
+    component: data-center
 
 spec:
   replicas: 1
@@ -18,51 +18,48 @@ spec:
     metadata:
       labels:
         app: scheduler
-        component: control-plane
+        component: data-center
 
     spec:
+      # v3.0: the scheduler (data-center scheduling function) lives on the
+      # cloud node node3 together with medical-server / dc-services / redis.
       nodeSelector:
-        kubernetes.io/hostname: desktop-jm5iec6
-
-      tolerations:
-      - key: "node-role.kubernetes.io/control-plane"
-        operator: "Exists"
-        effect: "NoSchedule"
+        kubernetes.io/hostname: node3
 
       containers:
       - name: scheduler
-        image: 10.29.182.66:5000/k8s-repo/inference-scheduler:v2.0.6
+        image: 10.29.182.66:5000/k8s-repo/inference-scheduler:v3.0
         imagePullPolicy: IfNotPresent
 
         env:
-        # Hospital pods (medical worker + alexnet part1 merged, per hospital)
+        # Hospital pods (diagnosis worker front-end + v3 worker)
         - name: HOSPITAL_A_URL
           value: "http://hospital-a-service:8006"
         - name: HOSPITAL_B_URL
           value: "http://hospital-b-service:8006"
-        # Clinic pods (pod memory monitor)
+        # Clinic pods (initiators + v3 worker)
         - name: CLINIC_1_URL
           value: "http://clinic-1-service:8007"
         - name: CLINIC_2_URL
           value: "http://clinic-2-service:8007"
-        # AlexNet part2 / medical server (cloud side, unchanged)
-        - name: PART2_URL
-          value: "http://part2-service:8002/infer"
+        # Data center services: medical server + patient-db / compute worker
         - name: MEDICAL_SERVER_URL
-          value: "http://medical-server-service:9001/infer"
-        # Redis
+          value: "http://medical-server-service:9001"
+        - name: DC_SERVICES_URL
+          value: "http://dc-services:8010"
+        # Redis (same node in v3.0)
         - name: REDIS_HOST
           value: "redis-service"
         - name: REDIS_PORT
           value: "6379"
+        # Routine Jobs: image that carries /app/run_routine.py
+        - name: ROUTINE_IMAGE
+          value: "10.29.182.66:5000/k8s-repo/clinic:v3.0"
         # Concurrency
         - name: MAX_CONCURRENT
           value: "4"
         - name: MAX_QUEUE_SIZE
           value: "200"
-        # Model profile
-        - name: MODEL_PROFILE_PATH
-          value: "/app/model_profile.yaml"
 
         ports:
         - name: http
