@@ -81,15 +81,129 @@ const TERM_LANES: Record<string, { up: number[]; down: number[] }> = {
 const OFFSETS = [0, -18, 18, -36, 36, -54, 54, -70, 70, -14, 14, -26, 26, -44, 44, -8, 8];
 
 const NODE_META: Record<string, { name: string; caption: string; tier: Tier }> = {
-  'scheduler': { name: 'scheduler', caption: '任务调度 SCHEDULER', tier: 'cloud' },
-  'medical-server': { name: 'medical-server', caption: '医学推理 MEDICAL SERVER', tier: 'cloud' },
+  'scheduler': { name: 'scheduler', caption: '调度器 SCHEDULER', tier: 'cloud' },
+  'medical-server': { name: 'medical-server', caption: '医学推理 SERVER', tier: 'cloud' },
   'dc-services': { name: 'dc-services', caption: '数据中心 / 患者库', tier: 'cloud' },
-  'redis': { name: 'redis', caption: '任务状态 STATE STORE', tier: 'cloud' },
-  'hospital-a': { name: 'hospital-a', caption: '医院 Pod · 边 EDGE', tier: 'edge' },
-  'hospital-b': { name: 'hospital-b', caption: '医院 Pod · 边 EDGE', tier: 'edge' },
-  'clinic-1': { name: 'clinic-1', caption: '诊所 Pod · 端 TERMINAL', tier: 'terminal' },
-  'clinic-2': { name: 'clinic-2', caption: '诊所 Pod · 端 TERMINAL', tier: 'terminal' },
+  'redis': { name: 'redis', caption: '状态库 REDIS', tier: 'cloud' },
+  'hospital-a': { name: 'hospital-a', caption: '医院 Pod · EDGE', tier: 'edge' },
+  'hospital-b': { name: 'hospital-b', caption: '医院 Pod · EDGE', tier: 'edge' },
+  'clinic-1': { name: 'clinic-1', caption: '诊所 Pod · 端', tier: 'terminal' },
+  'clinic-2': { name: 'clinic-2', caption: '诊所 Pod · 端', tier: 'terminal' },
 };
+
+/** inline 24×24 icon per node — no icon library, no external assets */
+type IconKind = 'scheduler' | 'server' | 'database' | 'cache' | 'hospital' | 'clinic' | 'job';
+
+const NODE_ICON: Record<string, IconKind> = {
+  'scheduler': 'scheduler',
+  'medical-server': 'server',
+  'dc-services': 'database',
+  'redis': 'cache',
+  'hospital-a': 'hospital',
+  'hospital-b': 'hospital',
+  'clinic-1': 'clinic',
+  'clinic-2': 'clinic',
+};
+
+function iconKindOf(id: string): IconKind {
+  if (isJob(id)) return 'job';
+  return NODE_ICON[id] || 'server';
+}
+
+/* icon-tile geometry: a hairline medallion plus a start-anchored text column,
+   laid out inside the routing box so the verified edge geometry is untouched */
+const MEDAL_R = 22;
+const RING_R = 27;
+const MEDAL_INSET = 30;
+const TEXT_INSET = 62;
+
+/** The cloud tier reads as one whole: the Data Center container panel. */
+const DC_PANEL = { x: 280, y: 14, w: 894, h: 106 };
+const DC_NODES = ['scheduler', 'medical-server', 'dc-services', 'redis'];
+const DC_NODE_SET = new Set(DC_NODES);
+
+/** Icon geometry authored in a 0..24 box; stroked/filled via the .tm-icon CSS. */
+function iconShapes(kind: IconKind) {
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const gearTeeth = [0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+    const t = (deg * Math.PI) / 180;
+    return (
+      <line
+        key={deg}
+        x1={r2(12 + 5.2 * Math.cos(t))}
+        y1={r2(12 + 5.2 * Math.sin(t))}
+        x2={r2(12 + 8.2 * Math.cos(t))}
+        y2={r2(12 + 8.2 * Math.sin(t))}
+      />
+    );
+  });
+  switch (kind) {
+    case 'scheduler': // 齿轮 / 调度
+      return (
+        <>
+          <circle cx="12" cy="12" r="5.2" />
+          <circle cx="12" cy="12" r="1.9" />
+          {gearTeeth}
+        </>
+      );
+    case 'server': // 服务器机架
+      return (
+        <>
+          <rect x="3.6" y="4.4" width="16.8" height="6.2" rx="1.4" />
+          <rect x="3.6" y="13.4" width="16.8" height="6.2" rx="1.4" />
+          <circle className="tm-icon-dot" cx="7" cy="7.5" r="0.95" />
+          <circle className="tm-icon-dot" cx="7" cy="16.5" r="0.95" />
+        </>
+      );
+    case 'database': // 数据库圆柱
+      return (
+        <>
+          <ellipse cx="12" cy="6.2" rx="7.2" ry="2.8" />
+          <path d="M4.8 6.2 V17.4 Q4.8 20.2 12 20.2 Q19.2 20.2 19.2 17.4 V6.2" />
+          <path d="M4.8 11.8 Q4.8 14.6 12 14.6 Q19.2 14.6 19.2 11.8" />
+        </>
+      );
+    case 'cache': // 缓存堆叠
+      return (
+        <>
+          <rect x="4.2" y="4.4" width="15.6" height="4.1" rx="1" />
+          <rect x="4.2" y="9.9" width="15.6" height="4.1" rx="1" />
+          <rect x="4.2" y="15.4" width="15.6" height="4.1" rx="1" />
+          <circle className="tm-icon-dot" cx="7.1" cy="6.45" r="0.8" />
+          <circle className="tm-icon-dot" cx="7.1" cy="11.95" r="0.8" />
+          <circle className="tm-icon-dot" cx="7.1" cy="17.45" r="0.8" />
+        </>
+      );
+    case 'hospital': // 医院十字建筑
+      return (
+        <>
+          <path d="M4.8 20 V7.6 A1.6 1.6 0 0 1 6.4 6 H17.6 A1.6 1.6 0 0 1 19.2 7.6 V20" />
+          <path d="M2.6 20 H21.4" />
+          <path d="M12 9.4 V14.2" />
+          <path d="M9.6 11.8 H14.4" />
+        </>
+      );
+    case 'clinic': // 听诊器
+      return (
+        <>
+          <path d="M8 4 V10.4 A4 4 0 0 0 16 10.4 V4" />
+          <circle cx="8" cy="3.4" r="1.3" />
+          <circle cx="16" cy="3.4" r="1.3" />
+          <path d="M12 14.4 V15.6" />
+          <circle cx="12" cy="18.2" r="2.4" />
+        </>
+      );
+    default: // job: 立方体
+      return (
+        <>
+          <path d="M12 3.4 L20.2 7.9 V16.9 L12 21.4 L3.8 16.9 V7.9 Z" />
+          <path d="M12 12.4 L20.2 7.9" />
+          <path d="M12 12.4 V21.4" />
+          <path d="M12 12.4 L3.8 7.9" />
+        </>
+      );
+  }
+}
 
 const TIER_LABEL: { no: string; text: string; y: number }[] = [
   { no: '01', text: '云 · CLOUD', y: 106 },
@@ -1087,7 +1201,12 @@ function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
 // ---------------------------------------------------------------------------
 // playback state
 // ---------------------------------------------------------------------------
-type PlayMode = 'auto' | 'play' | 'pin';
+/**
+ * 'live'   – cursor follows the running task's stage (no replay)
+ * 'auto'   – looping demo playback (2.5 s per step, 3 s dwell, then ① again)
+ * 'manual' – user-driven cursor (step buttons / chip clicks)
+ */
+type PlayMode = 'live' | 'auto' | 'manual';
 
 interface PlayState {
   id: string;
@@ -1095,17 +1214,51 @@ interface PlayState {
   mode: PlayMode;
 }
 
-const STEP_MS = 900;
-const DWELL_MS = 1200;
+const STEP_MS = 2500;
+const DWELL_MS = 3000;
 
 function initialPlayState(id: string, task: TaskItem | null, stepsLen: number, reduced: boolean): PlayState {
   const last = Math.max(0, stepsLen - 1);
-  if (!id || stepsLen < 2) return { id, index: last, mode: 'auto' };
+  // no traced task → canonical skeleton only, nothing plays
+  if (!id) return { id, index: 0, mode: 'manual' };
+  if (stepsLen < 2) return { id, index: last, mode: 'manual' };
   if (isFinished(task)) {
-    // play the finished flow once; reduced-motion users get the end state
-    return reduced ? { id, index: last, mode: 'pin' } : { id, index: 0, mode: 'play' };
+    // reduced-motion users land on the end state instead of an autoplay loop
+    return reduced ? { id, index: last, mode: 'manual' } : { id, index: 0, mode: 'auto' };
   }
-  return { id, index: 0, mode: 'auto' };
+  return { id, index: 0, mode: 'live' };
+}
+
+type StepAction = 'reset' | 'prev' | 'next' | 'auto';
+
+/**
+ * Pure cursor transition behind the ⏮ / ◀ / ▶ / ▶自动 buttons.
+ * Manual actions always clamp (no wrap) and take over from autoplay; 'auto'
+ * toggles the looping demo and restarts from ① when it is switched on.
+ */
+function nextPlayState(
+  state: PlayState,
+  action: StepAction,
+  id: string,
+  cursor: number,
+  lastStep: number,
+  canAuto: boolean,
+): PlayState {
+  if (!id) return state;
+  const at = Math.min(Math.max(0, cursor), lastStep);
+  switch (action) {
+    case 'reset':
+      return { id, index: 0, mode: 'manual' };
+    case 'prev':
+      return { id, index: Math.max(0, at - 1), mode: 'manual' };
+    case 'next':
+      return { id, index: Math.min(lastStep, at + 1), mode: 'manual' };
+    default:
+      if (!canAuto) return state;
+      return state.id === id && state.mode === 'auto'
+        ? { ...state, mode: 'manual' }
+        : { id, index: 0, mode: 'auto' };
+  }
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -1196,7 +1349,7 @@ export default function TaskTrajectoryMap({
   );
   const lastStep = Math.max(0, stepsLen - 1);
   const cursor = traced
-    ? Math.min(active.mode === 'auto' ? dataCursor : active.index, lastStep)
+    ? Math.min(active.mode === 'live' ? dataCursor : active.index, lastStep)
     : -1;
 
   // keep the stored state in sync when the traced task changes
@@ -1204,18 +1357,18 @@ export default function TaskTrajectoryMap({
     setPlay((s) => (s.id === tracedId ? s : autoState));
   }, [tracedId, autoState]);
 
-  // auto-advance once through a finished task, then park on the last step
+  // autoplay: slower cadence, dwell on the last step, then loop back to ①
   useEffect(() => {
-    if (active.mode !== 'play' || stepsLen < 2) return undefined;
+    if (active.mode !== 'auto' || stepsLen < 2 || reduced) return undefined;
     const delay = active.index >= lastStep ? DWELL_MS : STEP_MS;
     const id = window.setTimeout(() => {
       setPlay((s) => {
-        if (s.mode !== 'play') return s;
-        return s.index >= lastStep ? { ...s, mode: 'pin' } : { ...s, index: s.index + 1 };
+        if (s.mode !== 'auto') return s;
+        return { ...s, index: s.index >= lastStep ? 0 : s.index + 1 };
       });
     }, delay);
     return () => window.clearTimeout(id);
-  }, [active, stepsLen, lastStep]);
+  }, [active, stepsLen, lastStep, reduced]);
 
   // ---- step / edge / node state maps ----
   const stepTones = useMemo<Tone[]>(() => {
@@ -1271,20 +1424,20 @@ export default function TaskTrajectoryMap({
     return m;
   }, [view, steps, cursor, stepTones, traced]);
 
-  // ---- interaction ----
-  const togglePlay = () => {
-    if (!traced || stepsLen < 2) return;
-    setPlay((s) => {
-      const at = s.id === tracedId && s.mode === 'play' ? s.index : cursor;
-      if (s.id === tracedId && s.mode === 'play') return { ...s, mode: 'pin' };
-      const restart = at >= lastStep;
-      return { id: tracedId, index: restart ? 0 : Math.max(0, at), mode: 'play' };
-    });
+  // ---- interaction: manual stepping takes over from autoplay immediately ----
+  const canStep = !!traced && stepsLen > 0;
+  const canAuto = canStep && stepsLen >= 2 && !reduced;
+  const applyAction = (action: StepAction) => {
+    if (!canStep) return;
+    setPlay((s) => nextPlayState(s, action, tracedId, Math.max(0, cursor), lastStep, canAuto));
   };
-
+  const onReset = () => applyAction('reset');
+  const onPrev = () => applyAction('prev');
+  const onNext = () => applyAction('next');
+  const onAuto = () => applyAction('auto');
   const jumpTo = (i: number) => {
-    if (!traced) return;
-    setPlay({ id: tracedId, index: Math.min(Math.max(0, i), lastStep), mode: 'pin' });
+    if (!canStep) return;
+    setPlay({ id: tracedId, index: Math.min(Math.max(0, i), lastStep), mode: 'manual' });
   };
 
   const toneClass = (t: Tone) => `tm-edge ${t}`;
@@ -1312,6 +1465,18 @@ export default function TaskTrajectoryMap({
   }, [view, steps, cursor, reduced, traced]);
 
   const curStep = cursor >= 0 ? steps[cursor] : null;
+  const dcLive = !!curStep && curStep.nodes.some((n) => DC_NODE_SET.has(n));
+  const dcSummary = useMemo(() => {
+    const list = Array.isArray(tasks) ? tasks : [];
+    let running = 0;
+    let queued = 0;
+    list.forEach((t) => {
+      const st = String(t?.status || '').toLowerCase();
+      if (st === 'running') running += 1;
+      else if (st === 'queued') queued += 1;
+    });
+    return { running, queued };
+  }, [tasks]);
 
   return (
     <section className="card tmap">
@@ -1325,8 +1490,8 @@ export default function TaskTrajectoryMap({
       </div>
 
       <p className="eyebrow tmap-caption">
-        云 / 边 / 端 三层拓扑按时间顺序回放 —— 粗亮黄铜为已执行、橙色脉冲为当前步骤、淡灰虚线为待执行、
-        最淡灰为与本任务无关的其它链路
+        云 / 边 / 端 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，或「▶ 自动」循环演示；
+        黄铜为已执行、橙色脉冲为当前步骤、淡灰虚线为待执行、最淡灰为与本任务无关的其它链路
       </p>
 
       <div className="tmap-controls">
@@ -1449,6 +1614,38 @@ export default function TaskTrajectoryMap({
           </defs>
 
           <g className="tm-guides">
+            {/* 云数据中心 as one container: encloses scheduler + medical-server
+                + dc-services + redis. Connectors cross its hairline border
+                perpendicular, every jog row stays outside it. */}
+            <g className={`tm-dc ${dcLive ? 'live' : ''}`}>
+              <rect
+                className="tm-dc-panel"
+                x={DC_PANEL.x}
+                y={DC_PANEL.y}
+                width={DC_PANEL.w}
+                height={DC_PANEL.h}
+                rx="3"
+              />
+              <rect className="tm-dc-bar" x={DC_PANEL.x} y={DC_PANEL.y} width="3" height={DC_PANEL.h} />
+              <text className="tm-dc-title" x={DC_PANEL.x + 16} y={DC_PANEL.y + 21}>
+                DATA CENTER · 云数据中心
+              </text>
+              <text
+                className="tm-dc-meta mono"
+                x={DC_PANEL.x + DC_PANEL.w - 16}
+                y={DC_PANEL.y + 21}
+                textAnchor="end"
+              >
+                {`组件 ${DC_NODES.length} · 运行中 ${dcSummary.running} · 排队 ${dcSummary.queued}`}
+              </text>
+              <line
+                className="tm-dc-rule"
+                x1={DC_PANEL.x + 14}
+                y1={DC_PANEL.y + 29}
+                x2={DC_PANEL.x + DC_PANEL.w - 14}
+                y2={DC_PANEL.y + 29}
+              />
+            </g>
             <line className="tm-rule" x1="72" y1="20" x2="72" y2="640" />
             <line className="tm-sep" x1="72" y1="190" x2={VB_W - 12} y2="190" />
             <line className="tm-sep" x1="72" y1="424" x2={VB_W - 12} y2="424" />
@@ -1517,56 +1714,44 @@ export default function TaskTrajectoryMap({
               const meta = labelOf(id);
               const state = nodeTone.get(id) || 'ghost';
               const focused = state === 'past' || state === 'current' || state === 'failed';
+              const ringed = state === 'current' || state === 'failed';
               const job = isJob(id);
+
+              if (job) {
+                const r = b.w / 2;
+                return (
+                  <g key={id} className={['tm-node', 'job', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
+                    <title>{`${meta.name} · Job pod on ${meta.caption}`}</title>
+                    {ringed && <circle className="tm-ring" cx={b.x} cy={b.y} r={r + 5} />}
+                    <circle className="tm-box job-box" cx={b.x} cy={b.y} r={r} />
+                    <g className="tm-icon tm-icon-sm" transform={`translate(${b.x - 7} ${b.y - 16}) scale(0.5833)`}>
+                      {iconShapes('job')}
+                    </g>
+                    <text className="tm-node-name" x={b.x} y={b.y + 9} textAnchor="middle">{meta.name}</text>
+                    <text className="tm-node-cap" x={b.x} y={b.y + 19} textAnchor="middle">{meta.caption}</text>
+                  </g>
+                );
+              }
+
+              const mx = b.x - b.w / 2 + MEDAL_INSET;
+              const tx = b.x - b.w / 2 + TEXT_INSET;
               return (
-                <g
-                  key={id}
-                  className={`tm-node ${job ? 'job' : ''} ${focused ? 'active' : ''} ${state}`}
-                >
-                  <title>
-                    {job
-                      ? `${meta.name} · Job pod on ${meta.caption}`
-                      : `${meta.name} · ${meta.caption}`}
-                  </title>
-                  {(state === 'current' || state === 'failed') && (job ? (
-                    <circle className="tm-ring" cx={b.x} cy={b.y} r={b.w / 2 + 5} />
-                  ) : (
-                    <rect
-                      className="tm-ring"
-                      x={b.x - b.w / 2 - 5}
-                      y={b.y - b.h / 2 - 5}
-                      width={b.w + 10}
-                      height={b.h + 10}
-                      rx="4"
-                    />
-                  ))}
-                  {job ? (
-                    <>
-                      <circle className="tm-box job-box" cx={b.x} cy={b.y} r={b.w / 2} />
-                      <text className="tm-node-name" x={b.x} y={b.y - 1} textAnchor="middle">{meta.name}</text>
-                      <text className="tm-node-cap" x={b.x} y={b.y + 12} textAnchor="middle">{meta.caption}</text>
-                    </>
-                  ) : (
-                    <>
-                      <rect
-                        className="tm-box"
-                        x={b.x - b.w / 2}
-                        y={b.y - b.h / 2}
-                        width={b.w}
-                        height={b.h}
-                        rx="3"
-                      />
-                      <rect
-                        className={`tm-tier-flag ${tierOf(id)}`}
-                        x={b.x - b.w / 2}
-                        y={b.y - b.h / 2}
-                        width="3"
-                        height={b.h}
-                      />
-                      <text className="tm-node-name" x={b.x} y={b.y - 3} textAnchor="middle">{meta.name}</text>
-                      <text className="tm-node-cap" x={b.x} y={b.y + 12} textAnchor="middle">{meta.caption}</text>
-                    </>
-                  )}
+                <g key={id} className={['tm-node', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
+                  <title>{`${meta.name} · ${meta.caption}`}</title>
+                  {ringed && <circle className="tm-ring" cx={mx} cy={b.y} r={RING_R} />}
+                  <rect
+                    className={`tm-tier-flag ${tierOf(id)}`}
+                    x={b.x - b.w / 2}
+                    y={b.y - 14}
+                    width="3"
+                    height="28"
+                  />
+                  <circle className="tm-medal" cx={mx} cy={b.y} r={MEDAL_R} />
+                  <g className="tm-icon" transform={`translate(${mx - 12} ${b.y - 12})`}>
+                    {iconShapes(iconKindOf(id))}
+                  </g>
+                  <text className="tm-node-name" x={tx} y={b.y - 3} textAnchor="start">{meta.name}</text>
+                  <text className="tm-node-cap" x={tx} y={b.y + 12} textAnchor="start">{meta.caption}</text>
                 </g>
               );
             })}
@@ -1576,24 +1761,59 @@ export default function TaskTrajectoryMap({
 
       <div className="tmap-timeline">
         <div className="tm-tl-head">
-          <span className="eyebrow">执行时序 · STEP TIMELINE</span>
-          <span className="tm-tl-ctl">
-            {totalMs !== undefined && (
-              <span className="tm-tl-total mono">合计 {fmtMs(totalMs)}</span>
+          <span className="tm-tl-title">
+            <span className="eyebrow">执行时序 · STEP TIMELINE</span>
+            {active.mode === 'auto' && !reduced && (
+              <i className="tm-loop mono">循环演示 · LOOP</i>
             )}
-            <span className="tm-tl-count mono">
-              {!stepsLen ? '0/0' : cursor < 0 ? `—/${stepsLen}` : `${cursor + 1}/${stepsLen}`}
-            </span>
+          </span>
+          <span className="tm-tl-ctl">
             <button
               type="button"
               className="mini"
-              onClick={togglePlay}
-              disabled={!traced || stepsLen < 2}
-              aria-pressed={active.mode === 'play'}
-              title={traced ? '按执行顺序逐步回放' : '选择任务后可回放'}
+              onClick={onReset}
+              disabled={!canStep}
+              title="回到第 ① 步"
             >
-              {active.mode === 'play' ? '⏸ 暂停' : '▶ 按序播放'}
+              ⏮ 重置
             </button>
+            <button
+              type="button"
+              className="mini"
+              onClick={onPrev}
+              disabled={!canStep || cursor <= 0}
+              title="上一步（切换到手动）"
+            >
+              ◀ 上一步
+            </button>
+            <button
+              type="button"
+              className="mini"
+              onClick={onNext}
+              disabled={!canStep || cursor >= lastStep}
+              title="下一步（切换到手动）"
+            >
+              下一步 ▶
+            </button>
+            <button
+              type="button"
+              className={`mini ${active.mode === 'auto' ? 'on' : ''}`}
+              onClick={onAuto}
+              disabled={!canStep || stepsLen < 2 || reduced}
+              aria-pressed={active.mode === 'auto'}
+              title={reduced ? '已启用「减少动态效果」，自动循环关闭' : '自动循环演示（每步 2.5s，末步停留 3s 后回到 ①）'}
+            >
+              {active.mode === 'auto' ? '⏸ 暂停自动' : '▶ 自动'}
+            </button>
+          </span>
+          <span className="tm-tl-stat mono">
+            {totalMs !== undefined && <i className="tm-tl-total">合计 {fmtMs(totalMs)}</i>}
+            <i className="tm-tl-count">
+              {!stepsLen ? '0/0' : cursor < 0 ? `—/${stepsLen}` : `${cursor + 1}/${stepsLen}`}
+            </i>
+            <i className={`tm-tl-mode ${active.mode}`}>
+              {active.mode === 'auto' ? 'AUTO' : active.mode === 'manual' ? 'MANUAL' : 'LIVE'}
+            </i>
           </span>
         </div>
         {stepsLen ? (
@@ -1615,6 +1835,13 @@ export default function TaskTrajectoryMap({
                     <span className="tm-tl-meta mono">
                       {s.durationMs !== undefined ? fmtMs(s.durationMs) : (s.detail || '')}
                     </span>
+                    {i === cursor && !reduced && active.mode === 'auto' && (
+                      <i
+                        key={`prog-${cursor}`}
+                        className="tm-tl-prog"
+                        style={{ animationDuration: `${i >= lastStep ? DWELL_MS : STEP_MS}ms` }}
+                      />
+                    )}
                   </button>
                   {i < stepsLen - 1 && <i className={`tm-tl-link ${tone}`} />}
                 </li>
@@ -1637,7 +1864,7 @@ export default function TaskTrajectoryMap({
           {!traced
             ? '尚无该类型任务，仅绘制标准路径'
             : curStep
-              ? `按序高亮 · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
+              ? `${active.mode === 'auto' ? '循环演示' : active.mode === 'manual' ? '手动逐步' : '跟随实时阶段'} · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
               : '该任务发起端未知，未绘制实际连线'}
         </span>
       </div>
@@ -1662,6 +1889,8 @@ function InfoCell({
  * used by the component itself, so this costs nothing in the bundle.
  */
 export const __internals = {
+  nextPlayState,
+  iconKindOf,
   buildSteps,
   buildView,
   stageStepIndex,

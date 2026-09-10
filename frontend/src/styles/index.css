@@ -2152,3 +2152,206 @@ input[type='file'] { padding: 7px; }
 @media (prefers-reduced-motion: reduce) {
   .tm-tl-chip { transition: none; }
 }
+
+/* ==========================================================================
+   TASK TRAJECTORY MAP · 图标节点 / 云数据中心面板 / 播放控制
+   Single self-contained block, deliberately appended last: it is the only CSS
+   this component adds beyond the earlier .tmap / .tm-* rules, so it is safe to
+   move or replace wholesale (nothing before it is edited).
+   ========================================================================== */
+
+/* ---- icon tiles: hairline medallion + inline 24×24 icon + text column ---- */
+.tm-medal {
+  fill: var(--panel);
+  stroke: rgba(8, 10, 8, 0.28);
+  stroke-width: 1;
+}
+.tm-icon {
+  color: var(--grey-2);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tm-icon-dot { fill: currentColor; stroke: none; }
+.tm-icon-sm { stroke-width: 2.6; }
+
+.tm-node.ghost .tm-medal { stroke: rgba(8, 10, 8, 0.28); }
+.tm-node.ghost .tm-icon { color: var(--grey-3); }
+.tm-node.past .tm-medal { stroke: var(--brass-2); stroke-width: 1.3; }
+.tm-node.past .tm-icon { color: var(--brass-2); }
+.tm-node.current .tm-medal { stroke: var(--orange); stroke-width: 1.8; }
+.tm-node.current .tm-icon { color: var(--orange); }
+.tm-node.pending .tm-medal { stroke: rgba(8, 10, 8, 0.16); stroke-dasharray: 3 3; }
+.tm-node.pending .tm-icon { color: rgba(119, 111, 96, 0.55); }
+.tm-node.unrelated .tm-medal { stroke: rgba(8, 10, 8, 0.13); stroke-dasharray: none; }
+.tm-node.unrelated .tm-icon { color: rgba(119, 111, 96, 0.5); }
+.tm-node.failed .tm-medal { stroke: var(--rust); stroke-width: 1.8; }
+.tm-node.failed .tm-icon { color: var(--rust); }
+
+/* ---- 云数据中心 container (the cloud tier reads as one whole) ---- */
+.tm-dc-panel {
+  fill: rgba(166, 125, 72, 0.06);
+  stroke: var(--brass-line);
+  stroke-width: 1;
+}
+.tm-dc-bar { fill: var(--brass-2); }
+.tm-dc-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  fill: var(--brass-2);
+}
+.tm-dc-meta { font-size: 9px; letter-spacing: 0.12em; fill: var(--grey-2); }
+.tm-dc-rule { stroke: rgba(148, 107, 60, 0.26); stroke-width: 1; stroke-dasharray: 3 4; }
+.tm-dc.live .tm-dc-panel { fill: rgba(237, 130, 27, 0.075); stroke: rgba(237, 130, 27, 0.5); }
+.tm-dc.live .tm-dc-bar { fill: var(--orange); }
+.tm-dc.live .tm-dc-title { fill: #b45f0d; }
+.tm-dc.live .tm-dc-rule { stroke: rgba(237, 130, 27, 0.34); }
+
+/* ---- playback controls (one row with the chips) ---- */
+.tm-tl-title { display: inline-flex; align-items: center; gap: 10px; }
+.tm-loop {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: #b45f0d;
+  background: rgba(237, 130, 27, 0.09);
+  border: 1px solid rgba(237, 130, 27, 0.45);
+  border-radius: var(--r-1);
+  padding: 1px 6px;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+.tm-tl-stat { display: inline-flex; align-items: center; gap: 10px; }
+.tm-tl-total { font-style: normal; font-size: 10px; letter-spacing: 0.08em; color: var(--grey-2); }
+.tm-tl-count { font-style: normal; font-size: 10px; letter-spacing: 0.1em; color: var(--grey-3); }
+.tm-tl-mode {
+  font-style: normal;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  padding: 0 5px;
+  color: var(--grey-2);
+}
+.tm-tl-mode.auto { color: #b45f0d; border-color: rgba(237, 130, 27, 0.45); background: rgba(237, 130, 27, 0.08); }
+.tm-tl-mode.manual { color: var(--brass-2); border-color: var(--brass-line); background: var(--brass-soft); }
+
+/* per-step timing bar inside the current chip */
+.tm-tl-chip { position: relative; overflow: hidden; }
+.tm-tl-prog {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--orange);
+  transform-origin: left center;
+  animation-name: tm-tl-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes tm-tl-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-loop { animation: none; }
+  .tm-tl-prog { display: none; }
+}
+
+/* ==========================================================================
+   v3.0.7 · 全站层次与可读性提升（TYPOGRAPHY & HIERARCHY PASS）
+   目标：正文/表格/按钮字号上调，强化标题层级与重点信息辨识度。
+   仅覆盖字级、间距与骨架强调，不改变配色体系与地图(tm-*/cluster)几何。
+   ========================================================================== */
+body { font-size: 15px; line-height: 1.65; }
+.mono { font-size: 13px; }
+.xs { font-size: 13px; }
+.eyebrow { font-size: 11px; letter-spacing: 0.16em; }
+.hint { font-size: 13.5px; }
+.empty { font-size: 14px; }
+.muted.xs { font-size: 12.5px; }
+
+/* shell & nav */
+.sidebar { width: 256px; }
+.brand-name { font-size: 17px; }
+.brand-sub { font-size: 11.5px; letter-spacing: 0.06em; }
+.nav-item { font-size: 15px; padding: 11px 13px; }
+.nav-en { font-size: 11.5px; }
+.sidebar-foot { font-size: 12px; }
+.content { padding: 38px 46px 72px; }
+
+/* page header: stronger anchor + rule */
+.page-head {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+  margin-bottom: 26px;
+}
+.page-head h1 { font-size: 30px; line-height: 1.25; letter-spacing: -0.005em; }
+.page-head p { font-size: 15px; color: var(--grey-3); max-width: 1080px; }
+.ver-tag { font-size: 13px; }
+
+/* cards: clearer section identity */
+.card { padding: 24px 26px; margin-bottom: 22px; }
+.card-title { font-size: 15px; letter-spacing: 0.05em; display: flex; align-items: center; gap: 9px; }
+.card-title::before {
+  content: '';
+  width: 16px; height: 2px; flex: none;
+  background: var(--brass-2);
+}
+.sub-title { font-size: 15px; }
+h4.sub-title { display: flex; align-items: center; gap: 9px; }
+h4.sub-title::before {
+  content: '';
+  width: 12px; height: 2px; flex: none;
+  background: var(--brass);
+}
+
+/* KPI emphasis: value first */
+.stat-card { padding: 20px 22px; }
+.stat-value { font-size: 42px; line-height: 1.05; font-weight: 760; letter-spacing: -0.02em; }
+.stat-label { font-size: 14px; color: var(--ink-3); }
+.stat-hint { font-size: 12.5px; }
+
+/* hero */
+.hero-card { padding: 28px 32px; }
+.hero-card h2 { font-size: 22px; }
+.hero-card p { font-size: 15px; }
+.hero-chips span { font-size: 13px; }
+
+/* tables: readable density */
+.datatable { font-size: 14.5px; }
+.datatable th { font-size: 12.5px; padding: 10px 12px; letter-spacing: 0.06em; }
+.datatable td { padding: 12px 12px; }
+.datatable tbody tr:hover td { background: rgba(8, 10, 8, 0.045); }
+
+/* badges / chips */
+.badge { font-size: 12px; padding: 2px 10px; }
+.badge::before { width: 6px; height: 6px; }
+.mini-chip { font-size: 13.5px; }
+.kvrow { font-size: 14.5px; }
+.kvrow span:first-child, .kvgrid .kv span { font-size: 13px; }
+.kvgrid .kv b, .kvgrid .kv { font-size: 14.5px; }
+
+/* controls */
+.btn { font-size: 15px; padding: 11px 20px; }
+.btn.sm { font-size: 13.5px; padding: 8px 14px; }
+.mini { font-size: 13.5px; padding: 6px 13px; }
+.seg-btn { font-size: 14.5px; padding: 9px 22px; }
+input, select, textarea { font-size: 15px; padding: 10px 13px; }
+.field-label { font-size: 13.5px; }
+.form-desc { font-size: 14.5px; }
+
+/* schematic map labels (cluster editor) */
+.cluster-svg .node-name { font-size: 18px; }
+.cluster-svg .node-role { font-size: 13px; }
+.cluster-svg .node-load { font-size: 26px; }
+.cluster-svg .node-cap { font-size: 12.5px; }
+.cluster-svg .pod-label { font-size: 13px; }
+.cluster-svg .legend-t { font-size: 12.5px; }
+
+/* accessibility & focus */
+:focus-visible { outline: 2px solid var(--brass-2); outline-offset: 2px; }
+a.link, .link { font-size: 14.5px; }
