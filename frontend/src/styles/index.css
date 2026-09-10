@@ -2264,7 +2264,7 @@ input[type='file'] { padding: 7px; }
 /* ==========================================================================
    v3.0.7 · 全站层次与可读性提升（TYPOGRAPHY & HIERARCHY PASS）
    目标：正文/表格/按钮字号上调，强化标题层级与重点信息辨识度。
-   仅覆盖字级、间距与骨架强调，不改变配色体系与地图(tm-*/cluster)几何。
+   仅覆盖字级、间距与骨架强调，不改变配色体系与地图(tm-* / cluster)几何。
    ========================================================================== */
 body { font-size: 15px; line-height: 1.65; }
 .mono { font-size: 13px; }
@@ -2355,3 +2355,314 @@ input, select, textarea { font-size: 15px; padding: 10px 13px; }
 /* accessibility & focus */
 :focus-visible { outline: 2px solid var(--brass-2); outline-offset: 2px; }
 a.link, .link { font-size: 14.5px; }
+
+/* ==========================================================================
+   TASK TRAJECTORY MAP · 灰色已执行 / 下拉选择 / 无框信息条 / 并行步骤
+   Appended last: pure overrides + new classes for the sequencing refresh.
+   Only the CURRENT step stays orange; PASSED is neutral grey, PENDING is a
+   lighter dashed grey and UNRELATED is the faintest.
+   ========================================================================== */
+
+/* ---- A) passed = neutral grey (no brass, no animation) ---- */
+.tm-edge.past .tm-line {
+  stroke: rgba(119, 111, 96, 0.5);
+  stroke-width: 1.6;
+  stroke-dasharray: none;
+  animation: none;
+}
+.tm-edge.past .tm-edge-label { fill: rgba(119, 111, 96, 0.8); }
+.tm-arrow.past { fill: rgba(119, 111, 96, 0.55); }
+.tm-node.past .tm-medal { stroke: rgba(119, 111, 96, 0.55); stroke-width: 1.2; stroke-dasharray: none; }
+.tm-node.past .tm-box { stroke: rgba(119, 111, 96, 0.55); }
+.tm-node.past .tm-icon { color: rgba(119, 111, 96, 0.85); }
+.tm-node.past .tm-node-name { fill: rgba(119, 111, 96, 0.95); font-weight: 400; }
+.tm-node.past .tm-node-cap { fill: rgba(119, 111, 96, 0.62); }
+.tm-dot.past { fill: rgba(119, 111, 96, 0.55); }
+.tm-tl-step.past .tm-tl-chip { border-color: rgba(119, 111, 96, 0.38); background: rgba(119, 111, 96, 0.07); }
+.tm-tl-step.past .tm-tl-no, .tm-tl-step.past .tm-tl-label { color: var(--grey-3); }
+.tm-tl-link.past { background: rgba(119, 111, 96, 0.42); }
+
+/* pending / unrelated: keep them visibly weaker than passed */
+.tm-edge.pending .tm-line { stroke: rgba(119, 111, 96, 0.26); }
+.tm-edge.unrelated .tm-line { stroke: rgba(119, 111, 96, 0.13); }
+.tm-legend-line.past { border-top-style: solid; border-top-width: 2px; border-top-color: rgba(119, 111, 96, 0.6); }
+.tm-legend-line.current { border-top-style: solid; border-top-width: 2px; }
+
+/* ---- B) task dropdown ---- */
+.tmap-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.tmap-tabs { flex: 0 1 320px; }
+.tmap-pickrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.tmap-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 5px 26px 5px 9px;
+  min-width: 250px;
+  max-width: 420px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--grey-3) 50%),
+    linear-gradient(135deg, var(--grey-3) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  transition: border-color var(--t-fast);
+}
+.tmap-select:hover:not(:disabled) { border-color: rgba(8, 10, 8, 0.28); }
+.tmap-select:focus-visible { outline: none; border-color: var(--brass-2); }
+.tmap-select:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- E) borderless, hierarchical info strip ---- */
+.tmap-info {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 10px 0;
+  margin-bottom: 12px;
+}
+.tmi-lead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tmi-step { font-size: 15px; font-weight: 600; letter-spacing: 0.03em; color: var(--ink); }
+.tmi-dur { font-size: 12.5px; color: var(--ink-3); letter-spacing: 0.02em; }
+.tmi-lead-fact { display: inline-flex; align-items: baseline; gap: 7px; margin-left: auto; }
+.tmi-lead-fact .tmi-k { font-size: 9px; }
+.tmi-lead-fact .tmi-v { font-size: 15px; font-weight: 600; color: var(--ink); }
+.tmi-meta { display: flex; flex-wrap: wrap; align-items: baseline; row-gap: 4px; }
+.tmi-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0 11px;
+  min-width: 0;
+}
+.tmi-cell:first-child { padding-left: 0; }
+.tmi-cell + .tmi-cell { border-left: 1px solid var(--line-soft); }
+.tmi-meta .tmi-k { font-size: 9px; color: var(--grey-2); }
+.tmi-meta .tmi-v { font-size: 11.5px; font-weight: 500; color: var(--ink-3); }
+.tmap-info .tmi-v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+
+/* ---- C) parallel step marker + expanded sub items ---- */
+.tm-tl-para {
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--brass-2);
+  border: 1px solid var(--brass-line);
+  border-radius: var(--r-1);
+  padding: 0 4px;
+  background: var(--brass-soft);
+}
+.tm-tl-step.current .tm-tl-para { color: #b45f0d; border-color: rgba(237, 130, 27, 0.5); background: rgba(237, 130, 27, 0.1); }
+.tm-tl-step.past .tm-tl-para { color: var(--grey-3); border-color: rgba(119, 111, 96, 0.35); background: rgba(119, 111, 96, 0.07); }
+.tm-tl-par {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 22px;
+  padding-top: 6px;
+  margin-top: 4px;
+  border-top: 1px dashed var(--line-soft);
+}
+.tm-tl-par-tag { font-style: normal; font-size: 9.5px; letter-spacing: 0.1em; color: #b45f0d; }
+.tm-tl-par-tag.idle { color: var(--grey-2); letter-spacing: 0.06em; }
+.tm-tl-par-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  border-left: 1px solid var(--line-soft);
+  padding-left: 10px;
+}
+.tm-tl-par-item b { font-weight: 500; color: var(--ink-2); }
+.tm-tl-par-detail { font-style: normal; font-size: 10px; color: var(--grey-3); }
+.tm-tl-par-ms { font-style: normal; font-size: 9.5px; color: var(--grey-2); }
+
+/* ==========================================================================
+   CLUSTER OVERVIEW MAP (components/ClusterOverviewMap.tsx)
+   ========================================================================== */
+.cmap-svg { display: block; width: 100%; height: auto; min-width: 780px; }
+
+.cmap .cm-inline-err {
+  border-left: 2px solid var(--orange);
+  background: rgba(237, 130, 27, 0.07);
+  color: #7d4a12;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+
+.cm-link line { stroke: rgba(8, 10, 8, 0.22); stroke-width: 1; stroke-dasharray: 5 4; }
+.cm-link-dot { fill: var(--brass-2); opacity: 0.5; }
+
+.cm-card-bg { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.cm-card.cloud .cm-card-bg { fill: rgba(166, 125, 72, 0.07); stroke: var(--brass-line); }
+.cm-card.control .cm-card-bg { fill: rgba(90, 99, 96, 0.06); stroke: rgba(90, 99, 96, 0.32); }
+.cm-card.edge .cm-card-bg { fill: rgba(86, 92, 70, 0.05); stroke: rgba(86, 92, 70, 0.3); }
+.cm-card-bar { fill: var(--grey-1); }
+.cm-card.cloud .cm-card-bar { fill: var(--brass-2); }
+.cm-card.control .cm-card-bar { fill: #5a6360; }
+.cm-card.edge .cm-card-bar { fill: var(--olive); }
+
+.cm-node { font-size: 13px; font-weight: 500; fill: var(--ink); letter-spacing: 0.02em; }
+.cm-role { fill: rgba(8, 10, 8, 0.045); stroke: var(--line); stroke-width: 1; }
+.cm-role-t { font-size: 9px; letter-spacing: 0.1em; fill: var(--grey-3); }
+.cm-card.cloud .cm-role-t { fill: var(--brass-2); }
+.cm-card.control .cm-role-t { fill: #5a6360; }
+.cm-card.edge .cm-role-t { fill: var(--olive); }
+.cm-dot { fill: var(--grey-1); }
+.cm-dot.ok { fill: #6b7a4a; }
+.cm-dot.bad { fill: var(--rust); }
+.cm-ready { font-size: 9.5px; letter-spacing: 0.08em; fill: var(--grey-3); }
+.cm-counts { font-size: 9.5px; letter-spacing: 0.06em; fill: var(--grey-2); }
+.cm-load-k {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  fill: var(--grey-2);
+}
+.cm-load-v { font-size: 14px; font-weight: 500; fill: var(--ink); }
+.cm-bar-bg { fill: rgba(8, 10, 8, 0.09); }
+.cm-bar-fill { opacity: 0.85; }
+.cm-rule { stroke: var(--line-soft); stroke-width: 1; stroke-dasharray: 3 4; }
+.cm-empty { font-size: 11px; fill: var(--grey-2); }
+.cm-names { font-size: 9px; letter-spacing: 0.03em; fill: var(--grey-3); }
+
+.cm-chip .cm-ico {
+  color: var(--grey-3);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cm-chip .cm-ico .tm-icon-dot { fill: currentColor; stroke: none; }
+.cm-chip.hospital .cm-ico { color: var(--brass-2); }
+.cm-chip.clinic .cm-ico { color: #a4562a; }
+.cm-chip.service .cm-ico { color: var(--grey-2); }
+.cm-chip-n { font-family: var(--mono); font-size: 8.5px; fill: var(--grey-2); }
+
+.cm-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--grey-3);
+  letter-spacing: 0.06em;
+}
+.cm-legend { display: inline-flex; align-items: center; gap: 7px; }
+.cm-legend-ico { display: inline-flex; width: 15px; height: 15px; }
+.cm-legend-ico svg { width: 15px; height: 15px; }
+.cm-legend-ico.hospital { color: var(--brass-2); }
+.cm-legend-ico.clinic { color: #a4562a; }
+.cm-legend-ico.service { color: var(--grey-2); }
+.cm-legend-ico path, .cm-legend-ico circle, .cm-legend-ico rect {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cm-legend-ico .tm-icon-dot { fill: currentColor; stroke: none; }
+.cm-legend-line {
+  display: inline-block;
+  width: 24px;
+  border-top: 1px dashed rgba(8, 10, 8, 0.28);
+}
+.cm-legend-note { margin-left: auto; }
+
+/* ==========================================================================
+   v3.0.8 · CONTRAST & EMPHASIS PASS（重点强化 / 减少方框）
+   让关键信息更醒目：加深次级文字与标签、关键数值用墨色加粗、
+   内联信息块去边框改用分隔点，导航与标题层级更明确。
+   ========================================================================== */
+:root {
+  --ink-3: #24251d;
+  --grey-2: #6c6458;
+  --grey-3: #4f4a3e;
+  --line: rgba(8, 10, 8, 0.18);
+  --line-soft: rgba(8, 10, 8, 0.1);
+}
+
+/* 标题层级更明确 */
+.page-head h1 { font-weight: 700; color: var(--ink); }
+.card-title, .sub-title { color: var(--ink); font-weight: 650; }
+h4.sub-title { color: var(--ink); }
+.eyebrow { color: var(--ink-3); }
+
+/* 数值与关键值用墨色加粗 */
+.mono { color: var(--ink-2); }
+.kvrow b, .kvgrid .kv b, .stat-label, .clist-row b, .pp-title { color: var(--ink); }
+.kvrow b, .kvgrid .kv b { font-weight: 700; }
+.stat-value { font-weight: 780; }
+
+/* 表格：正文更实、表头更清晰、首列（ID/名称）突出 */
+.datatable td { color: var(--ink-2); }
+.datatable th { color: var(--ink-3); }
+.datatable td:first-child { color: var(--ink); font-weight: 600; }
+.datatable tbody tr:hover td { background: rgba(8, 10, 8, 0.05); }
+
+/* 减少内联方框：chips 改为分隔点排版（保留 badge 作为语义标签） */
+.mini-chip {
+  border: 0;
+  background: transparent;
+  padding: 0 14px 0 0;
+  color: var(--ink-2);
+}
+.mini-chip + .mini-chip::before {
+  content: '·';
+  margin-right: 14px;
+  color: var(--grey-1);
+}
+.mini-chip b { color: var(--ink); font-weight: 700; }
+
+/* 次级文字整体加深，避免“灰而细” */
+.muted { color: var(--grey-3); }
+.muted.xs, .xs.muted { color: var(--grey-2); }
+
+/* 导航与操作层级 */
+.nav-item.active {
+  background: rgba(148, 107, 60, 0.14);
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow: inset 2px 0 0 var(--brass-2);
+}
+.btn.ghost { border-color: var(--line-strong); color: var(--ink-2); }
+.btn.ghost:hover:not(:disabled) { border-color: var(--brass-2); color: var(--ink); }
+.link { color: var(--brass-2); font-weight: 600; }
+.badge { font-weight: 650; }
+
+/* 卡片内层框线弱化，靠分隔线与留白组织 */
+.card .card, .card .pp-inst, .card .clist-ro, .card .lat-rows { border-color: var(--line-soft); }
+.lat-rows { background: rgba(8, 10, 8, 0.025); }

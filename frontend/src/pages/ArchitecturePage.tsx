@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
+import ClusterOverviewMap from '../components/ClusterOverviewMap';
 import TaskTrajectoryMap from '../components/TaskTrajectoryMap';
 import { useTicker } from '../hooks';
-import type { ClusterSummary, HealthMap, NodeInfo, TaskItem, TaskStats } from '../types';
+import type {
+  ClusterStatus, ClusterSummary, HealthMap, NodeInfo, TaskItem, TaskStats,
+} from '../types';
 import {
   healthDetail, healthState, loadColor, MODEL_COLOR, MODEL_EN, MODEL_LABEL, MODELS,
   nodeLoad, nodeRoleLabel, READONLY_LABEL, sortNodes,
@@ -89,13 +92,15 @@ export default function ArchitecturePage() {
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [health, setHealth] = useState<HealthMap | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [cluster, setCluster] = useState<ClusterStatus | null>(null);
+  const [clusterErr, setClusterErr] = useState<string | null>(null);
   const [errs, setErrs] = useState<string[]>([]);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_MS / 1000);
 
   const refresh = useCallback(async () => {
     const problems: string[] = [];
-    const [s, t, h, ts] = await Promise.all([
+    const [s, t, h, ts, c] = await Promise.all([
       api.clusterSummary().catch((e) => {
         problems.push(`集群摘要 /cluster/summary 不可用：${errText(e)}`);
         return null;
@@ -112,11 +117,18 @@ export default function ArchitecturePage() {
         problems.push(`任务列表 /tasks 不可用：${errText(e)}`);
         return null;
       }),
+      api.clusterStatus().catch((e) => {
+        const msg = errText(e);
+        problems.push(`集群拓扑 /cluster/status 不可用：${msg}`);
+        setClusterErr(msg);
+        return null;
+      }),
     ]);
     if (s) setSummary(s);
     if (t) setStats(t);
     if (h) setHealth(h);
     if (ts) setTasks(ts);
+    if (c) { setCluster(c); setClusterErr(null); } // keep the last snapshot on failure
     setErrs(problems);
     setUpdatedAt(new Date());
     setCountdown(REFRESH_MS / 1000);
@@ -150,7 +162,8 @@ export default function ArchitecturePage() {
           <h1>实时架构 <span className="ver-tag">LIVE · {REFRESH_MS / 1000}s</span></h1>
           <p>
             当前平台真实拓扑：云（node3 调度 / 推理 / 数据中心）、边（node1 / node2 医院 Pod）、
-            端（node1 / node2 诊所 Pod）。顶部轨迹图按任务类型实时绘制执行链路，节点负载与探针状态每 {REFRESH_MS / 1000} 秒自动刷新。
+            端（node1 / node2 诊所 Pod）、控制面（desktop-jm5iec6）。顶部总览图展示各节点承载的 Pod 与实时负载，
+            其下轨迹图按任务类型回放执行链路；全部数据每 {REFRESH_MS / 1000} 秒自动刷新。
           </p>
         </div>
         <div className="toolbar">
@@ -167,6 +180,13 @@ export default function ArchitecturePage() {
         <div className="errbox">Kubernetes 不可达：{summary.error}（负载与实例状态可能不完整）</div>
       )}
       {errs.map((e, i) => <div className="errbox" key={i}>{e}</div>)}
+
+      <ClusterOverviewMap
+        status={cluster}
+        summary={summary}
+        error={clusterErr}
+        updatedAt={updatedAt}
+      />
 
       <TaskTrajectoryMap tasks={tasks} />
 

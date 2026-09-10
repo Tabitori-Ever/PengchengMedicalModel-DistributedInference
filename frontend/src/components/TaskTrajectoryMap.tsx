@@ -92,7 +92,7 @@ const NODE_META: Record<string, { name: string; caption: string; tier: Tier }> =
 };
 
 /** inline 24×24 icon per node — no icon library, no external assets */
-type IconKind = 'scheduler' | 'server' | 'database' | 'cache' | 'hospital' | 'clinic' | 'job';
+export type IconKind = 'scheduler' | 'server' | 'database' | 'cache' | 'hospital' | 'clinic' | 'job' | 'monitor';
 
 const NODE_ICON: Record<string, IconKind> = {
   'scheduler': 'scheduler',
@@ -123,7 +123,7 @@ const DC_NODES = ['scheduler', 'medical-server', 'dc-services', 'redis'];
 const DC_NODE_SET = new Set(DC_NODES);
 
 /** Icon geometry authored in a 0..24 box; stroked/filled via the .tm-icon CSS. */
-function iconShapes(kind: IconKind) {
+export function iconShapes(kind: IconKind) {
   const r2 = (v: number) => Math.round(v * 100) / 100;
   const gearTeeth = [0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
     const t = (deg * Math.PI) / 180;
@@ -191,6 +191,14 @@ function iconShapes(kind: IconKind) {
           <circle cx="16" cy="3.4" r="1.3" />
           <path d="M12 14.4 V15.6" />
           <circle cx="12" cy="18.2" r="2.4" />
+        </>
+      );
+    case 'monitor': // 监控 / 预测：仪表盘
+      return (
+        <>
+          <path d="M4.6 17.4 A8 8 0 0 1 19.4 17.4" />
+          <path d="M12 17.4 L16.2 11.6" />
+          <circle className="tm-icon-dot" cx="12" cy="17.4" r="1.1" />
         </>
       );
     default: // job: 立方体
@@ -627,12 +635,25 @@ function ctxFromTask(kind: ModelKind, task: TaskItem): Ctx | null {
 // ---------------------------------------------------------------------------
 // ordered step timeline (the execution order the cursor walks through)
 // ---------------------------------------------------------------------------
+/** One member of a parallel step (a partition / a peer / an execution node). */
+interface StepItem {
+  label: string;
+  detail?: string;
+  nodes: string[];
+  edges: string[];
+  durationMs?: number;
+  ref: string;
+}
+
 interface Step {
-  /** chip text, e.g. 提交 / 分区 2 */
+  /** chip text, e.g. 提交 / 分区计算 */
   label: string;
   /** chip tooltip / secondary text */
   detail?: string;
-  /** measured duration when the payload exposes one */
+  /**
+   * measured duration when the payload exposes one. For a parallel step this is
+   * the MAX of its items (concurrent work does not add up).
+   */
   durationMs?: number;
   /** nodes that take part in this step */
   nodes: string[];
@@ -640,6 +661,45 @@ interface Step {
   edges: string[];
   /** stable key used to locate the failing step */
   ref: string;
+  /** present when the step is a parallel group — all of it lights up together */
+  items?: StepItem[];
+  /** sub-item refs, so stage / failure lookup can resolve into the group */
+  refs?: string[];
+}
+
+/** Collapse concurrent work into ONE step: union of nodes/edges, MAX duration. */
+function parallelStep(label: string, ref: string, items: StepItem[], detail?: string): Step {
+  let durationMs: number | undefined;
+  items.forEach((it) => {
+    if (it.durationMs === undefined) return;
+    durationMs = durationMs === undefined ? it.durationMs : Math.max(durationMs, it.durationMs);
+  });
+  return {
+    label,
+    ref,
+    detail,
+    durationMs,
+    nodes: Array.from(new Set(items.flatMap((i) => i.nodes))),
+    edges: Array.from(new Set(items.flatMap((i) => i.edges))),
+    items,
+    refs: items.map((i) => i.ref),
+  };
+}
+
+/** Does a step answer to `ref` (own ref or one of its parallel sub-items)? */
+function stepHasRef(step: Step, ref: string): boolean {
+  return step.ref === ref || !!step.refs && step.refs.includes(ref);
+}
+
+function refStepIndex(steps: Step[], ref: string, fallback: number): number {
+  const i = steps.findIndex((s) => stepHasRef(s, ref));
+  return i < 0 ? fallback : i;
+}
+
+function prefixStepIndex(steps: Step[], prefix: string, fallback: number): number {
+  const i = steps.findIndex((s) => stepHasRef(s, prefix)
+    || !!s.refs && s.refs.some((r) => r.startsWith(prefix)));
+  return i < 0 ? fallback : i;
 }
 
 function metricsMs(task: TaskItem | null, key: string): number | undefined {
@@ -751,35 +811,36 @@ function stepsCompute(task: TaskItem | null, ctx: Ctx): Step[] {
     label: '产数',
     detail: produced
       ? `${produced.instruments ?? '—'} 仪器 × ${produced.rows ?? '—'} 行 = ${produced.samples ?? '—'} 样本`
-      : '发起端生成仪器流数据',
+      : '发起端本地生成仪器流数据',
     nodes: [src],
     edges: [],
     ref: 'produce',
   });
 
-  if (parts.length) {
-    parts.forEach((p, i) => {
+  // ④ ∥ 分区计算 — all partitions run concurrently and light up together
+  const partItems: StepItem[] = parts.length
+    ? parts.map((p, i) => {
       const actor = nodeForEntity(p?.actor);
       const idx = num(p?.partition) ?? i;
       const ok = !p?.failed;
-      steps.push({
+      return {
         label: `分区 ${idx + 1}`,
         detail: `${p?.actor ?? actor ?? '未知执行体'}${ok ? '' : ' · 失败'}${p?.rows ? ` · ${p.rows} 行` : ''}`,
         nodes: actor ? [actor] : [],
         edges: actor ? [edgeKey('scheduler', actor, '分区')] : [],
         durationMs: num(p?.ms),
         ref: `p:${idx}`,
-      });
-    });
-  } else {
-    steps.push({
-      label: '协同分区计算',
+      };
+    })
+    : [{
+      label: '分区计算',
       detail: '等待各分区结果（payload 尚未回报分区）',
       nodes: ['dc-services'],
       edges: [edgeKey('scheduler', 'dc-services', '分区')],
       ref: 'p:0',
-    });
-  }
+    }];
+  steps.push(parallelStep('分区计算', 'parallel', partItems,
+    `${partItems.length} 个执行体并行计算，取最慢分区耗时`));
 
   steps.push({
     label: '数据聚合',
@@ -829,29 +890,30 @@ function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
     ref: 'manifest',
   });
 
-  if (peers.length) {
-    peers.forEach((peer, i) => {
+  // ③ ∥ P2P 拉取 — one sub item per peer, all pulling at the same time
+  const peerItems: StepItem[] = peers.length
+    ? peers.map((peer) => {
       const mine = chunks.filter((c) => nodeForEntity(c?.peer) === peer);
       const okN = mine.filter((c) => c?.ok).length;
       const ms = mine.reduce((acc, c) => acc + (num(c?.ms) || 0), 0);
-      steps.push({
-        label: `拉取 ${i + 1}`,
-        detail: mine.length ? `${peer} · ${okN}/${mine.length} 分块` : `${peer} · 并行拉取缺失分块`,
+      return {
+        label: peer,
+        detail: mine.length ? `${okN}/${mine.length} 分块` : '并行拉取缺失分块',
         nodes: [peer],
         edges: [edgeKey(peer, src, '拉取')],
         durationMs: mine.length ? Math.round(ms * 100) / 100 : undefined,
         ref: `peer:${peer}`,
-      });
-    });
-  } else {
-    steps.push({
-      label: '并行拉取',
+      };
+    })
+    : [{
+      label: 'peer 拉取',
       detail: '等待 peer 回报分块',
       nodes: [],
       edges: [],
       ref: 'peer:none',
-    });
-  }
+    }];
+  steps.push(parallelStep('P2P 拉取', 'parallel', peerItems,
+    `${peerItems.length} 个 peer 并行拉取，取最慢 peer 耗时`));
 
   steps.push({
     label: '云端上传',
@@ -892,7 +954,6 @@ function stepsRoutine(task: TaskItem | null, ctx: Ctx): Step[] {
   const jobs = (ctx.jobs || []).slice(0, MAX_JOBS);
   const jobIds = jobs.map((j) => j.id);
   const nodesUsed = Array.from(new Set(rawJobs.map((j) => String(j?.node || '')).filter(Boolean)));
-  const wall = rawJobs.reduce((acc, j) => acc + (num(j?.wall_ms) || 0), 0);
   const steps: Step[] = [];
 
   steps.push({
@@ -911,28 +972,29 @@ function stepsRoutine(task: TaskItem | null, ctx: Ctx): Step[] {
     ref: 'nodes',
   });
 
-  jobs.forEach((j) => {
-    steps.push({
-      label: `创建 Job ${jobNodeOf(j.id).replace('node', '#')}`,
-      detail: `${j.node}${(j.count || 1) > 1 ? ` · ${j.count} 个 Job` : ''}`,
+  // ③ ∥ Job 执行 — one sub item per execution node (create → run → output)
+  const jobItems: StepItem[] = jobs.map((j) => {
+    const mine = rawJobs.filter((x) => String(x?.node) === j.node);
+    const okN = mine.filter((x) => String(x?.state) === 'succeeded').length;
+    const wall = mine.reduce((acc, x) => acc + (num(x?.wall_ms) || 0), 0);
+    const count = j.count || mine.length || 1;
+    return {
+      label: j.node,
+      detail: `${count} 个 Job${mine.length ? ` · 成功 ${okN}` : ''}`,
       nodes: [j.id],
       edges: [edgeKey('scheduler', j.id, 'Job创建')],
+      durationMs: wall ? Math.round(wall * 100) / 100 : undefined,
       ref: `job:${j.id}`,
-    });
+    };
   });
-  steps.push({
-    label: 'Job 执行输出',
-    detail: rawJobs.length
-      ? `${rawJobs.length} 个 Job · 成功 ${detail?.succeeded ?? '—'} · 输出 JSON`
-      : '一次性 Job 执行并输出 JSON',
-    nodes: jobIds,
-    edges: [],
-    durationMs: rawJobs.length ? Math.round(wall * 100) / 100 : undefined,
-    ref: 'exec',
-  });
+  steps.push(parallelStep('Job 执行', 'parallel', jobItems,
+    `${jobItems.length} 个执行节点并行跑一次性 Job，取最慢节点耗时`));
+
   steps.push({
     label: '读取日志',
-    detail: 'scheduler 读取 Job pod 日志',
+    detail: rawJobs.length
+      ? `scheduler 读取 ${rawJobs.length} 个 Job pod 日志 · 成功 ${detail?.succeeded ?? '—'}`
+      : 'scheduler 读取 Job pod 日志并解析 JSON',
     nodes: jobIds,
     edges: jobIds.map((id) => edgeKey(id, 'scheduler', '日志')),
     ref: 'logs',
@@ -967,10 +1029,8 @@ function buildSteps(kind: ModelKind, task: TaskItem | null, ctx: Ctx): Step[] {
  */
 function stageStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): number {
   const last = Math.max(0, steps.length - 1);
-  const at = (ref: string, fallback = 0) => {
-    const i = steps.findIndex((s) => s.ref === ref);
-    return i < 0 ? fallback : i;
-  };
+  // sub-item refs resolve into their parallel group
+  const at = (ref: string, fallback = 0) => refStepIndex(steps, ref, fallback);
   const status = String(task.status || '').toLowerCase();
   const stage = String(task.stage || '').toLowerCase();
 
@@ -990,13 +1050,10 @@ function stageStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): number 
     return at('dispatch');
   }
   if (kind === 'sync') {
-    if (stage === 'sync') {
-      const i = steps.findIndex((s) => s.ref.startsWith('peer:'));
-      return i < 0 ? at('manifest') : i;
-    }
+    if (stage === 'sync') return prefixStepIndex(steps, 'peer:', at('manifest'));
     return at('manifest');
   }
-  if (stage === 'routine') return at('exec', at('nodes'));
+  if (stage === 'routine') return at('parallel', at('nodes'));
   return at('nodes');
 }
 
@@ -1005,10 +1062,7 @@ function failureStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): numbe
   const last = Math.max(0, steps.length - 1);
   const res: any = task.result || null;
   const detail = detailOf(task);
-  const at = (ref: string, fallback: number = last) => {
-    const i = steps.findIndex((s) => s.ref === ref);
-    return i < 0 ? fallback : i;
-  };
+  const at = (ref: string, fallback: number = last) => refStepIndex(steps, ref, fallback);
   if (kind === 'compute') {
     const parts: any[] = Array.isArray(res?.partitions) ? res.partitions : [];
     const bad = parts.find((p) => p?.failed);
@@ -1016,7 +1070,7 @@ function failureStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): numbe
   }
   if (kind === 'routine') {
     const jobs: any[] = Array.isArray(detail?.jobs) ? detail.jobs : [];
-    if (jobs.some((j) => String(j?.state) === 'failed' || j?.timeout)) return at('exec', last);
+    if (jobs.some((j) => String(j?.state) === 'failed' || j?.timeout)) return at('parallel', last);
   }
   const stage = String(task.stage || '').toLowerCase();
   if (kind === 'diagnosis') {
@@ -1025,8 +1079,8 @@ function failureStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): numbe
     return at('submit');
   }
   if (kind === 'compute') return at('p:0', at('dispatch'));
-  if (kind === 'sync') return at('peer:none', at('manifest'));
-  return at('exec', last);
+  if (kind === 'sync') return prefixStepIndex(steps, 'peer:', at('manifest'));
+  return at('parallel', last);
 }
 
 // ---------------------------------------------------------------------------
@@ -1132,6 +1186,16 @@ function sortTasks(list: TaskItem[]): TaskItem[] {
   return [...list].sort((a, b) => String(b?.start_time || '').localeCompare(String(a?.start_time || '')));
 }
 
+/**
+ * Task ids are timestamp-prefixed (`YYYYMMDDHHMMSS` + uuid tail), so the PREFIX
+ * carries the useful information and is what the picker shows.
+ */
+function idPrefix(id: unknown, n = 13): string {
+  const v = String(id || '');
+  if (!v) return '—';
+  return v.length > n ? `${v.slice(0, n)}…` : v;
+}
+
 function shortId(id: unknown): string {
   const s = String(id || '');
   return s.length > 14 ? `…${s.slice(-12)}` : s || '—';
@@ -1159,6 +1223,15 @@ function isFinished(task: TaskItem | null): boolean {
   return s === 'finished' || s === 'completed' || stage === 'finished' || stage === 'completed';
 }
 
+/** `2026091002150… · 运行中 · clinic-1 · 运行 4.20 s` — prefix first. */
+function taskOptionLabel(t: TaskItem): string {
+  const parts = [idPrefix(t.id, 13), statusLabel(t.status), t.source || '—'];
+  const dur = durationText(t);
+  if (dur && dur !== '—') parts.push(dur);
+  return parts.join(' · ');
+}
+
+/** facts[0] is the headline result of the kind (shown as primary info). */
 function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
   const res: any = task.result || null;
   const detail: any = res?.result_detail || null;
@@ -1167,9 +1240,9 @@ function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
   if (kind === 'diagnosis') {
     const forwarded = res?.forwarded_to;
     const src = nodeForEntity(task.source);
-    out.push({ k: '转诊', v: forwarded ? `→ ${forwarded}` : isClinicNode(src) ? '未转诊' : '本院执行' });
     const p = detail?.bpCR_probability;
     out.push({ k: 'bpCR 概率', v: typeof p === 'number' ? p.toFixed(4) : '—' });
+    out.push({ k: '转诊', v: forwarded ? `→ ${forwarded}` : isClinicNode(src) ? '未转诊' : '本院执行' });
     out.push({ k: 'worker / server', v: `${fmtMs(detail?.worker_latency_ms)} / ${fmtMs(detail?.server_latency_ms)}` });
   } else if (kind === 'compute') {
     const parts: any[] = Array.isArray(res?.partitions) ? res.partitions : [];
@@ -1216,6 +1289,20 @@ interface PlayState {
 
 const STEP_MS = 2500;
 const DWELL_MS = 3000;
+const MIN_STEP_MS = 1200;
+const MAX_STEP_MS = 4000;
+
+/**
+ * Autoplay dwell for one step, and the duration of its progress bar: a step
+ * whose real cost is known (parallel steps use the MAX of their items) slows the
+ * demo down / speeds it up within sane bounds; unknown steps use STEP_MS.
+ */
+function autoplayDelay(step: Step | undefined, isLast: boolean): number {
+  if (isLast) return DWELL_MS;
+  const d = step?.durationMs;
+  if (d === undefined) return STEP_MS;
+  return Math.min(MAX_STEP_MS, Math.max(MIN_STEP_MS, Math.round(d)));
+}
 
 function initialPlayState(id: string, task: TaskItem | null, stepsLen: number, reduced: boolean): PlayState {
   const last = Math.max(0, stepsLen - 1);
@@ -1284,13 +1371,21 @@ function usePrefersReducedMotion(): boolean {
 const TONES: Tone[] = ['ghost', 'past', 'current', 'pending', 'unrelated', 'failed'];
 
 const LEGEND: { state: Tone; text: string }[] = [
-  { state: 'past', text: '已执行 PASSED' },
-  { state: 'current', text: '当前 CURRENT' },
-  { state: 'pending', text: '待执行 PENDING' },
-  { state: 'unrelated', text: '无关 UNRELATED' },
+  { state: 'past', text: '已执行 · 灰 PASSED' },
+  { state: 'current', text: '当前 · 橙 CURRENT' },
+  { state: 'pending', text: '待执行 · 淡灰虚 PENDING' },
+  { state: 'unrelated', text: '无关 · 最淡 UNRELATED' },
   { state: 'failed', text: '失败 FAILED' },
   { state: 'ghost', text: '无任务 · 标准路径' },
 ];
+
+/** chip secondary text: parallel groups show both item count and MAX duration */
+function stepMeta(s: Step): string {
+  const n = s.items && s.items.length > 1 ? `${s.items.length} 项` : '';
+  const d = s.durationMs !== undefined ? fmtMs(s.durationMs) : '';
+  if (n && d) return `${n} · ${d}`;
+  return n || d || s.detail || '';
+}
 
 const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩',
   '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
@@ -1360,7 +1455,7 @@ export default function TaskTrajectoryMap({
   // autoplay: slower cadence, dwell on the last step, then loop back to ①
   useEffect(() => {
     if (active.mode !== 'auto' || stepsLen < 2 || reduced) return undefined;
-    const delay = active.index >= lastStep ? DWELL_MS : STEP_MS;
+    const delay = autoplayDelay(steps[active.index], active.index >= lastStep);
     const id = window.setTimeout(() => {
       setPlay((s) => {
         if (s.mode !== 'auto') return s;
@@ -1368,7 +1463,7 @@ export default function TaskTrajectoryMap({
       });
     }, delay);
     return () => window.clearTimeout(id);
-  }, [active, stepsLen, lastStep, reduced]);
+  }, [active, stepsLen, lastStep, reduced, steps]);
 
   // ---- step / edge / node state maps ----
   const stepTones = useMemo<Tone[]>(() => {
@@ -1465,6 +1560,10 @@ export default function TaskTrajectoryMap({
   }, [view, steps, cursor, reduced, traced]);
 
   const curStep = cursor >= 0 ? steps[cursor] : null;
+  const hasParallel = useMemo(() => steps.some((st) => !!st.items && st.items.length > 1), [steps]);
+  const allFacts = useMemo(() => (traced ? factsFor(kind, traced) : []), [kind, traced]);
+  const leadFact = allFacts[0];
+  const restFacts = allFacts.slice(1);
   const dcLive = !!curStep && curStep.nodes.some((n) => DC_NODE_SET.has(n));
   const dcSummary = useMemo(() => {
     const list = Array.isArray(tasks) ? tasks : [];
@@ -1491,7 +1590,7 @@ export default function TaskTrajectoryMap({
 
       <p className="eyebrow tmap-caption">
         云 / 边 / 端 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，或「▶ 自动」循环演示；
-        黄铜为已执行、橙色脉冲为当前步骤、淡灰虚线为待执行、最淡灰为与本任务无关的其它链路
+        只有当前步骤为橙色高亮（脉冲 + 流动光点），已执行为中性灰、待执行为淡灰虚线、无关链路最淡
       </p>
 
       <div className="tmap-controls">
@@ -1511,71 +1610,69 @@ export default function TaskTrajectoryMap({
           ))}
         </div>
 
-        <div className="tmap-picker">
-          <div className="tmap-picker-head">
-            <span className="eyebrow">任务选择 · TRACE TARGET</span>
-            <button
-              type="button"
-              className={`mini ${autoFollow ? 'on' : ''}`}
-              aria-pressed={autoFollow}
-              onClick={() => setAutoFollow((v) => !v)}
-            >
-              自动跟随最新
-            </button>
-          </div>
-          {kindTasks.length === 0 ? (
-            <div className="tmap-empty xs muted">该类型暂无任务记录</div>
-          ) : (
-            <ul className="tmap-list">
-              {kindTasks.map((t) => {
-                const on = traced?.id === t.id;
-                return (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      className={`tmap-row ${on ? 'sel' : ''}`}
-                      aria-pressed={on}
-                      onClick={() => { setSelId(t.id); setAutoFollow(false); }}
-                      title={`${t.id} · ${t.source || '—'} · ${t.model}`}
-                    >
-                      <span className={`tmap-row-dot s-${String(t.status || '')}`} />
-                      <span className="tmap-row-id mono">{shortId(t.id)}</span>
-                      <span className="tmap-row-st">{statusLabel(t.status)}</span>
-                      <span className="tmap-row-src mono">{t.source || '—'}</span>
-                      <span className="tmap-row-dur mono">{durationText(t)}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+        <div className="tmap-pickrow">
+          <span className="eyebrow">任务选择 · TRACE TARGET</span>
+          <button
+            type="button"
+            className={`mini ${autoFollow ? 'on' : ''}`}
+            aria-pressed={autoFollow}
+            onClick={() => setAutoFollow((v) => !v)}
+            title="新提交的任务自动成为跟踪目标"
+          >
+            自动跟随最新
+          </button>
+          <select
+            className="tmap-select mono"
+            aria-label="选择要跟踪的任务"
+            value={traced?.id || ''}
+            disabled={!kindTasks.length}
+            onChange={(e) => { setSelId(e.target.value); setAutoFollow(false); }}
+          >
+            {kindTasks.length === 0 && <option value="">该类型暂无任务记录</option>}
+            {kindTasks.map((t) => (
+              <option key={t.id} value={t.id} title={t.id}>{taskOptionLabel(t)}</option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className="tmap-info">
         {traced ? (
           <>
-            <InfoCell k="任务ID" v={shortId(traced.id)} mono title={traced.id} />
-            <span className="tmi-cell">
-              <i className="tmi-k">状态</i>
+            <div className="tmi-lead">
               <span className={`badge s-${String(traced.status || '')}`}>{statusLabel(traced.status)}</span>
-            </span>
-            <span className="tmi-cell">
-              <i className="tmi-k">发起端</i>
-              <b className="tmi-v">{traced.source || '—'}</b>
-              <i className="tmi-sub">{SOURCE_ROLE[String(traced.source || '')] || '?'}</i>
-            </span>
-            <InfoCell k="阶段" v={STAGE_TEXT[String(traced.stage || '')] || String(traced.stage || '—')} />
-            <InfoCell k="耗时" v={durationText(traced)} mono />
-            <InfoCell
-              k="步骤"
-              v={curStep ? `${circled(cursor)} ${curStep.label}` : `— / ${stepsLen}`}
-              mono
-              title={curStep?.detail || ''}
-            />
-            {factsFor(kind, traced).map((f) => (
-              <InfoCell key={f.k} k={f.k} v={f.v} mono />
-            ))}
+              <b className="tmi-step">
+                {curStep ? `${circled(cursor)} ${curStep.label}` : '未定位到步骤'}
+              </b>
+              <span className="tmi-dur mono">{durationText(traced)}</span>
+              {leadFact && (
+                <span className="tmi-lead-fact">
+                  <i className="tmi-k">{leadFact.k}</i>
+                  <b className="tmi-v mono">{leadFact.v}</b>
+                </span>
+              )}
+            </div>
+            <div className="tmi-meta">
+              <span className="tmi-cell" title={traced.id}>
+                <i className="tmi-k">任务ID</i>
+                <b className="tmi-v mono">{idPrefix(traced.id, 16)}</b>
+              </span>
+              <span className="tmi-cell">
+                <i className="tmi-k">发起端</i>
+                <b className="tmi-v">{traced.source || '—'}</b>
+                <i className="tmi-sub">{SOURCE_ROLE[String(traced.source || '')] || '?'}</i>
+              </span>
+              <span className="tmi-cell">
+                <i className="tmi-k">阶段</i>
+                <b className="tmi-v">{STAGE_TEXT[String(traced.stage || '')] || String(traced.stage || '—')}</b>
+              </span>
+              {restFacts.map((f) => (
+                <span className="tmi-cell" key={f.k} title={`${f.k} ${f.v}`}>
+                  <i className="tmi-k">{f.k}</i>
+                  <b className="tmi-v mono">{f.v}</b>
+                </span>
+              ))}
+            </div>
           </>
         ) : (
           <div className="tmap-none">
@@ -1832,14 +1929,17 @@ export default function TaskTrajectoryMap({
                   >
                     <span className="tm-tl-no mono">{circled(i)}</span>
                     <span className="tm-tl-label">{s.label}</span>
-                    <span className="tm-tl-meta mono">
-                      {s.durationMs !== undefined ? fmtMs(s.durationMs) : (s.detail || '')}
-                    </span>
+                    {s.items && s.items.length > 1 && (
+                      <span className="tm-tl-para mono" title={`并行 ${s.items.length} 项，取最大值耗时`}>
+                        ∥{s.items.length}
+                      </span>
+                    )}
+                    <span className="tm-tl-meta mono">{stepMeta(s)}</span>
                     {i === cursor && !reduced && active.mode === 'auto' && (
                       <i
                         key={`prog-${cursor}`}
                         className="tm-tl-prog"
-                        style={{ animationDuration: `${i >= lastStep ? DWELL_MS : STEP_MS}ms` }}
+                        style={{ animationDuration: `${autoplayDelay(s, i >= lastStep)}ms` }}
                       />
                     )}
                   </button>
@@ -1850,6 +1950,24 @@ export default function TaskTrajectoryMap({
           </ol>
         ) : (
           <div className="tm-tl-empty xs muted">该类型暂无任务 · 选择任务后显示执行时序</div>
+        )}
+        {hasParallel && (
+          <div className="tm-tl-par">
+            {curStep?.items && curStep.items.length > 1 ? (
+              <>
+                <i className="tm-tl-par-tag mono">∥ {curStep.label} · {curStep.items.length} 项并行</i>
+                {curStep.items.map((it) => (
+                  <span className="tm-tl-par-item" key={it.ref}>
+                    <b>{it.label}</b>
+                    {it.detail && <i className="tm-tl-par-detail">{it.detail}</i>}
+                    {it.durationMs !== undefined && <i className="tm-tl-par-ms mono">{fmtMs(it.durationMs)}</i>}
+                  </span>
+                ))}
+              </>
+            ) : (
+              <i className="tm-tl-par-tag idle mono">并行步骤激活时展开各子项</i>
+            )}
+          </div>
         )}
       </div>
 
@@ -1872,17 +1990,6 @@ export default function TaskTrajectoryMap({
   );
 }
 
-function InfoCell({
-  k, v, mono, title,
-}: { k: string; v: string; mono?: boolean; title?: string }) {
-  return (
-    <span className="tmi-cell" title={title || `${k} ${v}`}>
-      <i className="tmi-k">{k}</i>
-      <b className={`tmi-v ${mono ? 'mono' : ''}`}>{v}</b>
-    </span>
-  );
-}
-
 /**
  * Test hook (same spirit as the `initialKind` prop): lets a smoke harness assert
  * the derived step timeline, cursor and geometry without a DOM. Every member is
@@ -1891,6 +1998,9 @@ function InfoCell({
 export const __internals = {
   nextPlayState,
   iconKindOf,
+  autoplayDelay,
+  refStepIndex,
+  prefixStepIndex,
   buildSteps,
   buildView,
   stageStepIndex,
