@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ModelKind, TaskItem } from '../types';
 import {
   MODEL_COLOR, MODEL_EN, MODEL_LABEL, MODELS, SOURCE_ROLE, STATUS_LABEL, fmtMs,
@@ -8,9 +8,19 @@ import {
    任务执行轨迹 · TASK TRAJECTORY MAP
 
    A three-tier schematic (云 CLOUD / 边 EDGE / 端 TERMINAL) that draws the
-   canonical execution flow of the selected task kind as dim "ghost" lines and
-   overlays the concrete execution path of one real task with animated brass /
-   orange strokes.
+   canonical execution flow of the selected task kind as faint "unrelated"
+   lines and then walks the concrete execution path of one real task **in time
+   order**: an ordered step timeline (built from the task payload) drives a
+   cursor, and every node / edge is painted with one of four sequential states
+
+     已执行 past       – solid brass, animated dash flow
+     当前   current    – orange, pulsing ring, travelling dot
+     待执行 pending    – very faint grey dashed
+     无关   unrelated  – faintest grey (not part of this task at all)
+
+   The cursor either follows the live `stage` of a running task, stops on the
+   failing step of a failed task, or auto-plays once through a finished task
+   (~900 ms per step, ~1.2 s dwell on the last one).
 
    Everything is plain inline SVG + CSS (dash-offset keyframes, SMIL
    animateMotion for the travelling dot). No data is fetched here: tasks are
@@ -211,7 +221,7 @@ function toPathD(pts: Pt[]): string {
 }
 
 /** Midpoint of the longest segment — keeps labels away from junctions. */
-function polyMid(pts: Pt[]): { p: Pt; horizontal: boolean } {
+function polyMid(pts: Pt[]): LabelPlacement {
   let best = 0;
   let bestLen = -1;
   for (let i = 1; i < pts.length; i += 1) {
@@ -221,26 +231,104 @@ function polyMid(pts: Pt[]): { p: Pt; horizontal: boolean } {
       best = i;
     }
   }
-  if (best === 0) return { p: pts[0] || { x: 0, y: 0 }, horizontal: true };
+  if (best === 0) return { x: pts[0]?.x || 0, y: pts[0]?.y || 0, anchor: 'middle' as const };
   const a = pts[best - 1];
   const b = pts[best];
-  return {
-    p: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
-    horizontal: Math.abs(b.x - a.x) >= Math.abs(b.y - a.y),
-  };
+  const x = (a.x + b.x) / 2;
+  const y = (a.y + b.y) / 2;
+  if (Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)) return { x, y: y - 6, anchor: 'middle' as const };
+  return x > VB_W - 150
+    ? { x: x - 8, y: y + 3.5, anchor: 'end' as const }
+    : { x: x + 8, y: y + 3.5, anchor: 'start' as const };
+}
+
+/**
+ * Edge label placement. Prefers the midpoint of the longest segment, but walks
+ * a few candidate anchors until the rendered text no longer sits on a node box
+ * (the map owns every box, so the check is cheap and deterministic).
+ */
+interface LabelPlacement {
+  x: number;
+  y: number;
+  anchor: 'start' | 'middle' | 'end';
+}
+
+interface Box2 { x1: number; y1: number; x2: number; y2: number }
+
+const LABEL_SIZE = 9.5;
+
+function textWidth(text: string): number {
+  let w = 0;
+  for (const ch of text) w += /[\u3000-\u9fff\uff00-\uffef]/.test(ch) ? 9.7 : 5.9;
+  return w;
+}
+
+function labelBox(x: number, y: number, text: string, anchor: LabelPlacement['anchor']): Box2 {
+  const w = textWidth(text);
+  const left = anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+  return { x1: left, y1: y - LABEL_SIZE, x2: left + w, y2: y + 2.5 };
+}
+
+const LABEL_AVOID: Box2[] = [
+  ...Object.values(NODE_BOX).map((b) => ({
+    x1: b.x - b.w / 2 - 1, y1: b.y - b.h / 2 - 1, x2: b.x + b.w / 2 + 1, y2: b.y + b.h / 2 + 1,
+  })),
+  ...Object.values(JOB_SLOTS).map((s) => ({
+    x1: s.x - s.r - 1, y1: s.y - s.r - 1, x2: s.x + s.r + 1, y2: s.y + s.r + 1,
+  })),
+];
+
+function hitsBox(b: Box2): boolean {
+  return LABEL_AVOID.some((r) => b.x1 < r.x2 && r.x1 < b.x2 && b.y1 < r.y2 && r.y1 < b.y2);
+}
+
+function placeLabel(pts: Pt[], text: string): LabelPlacement {
+  const segs: { i: number; len: number; horizontal: boolean }[] = [];
+  for (let i = 1; i < pts.length; i += 1) {
+    const dx = pts[i].x - pts[i - 1].x;
+    const dy = pts[i].y - pts[i - 1].y;
+    segs.push({ i, len: Math.hypot(dx, dy), horizontal: Math.abs(dx) >= Math.abs(dy) });
+  }
+  segs.sort((a, b) => b.len - a.len);
+
+  for (const seg of segs.slice(0, 3)) {
+    const a = pts[seg.i - 1];
+    const b = pts[seg.i];
+    for (const t of [0.5, 0.34, 0.66]) {
+      const px = a.x + (b.x - a.x) * t;
+      const py = a.y + (b.y - a.y) * t;
+      const cands: LabelPlacement[] = seg.horizontal
+        ? [
+          { x: px, y: py - 6, anchor: 'middle' },
+          { x: px, y: py + 11, anchor: 'middle' },
+        ]
+        : [
+          { x: px + 8, y: py + 3.5, anchor: 'start' },
+          { x: px - 8, y: py + 3.5, anchor: 'end' },
+        ];
+      for (const c of cands) {
+        if (!hitsBox(labelBox(c.x, c.y, text, c.anchor))) return c;
+      }
+    }
+  }
+  return polyMid(pts);
 }
 
 // ---------------------------------------------------------------------------
 // task → semantic edge model
 // ---------------------------------------------------------------------------
-type Tone = 'ghost' | 'past' | 'current' | 'pending' | 'failed';
+/**
+ * Sequential paint states. NOTE: the CSS class for 已执行 (passed) is `.past`
+ * — it predates the timeline and is reused verbatim.
+ */
+type Tone = 'ghost' | 'past' | 'current' | 'pending' | 'unrelated' | 'failed';
+type NodeState = Tone;
 
 interface SemEdge {
   key: string;
   from: string;
   to: string;
   label: string;
-  phase: string;
 }
 
 interface Ctx {
@@ -283,9 +371,14 @@ function isClinicNode(id: string | null | undefined): boolean {
   return !!id && id.startsWith('clinic-');
 }
 
-function semEdge(from: string, to: string, label: string, phase: string): SemEdge | null {
+function semEdge(from: string, to: string, label: string): SemEdge | null {
   if (!from || !to || from === to) return null;
-  return { key: `${from}→${to}#${label}`, from, to, label, phase };
+  return { key: `${from}→${to}#${label}`, from, to, label };
+}
+
+/** Semantic edge key — shared by the edge builder and the step bindings. */
+function edgeKey(from: string, to: string, label: string): string {
+  return `${from}→${to}#${label}`;
 }
 
 /** Canonical (kind-representative) semantic edges. */
@@ -294,33 +387,33 @@ function buildEdges(kind: ModelKind, ctx: Ctx): SemEdge[] {
   const src = ctx.source;
 
   if (kind === 'diagnosis') {
-    out.push(semEdge(src, 'scheduler', '提交', '提交'));
+    out.push(semEdge(src, 'scheduler', '提交'));
     const hospital = ctx.hospital || null;
     if (hospital && hospital !== src && isClinicNode(src)) {
-      out.push(semEdge(src, hospital, '转诊', '转诊'));
+      out.push(semEdge(src, hospital, '转诊'));
     }
-    if (hospital) out.push(semEdge(hospital, 'medical-server', 'worker', 'worker'));
-    out.push(semEdge('medical-server', src, '结果', '结果'));
+    if (hospital) out.push(semEdge(hospital, 'medical-server', 'worker'));
+    out.push(semEdge('medical-server', src, '结果'));
   } else if (kind === 'compute') {
     const actors = Array.from(new Set([...(ctx.actors || []), 'dc-services'])).filter(Boolean);
     const parts = actors.filter((a) => a !== src);
-    out.push(semEdge(src, 'scheduler', '提交', '提交'));
-    parts.forEach((a) => out.push(semEdge('scheduler', a, '分区', '分区')));
-    actors.filter((a) => a !== 'dc-services').forEach((a) => out.push(semEdge(a, 'dc-services', '聚合', '聚合')));
-    out.push(semEdge('dc-services', src, '结果', '结果'));
+    out.push(semEdge(src, 'scheduler', '提交'));
+    parts.forEach((a) => out.push(semEdge('scheduler', a, '分区')));
+    actors.filter((a) => a !== 'dc-services').forEach((a) => out.push(semEdge(a, 'dc-services', '聚合')));
+    out.push(semEdge('dc-services', src, '结果'));
   } else if (kind === 'sync') {
     const peers = Array.from(new Set(ctx.peers || [])).filter((p) => p && p !== src);
-    out.push(semEdge(src, 'scheduler', '提交', '提交'));
-    peers.forEach((p) => out.push(semEdge(p, src, '拉取', '拉取')));
-    out.push(semEdge(src, 'dc-services', '上传/备份', '上传'));
-    out.push(semEdge('dc-services', src, '结果', '结果'));
+    out.push(semEdge(src, 'scheduler', '提交'));
+    peers.forEach((p) => out.push(semEdge(p, src, '拉取')));
+    out.push(semEdge(src, 'dc-services', '上传/备份'));
+    out.push(semEdge('dc-services', src, '结果'));
   } else {
     const jobs = (ctx.jobs || []).slice(0, MAX_JOBS);
-    out.push(semEdge(src, 'scheduler', '提交', '提交'));
+    out.push(semEdge(src, 'scheduler', '提交'));
     jobs.forEach((j) => {
-      out.push(semEdge('scheduler', j.id, 'Job创建', 'Job创建'));
-      out.push(semEdge(j.id, 'scheduler', '日志', '日志'));
-      out.push(semEdge('scheduler', j.id, '删除', '删除'));
+      out.push(semEdge('scheduler', j.id, 'Job创建'));
+      out.push(semEdge(j.id, 'scheduler', '日志'));
+      out.push(semEdge('scheduler', j.id, '删除'));
     });
   }
   return out.filter((e): e is SemEdge => !!e);
@@ -339,13 +432,6 @@ const CANON: Record<ModelKind, Ctx> = {
   },
 };
 
-const PHASES: Record<ModelKind, string[]> = {
-  diagnosis: ['提交', '转诊', 'worker', '结果'],
-  compute: ['提交', '分区', '聚合', '结果'],
-  sync: ['提交', '拉取', '上传', '结果'],
-  routine: ['提交', 'Job创建', '日志', '删除'],
-};
-
 const STAGE_TEXT: Record<string, string> = {
   scheduler: '排队 / 调度',
   queued: '排队 / 调度',
@@ -359,6 +445,12 @@ const STAGE_TEXT: Record<string, string> = {
   failed: '失败',
 };
 
+function num(v: unknown): number | undefined {
+  if (v === null || v === undefined || v === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** Live context rebuilt from the real task payload (defensive everywhere). */
 function ctxFromTask(kind: ModelKind, task: TaskItem): Ctx | null {
   const src = nodeForEntity(task.source);
@@ -368,7 +460,11 @@ function ctxFromTask(kind: ModelKind, task: TaskItem): Ctx | null {
 
   if (kind === 'diagnosis') {
     const forwarded = nodeForEntity(res?.forwarded_to);
-    const hospital = forwarded || (isClinicNode(src) ? null : src);
+    // a running clinic task has no forwarded_to yet — the scheduler already
+    // parked it on the executing hospital in task.node
+    const live = nodeForEntity(task.node);
+    const hospital = forwarded
+      || (!isClinicNode(src) ? src : (live && live.startsWith('hospital-') ? live : null));
     return { source: src, hospital };
   }
   if (kind === 'compute') {
@@ -385,17 +481,19 @@ function ctxFromTask(kind: ModelKind, task: TaskItem): Ctx | null {
   }
   const rawJobs: any[] = Array.isArray(detail?.jobs) ? detail.jobs : [];
   // one pseudo node per distinct execution node; unknown nodes get no highlight
-  const byNode = new Map<string, { id: string; name: string; node: string; state: string; count: number }>();
+  const byNode = new Map<string, JobCtx>();
   rawJobs.forEach((j, i) => {
     const node = String(j?.node || '');
     if (!JOB_SLOTS[node]) return;
     const tail = String(j?.job || `job-${i}`).slice(-5) || `job-${i}`;
     const prev = byNode.get(node);
     if (prev) {
-      prev.count += 1;
+      prev.count = (prev.count || 1) + 1;
       if (String(j?.state) === 'failed') prev.state = 'failed';
     } else {
-      byNode.set(node, { id: `${JOB_PREFIX}${node}`, name: tail, node, state: String(j?.state || 'unknown'), count: 1 });
+      byNode.set(node, {
+        id: `${JOB_PREFIX}${node}`, name: tail, node, state: String(j?.state || 'unknown'), count: 1,
+      });
     }
   });
   const jobs = Array.from(byNode.values()).slice(0, MAX_JOBS);
@@ -404,70 +502,435 @@ function ctxFromTask(kind: ModelKind, task: TaskItem): Ctx | null {
     return {
       source: src,
       jobs: [
-        { id: `${JOB_PREFIX}node1`, name: 'job-0', node: 'node1', state: 'pending', count: 1 } as any,
-        { id: `${JOB_PREFIX}node2`, name: 'job-1', node: 'node2', state: 'pending', count: 1 } as any,
+        { id: `${JOB_PREFIX}node1`, name: 'job-0', node: 'node1', state: 'pending', count: 1 },
+        { id: `${JOB_PREFIX}node2`, name: 'job-1', node: 'node2', state: 'pending', count: 1 },
       ],
     };
   }
-  return { source: src, jobs: jobs as any };
-}
-
-/** Which phase a running task currently sits in. */
-function currentPhase(kind: ModelKind, task: TaskItem, ctx: Ctx | null): string {
-  const stage = String(task.stage || '').toLowerCase();
-  const status = String(task.status || '').toLowerCase();
-  if (status === 'failed') return '';
-  const done = status === 'finished' || status === 'completed' || stage === 'finished' || stage === 'completed';
-  if (done) return PHASES[kind][PHASES[kind].length - 1];
-  if (status === 'queued' || !stage || stage === 'scheduler') return '提交';
-  if (kind === 'diagnosis') {
-    if (stage === 'worker') return isClinicNode(ctx?.source) && ctx?.hospital ? '转诊' : '提交';
-    if (stage === 'server') return 'worker';
-    return '提交';
-  }
-  if (kind === 'compute') return stage === 'compute' ? '分区' : '提交';
-  if (kind === 'sync') return stage === 'sync' ? '拉取' : '提交';
-  return stage === 'routine' ? 'Job创建' : '提交';
-}
-
-/** Nodes that the running task is touching right now. */
-function currentNodesOf(kind: ModelKind, task: TaskItem, ctx: Ctx | null): Set<string> {
-  const out = new Set<string>();
-  const stage = String(task.stage || '').toLowerCase();
-  const status = String(task.status || '').toLowerCase();
-  if (status !== 'running') return out;
-  const stageNode = nodeForEntity(task.node);
-  if (kind === 'diagnosis') {
-    if (stage === 'worker' && stageNode) out.add(stageNode);
-    if (stage === 'server') out.add('medical-server');
-  } else if (kind === 'compute') {
-    if (stageNode) out.add(stageNode);
-    out.add('dc-services');
-  } else if (kind === 'sync') {
-    out.add('dc-services');
-  } else if (kind === 'routine') {
-    (ctx?.jobs || []).forEach((j) => out.add(j.id));
-  }
-  if (stage === 'scheduler') out.add('scheduler');
-  return out;
+  return { source: src, jobs };
 }
 
 // ---------------------------------------------------------------------------
-// view model
+// ordered step timeline (the execution order the cursor walks through)
+// ---------------------------------------------------------------------------
+interface Step {
+  /** chip text, e.g. 提交 / 分区 2 */
+  label: string;
+  /** chip tooltip / secondary text */
+  detail?: string;
+  /** measured duration when the payload exposes one */
+  durationMs?: number;
+  /** nodes that take part in this step */
+  nodes: string[];
+  /** semantic edges that carry this step */
+  edges: string[];
+  /** stable key used to locate the failing step */
+  ref: string;
+}
+
+function metricsMs(task: TaskItem | null, key: string): number | undefined {
+  const m: any = (task?.result as any)?.metrics;
+  return m ? num(m[key]) : undefined;
+}
+
+function stagesOf(task: TaskItem | null): any[] {
+  const s: any = (task?.result as any)?.stages;
+  return Array.isArray(s) ? s : [];
+}
+
+function detailOf(task: TaskItem | null): any {
+  return (task?.result as any)?.result_detail || {};
+}
+
+/**
+ * diagnosis — ①提交 ②调度/转诊 ③worker ④server ⑤结果回传
+ * ordering: fixed pipeline; durations from stages[].ms / result_detail
+ */
+function stepsDiagnosis(task: TaskItem | null, ctx: Ctx): Step[] {
+  const detail = detailOf(task);
+  const stages = stagesOf(task);
+  const stageMs = (name: string) => {
+    const hit = stages.find((s) => String(s?.name) === name);
+    return num(hit?.ms);
+  };
+  const src = ctx.source;
+  const hospital = ctx.hospital || null;
+  const forwarded = !!(hospital && hospital !== src && isClinicNode(src));
+  const steps: Step[] = [];
+
+  steps.push({
+    label: '提交',
+    detail: `${src} → scheduler`,
+    nodes: [src, 'scheduler'],
+    edges: [edgeKey(src, 'scheduler', '提交')],
+    durationMs: metricsMs(task, 'queue_wait_ms'),
+    ref: 'submit',
+  });
+  steps.push({
+    label: forwarded ? '转诊' : '调度选点',
+    detail: forwarded ? `${src} → ${hospital}` : 'scheduler 选医院 / 排优先级',
+    nodes: forwarded ? [src, hospital as string] : ['scheduler'],
+    edges: forwarded ? [edgeKey(src, hospital as string, '转诊')] : [],
+    ref: 'dispatch',
+  });
+  if (hospital) {
+    steps.push({
+      label: 'worker 前端',
+      detail: `${hospital} 医院 Pod 提特征`,
+      nodes: [hospital],
+      edges: [edgeKey(hospital, 'medical-server', 'worker')],
+      durationMs: stageMs('worker') ?? num(detail.worker_latency_ms),
+      ref: 'worker',
+    });
+  }
+  steps.push({
+    label: 'server 融合',
+    detail: 'medical-server 双塔融合推理',
+    nodes: ['medical-server'],
+    edges: [],
+    durationMs: stageMs('server') ?? num(detail.server_latency_ms),
+    ref: 'server',
+  });
+  steps.push({
+    label: '结果回传',
+    detail: `medical-server → ${src}`,
+    nodes: ['medical-server', src],
+    edges: [edgeKey('medical-server', src, '结果')],
+    ref: 'result',
+  });
+  return steps;
+}
+
+/**
+ * compute — ①提交 ②调度选点 ③产数 ④各分区协同计算 ⑤数据聚合 ⑥结果回传
+ * ordering: partitions sorted by result.partitions[].partition
+ */
+function stepsCompute(task: TaskItem | null, ctx: Ctx): Step[] {
+  const res: any = task?.result || null;
+  const detail = detailOf(task);
+  const src = ctx.source;
+  const rawParts: any[] = Array.isArray(res?.partitions) ? res.partitions : [];
+  const parts = rawParts.slice().sort((a, b) => (num(a?.partition) ?? 0) - (num(b?.partition) ?? 0));
+  const produced = res?.produced || null;
+  // every actor that executes a partition (the source only when it is one) …
+  const partTargets = Array.from(new Set([...(ctx.actors || []), 'dc-services'])).filter((a) => a !== src);
+  // … and every actor whose partition must be aggregated in the data center
+  const aggSources = Array.from(new Set([src, ...(ctx.actors || [])])).filter((a) => a !== 'dc-services');
+  const steps: Step[] = [];
+
+  steps.push({
+    label: '提交',
+    detail: `${src} → scheduler`,
+    nodes: [src, 'scheduler'],
+    edges: [edgeKey(src, 'scheduler', '提交')],
+    durationMs: metricsMs(task, 'queue_wait_ms'),
+    ref: 'submit',
+  });
+  steps.push({
+    label: '调度选点',
+    detail: partTargets.length ? `分区执行体 ${partTargets.join(' / ')}` : 'scheduler 选择执行体',
+    nodes: ['scheduler'],
+    edges: [],
+    ref: 'dispatch',
+  });
+  steps.push({
+    label: '产数',
+    detail: produced
+      ? `${produced.instruments ?? '—'} 仪器 × ${produced.rows ?? '—'} 行 = ${produced.samples ?? '—'} 样本`
+      : '发起端生成仪器流数据',
+    nodes: [src],
+    edges: [],
+    ref: 'produce',
+  });
+
+  if (parts.length) {
+    parts.forEach((p, i) => {
+      const actor = nodeForEntity(p?.actor);
+      const idx = num(p?.partition) ?? i;
+      const ok = !p?.failed;
+      steps.push({
+        label: `分区 ${idx + 1}`,
+        detail: `${p?.actor ?? actor ?? '未知执行体'}${ok ? '' : ' · 失败'}${p?.rows ? ` · ${p.rows} 行` : ''}`,
+        nodes: actor ? [actor] : [],
+        edges: actor ? [edgeKey('scheduler', actor, '分区')] : [],
+        durationMs: num(p?.ms),
+        ref: `p:${idx}`,
+      });
+    });
+  } else {
+    steps.push({
+      label: '协同分区计算',
+      detail: '等待各分区结果（payload 尚未回报分区）',
+      nodes: ['dc-services'],
+      edges: [edgeKey('scheduler', 'dc-services', '分区')],
+      ref: 'p:0',
+    });
+  }
+
+  steps.push({
+    label: '数据聚合',
+    detail: 'dc-services 聚合校验 checksum',
+    nodes: ['dc-services'],
+    edges: aggSources.map((a) => edgeKey(a, 'dc-services', '聚合')),
+    durationMs: num(detail.aggregate_cpu_ms),
+    ref: 'aggregate',
+  });
+  steps.push({
+    label: '结果回传',
+    detail: `dc-services → ${src}`,
+    nodes: ['dc-services', src],
+    edges: [edgeKey('dc-services', src, '结果')],
+    ref: 'result',
+  });
+  return steps;
+}
+
+/**
+ * sync — ①提交 ②取云清单/计算缺失 ③P2P 并行拉取 ④云端上传 ⑤云端备份 ⑥结果回传
+ * ordering: peers in result_detail.peers order; durations from the chunk ms
+ */
+function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
+  const detail = detailOf(task);
+  const src = ctx.source;
+  const chunks: any[] = Array.isArray(detail?.chunks) ? detail.chunks : [];
+  const peers = (ctx.peers || []).filter((p) => p && p !== src);
+  const backup = detail?.backup;
+  const steps: Step[] = [];
+
+  steps.push({
+    label: '提交',
+    detail: `${src} → scheduler`,
+    nodes: [src, 'scheduler'],
+    edges: [edgeKey(src, 'scheduler', '提交')],
+    durationMs: metricsMs(task, 'queue_wait_ms'),
+    ref: 'submit',
+  });
+  steps.push({
+    label: '取云清单',
+    detail: detail?.missing !== undefined
+      ? `云端 ${detail?.cloud_items ?? '—'} 项 · 缺失 ${detail.missing} 项`
+      : 'dc-services 清单 → 计算缺失分块',
+    nodes: ['dc-services', src],
+    edges: [],
+    ref: 'manifest',
+  });
+
+  if (peers.length) {
+    peers.forEach((peer, i) => {
+      const mine = chunks.filter((c) => nodeForEntity(c?.peer) === peer);
+      const okN = mine.filter((c) => c?.ok).length;
+      const ms = mine.reduce((acc, c) => acc + (num(c?.ms) || 0), 0);
+      steps.push({
+        label: `拉取 ${i + 1}`,
+        detail: mine.length ? `${peer} · ${okN}/${mine.length} 分块` : `${peer} · 并行拉取缺失分块`,
+        nodes: [peer],
+        edges: [edgeKey(peer, src, '拉取')],
+        durationMs: mine.length ? Math.round(ms * 100) / 100 : undefined,
+        ref: `peer:${peer}`,
+      });
+    });
+  } else {
+    steps.push({
+      label: '并行拉取',
+      detail: '等待 peer 回报分块',
+      nodes: [],
+      edges: [],
+      ref: 'peer:none',
+    });
+  }
+
+  steps.push({
+    label: '云端上传',
+    detail: detail?.uploaded !== undefined
+      ? `上传 ${detail.uploaded} 项本地更新`
+      : `${src} → dc-services 上传本地更新`,
+    nodes: [src, 'dc-services'],
+    edges: [edgeKey(src, 'dc-services', '上传/备份')],
+    durationMs: num(detail?.upload_ms),
+    ref: 'upload',
+  });
+  steps.push({
+    label: '云端备份',
+    detail: backup?.backup_id ? `备份 ${backup.backup_id}` : 'dc-services 全量备份',
+    nodes: ['dc-services'],
+    edges: [edgeKey(src, 'dc-services', '上传/备份')],
+    durationMs: num(detail?.backup_ms),
+    ref: 'backup',
+  });
+  steps.push({
+    label: '结果回传',
+    detail: `dc-services → ${src}`,
+    nodes: ['dc-services', src],
+    edges: [edgeKey('dc-services', src, '结果')],
+    ref: 'result',
+  });
+  return steps;
+}
+
+/**
+ * routine — ①提交 ②读取空闲节点 ③创建 Job ④Job 执行并输出 ⑤读取日志 ⑥删除 Job ⑦结果回传
+ * ordering: one 创建 step per execution node, in result_detail.jobs order
+ */
+function stepsRoutine(task: TaskItem | null, ctx: Ctx): Step[] {
+  const detail = detailOf(task);
+  const src = ctx.source;
+  const rawJobs: any[] = Array.isArray(detail?.jobs) ? detail.jobs : [];
+  const jobs = (ctx.jobs || []).slice(0, MAX_JOBS);
+  const jobIds = jobs.map((j) => j.id);
+  const nodesUsed = Array.from(new Set(rawJobs.map((j) => String(j?.node || '')).filter(Boolean)));
+  const wall = rawJobs.reduce((acc, j) => acc + (num(j?.wall_ms) || 0), 0);
+  const steps: Step[] = [];
+
+  steps.push({
+    label: '提交',
+    detail: `${src} → scheduler`,
+    nodes: [src, 'scheduler'],
+    edges: [edgeKey(src, 'scheduler', '提交')],
+    durationMs: metricsMs(task, 'queue_wait_ms'),
+    ref: 'submit',
+  });
+  steps.push({
+    label: '读取空闲节点',
+    detail: nodesUsed.length ? `空闲边缘节点 ${nodesUsed.join(' / ')}` : 'scheduler 读取节点空闲度',
+    nodes: ['scheduler'],
+    edges: [],
+    ref: 'nodes',
+  });
+
+  jobs.forEach((j) => {
+    steps.push({
+      label: `创建 Job ${jobNodeOf(j.id).replace('node', '#')}`,
+      detail: `${j.node}${(j.count || 1) > 1 ? ` · ${j.count} 个 Job` : ''}`,
+      nodes: [j.id],
+      edges: [edgeKey('scheduler', j.id, 'Job创建')],
+      ref: `job:${j.id}`,
+    });
+  });
+  steps.push({
+    label: 'Job 执行输出',
+    detail: rawJobs.length
+      ? `${rawJobs.length} 个 Job · 成功 ${detail?.succeeded ?? '—'} · 输出 JSON`
+      : '一次性 Job 执行并输出 JSON',
+    nodes: jobIds,
+    edges: [],
+    durationMs: rawJobs.length ? Math.round(wall * 100) / 100 : undefined,
+    ref: 'exec',
+  });
+  steps.push({
+    label: '读取日志',
+    detail: 'scheduler 读取 Job pod 日志',
+    nodes: jobIds,
+    edges: jobIds.map((id) => edgeKey(id, 'scheduler', '日志')),
+    ref: 'logs',
+  });
+  steps.push({
+    label: '删除 Job',
+    detail: '回收一次性 Job pod',
+    nodes: jobIds,
+    edges: jobIds.map((id) => edgeKey('scheduler', id, '删除')),
+    ref: 'delete',
+  });
+  steps.push({
+    label: '结果回传',
+    detail: `scheduler → ${src}`,
+    nodes: ['scheduler', src],
+    edges: [],
+    ref: 'result',
+  });
+  return steps;
+}
+
+function buildSteps(kind: ModelKind, task: TaskItem | null, ctx: Ctx): Step[] {
+  if (kind === 'diagnosis') return stepsDiagnosis(task, ctx);
+  if (kind === 'compute') return stepsCompute(task, ctx);
+  if (kind === 'sync') return stepsSync(task, ctx);
+  return stepsRoutine(task, ctx);
+}
+
+/**
+ * Running task → cursor from `stage` (+ the first partition/peer/job step when
+ * the payload already exposes one). Failed → the failing step. Finished → last.
+ */
+function stageStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): number {
+  const last = Math.max(0, steps.length - 1);
+  const at = (ref: string, fallback = 0) => {
+    const i = steps.findIndex((s) => s.ref === ref);
+    return i < 0 ? fallback : i;
+  };
+  const status = String(task.status || '').toLowerCase();
+  const stage = String(task.stage || '').toLowerCase();
+
+  if (status === 'failed') return failureStepIndex(kind, task, steps);
+  if (status === 'queued') return 0;
+  const done = status === 'finished' || status === 'completed'
+    || stage === 'finished' || stage === 'completed';
+  if (done) return last;
+
+  if (kind === 'diagnosis') {
+    if (stage === 'server') return at('server', last);
+    if (stage === 'worker') return at('worker', at('dispatch'));
+    return at('dispatch');
+  }
+  if (kind === 'compute') {
+    if (stage === 'compute') return at('p:0', at('dispatch'));
+    return at('dispatch');
+  }
+  if (kind === 'sync') {
+    if (stage === 'sync') {
+      const i = steps.findIndex((s) => s.ref.startsWith('peer:'));
+      return i < 0 ? at('manifest') : i;
+    }
+    return at('manifest');
+  }
+  if (stage === 'routine') return at('exec', at('nodes'));
+  return at('nodes');
+}
+
+/** Which step blew up — per-partition / per-job detail when available. */
+function failureStepIndex(kind: ModelKind, task: TaskItem, steps: Step[]): number {
+  const last = Math.max(0, steps.length - 1);
+  const res: any = task.result || null;
+  const detail = detailOf(task);
+  const at = (ref: string, fallback: number = last) => {
+    const i = steps.findIndex((s) => s.ref === ref);
+    return i < 0 ? fallback : i;
+  };
+  if (kind === 'compute') {
+    const parts: any[] = Array.isArray(res?.partitions) ? res.partitions : [];
+    const bad = parts.find((p) => p?.failed);
+    if (bad) return at(`p:${num(bad?.partition) ?? 0}`, at('p:0'));
+  }
+  if (kind === 'routine') {
+    const jobs: any[] = Array.isArray(detail?.jobs) ? detail.jobs : [];
+    if (jobs.some((j) => String(j?.state) === 'failed' || j?.timeout)) return at('exec', last);
+  }
+  const stage = String(task.stage || '').toLowerCase();
+  if (kind === 'diagnosis') {
+    if (stage === 'server') return at('server', last);
+    if (stage === 'worker') return at('worker', last);
+    return at('submit');
+  }
+  if (kind === 'compute') return at('p:0', at('dispatch'));
+  if (kind === 'sync') return at('peer:none', at('manifest'));
+  return at('exec', last);
+}
+
+// ---------------------------------------------------------------------------
+// view model (geometry — independent of the cursor, so playback never relayouts)
 // ---------------------------------------------------------------------------
 interface DrawnEdge extends SemEdge {
-  tone: Tone;
   d: string;
-  mid: { p: Pt; horizontal: boolean };
+  label_at: LabelPlacement;
   live: boolean;
 }
 
 interface ViewModel {
   edges: DrawnEdge[];
   nodeIds: string[];
-  activeNodes: Set<string>;
-  currentNodes: Set<string>;
+  liveKeys: Set<string>;
+  liveNodes: Set<string>;
   jobs: JobCtx[];
+  ctx: Ctx | null;
 }
 
 function buildView(kind: ModelKind, task: TaskItem | null): ViewModel {
@@ -475,24 +938,9 @@ function buildView(kind: ModelKind, task: TaskItem | null): ViewModel {
   const ghost = buildEdges(kind, CANON[kind]);
   const live = ctx ? buildEdges(kind, ctx) : [];
   const liveKeys = new Set(live.map((e) => e.key));
-
-  const phase = task ? currentPhase(kind, task, ctx) : '';
-  const order = PHASES[kind];
-  const curIdx = order.indexOf(phase);
-  const failed = String(task?.status || '').toLowerCase() === 'failed';
-
-  const toneOf = (e: SemEdge): Tone => {
-    if (failed) return 'failed';
-    if (!task || curIdx < 0) return 'current';
-    const i = order.indexOf(e.phase);
-    if (i < 0) return 'current';
-    if (i === curIdx) return 'current';
-    return i < curIdx ? 'past' : 'pending';
-  };
-
-  const all: { e: SemEdge; tone: Tone; live: boolean }[] = [
-    ...ghost.filter((e) => !liveKeys.has(e.key)).map((e) => ({ e, tone: 'ghost' as Tone, live: false })),
-    ...live.map((e) => ({ e, tone: toneOf(e), live: true })),
+  const all = [
+    ...ghost.filter((e) => !liveKeys.has(e.key)).map((e) => ({ e, live: false })),
+    ...live.map((e) => ({ e, live: true })),
   ];
 
   // port-offset allocation so parallel edges never overlap on a shared port
@@ -509,7 +957,7 @@ function buildView(kind: ModelKind, task: TaskItem | null): ViewModel {
 
   const edges: DrawnEdge[] = [];
   const nodeIds = new Set<string>();
-  all.forEach(({ e, tone, live: isLive }, idx) => {
+  all.forEach(({ e, live: isLive }, idx) => {
     const tA = tierOf(e.from);
     const tB = tierOf(e.to);
     const d = TIER_ORDER[tB] - TIER_ORDER[tA];
@@ -543,27 +991,23 @@ function buildView(kind: ModelKind, task: TaskItem | null): ViewModel {
       offB = take(p.to, 'bottom');
     }
     const pts = buildPath(p, offA, offB);
-    edges.push({ ...e, tone, d: toPathD(pts), mid: polyMid(pts), live: isLive });
+    edges.push({ ...e, d: toPathD(pts), label_at: placeLabel(pts, e.label), live: isLive });
     nodeIds.add(e.from);
     nodeIds.add(e.to);
   });
 
-  const activeNodes = new Set<string>();
-  live.forEach((e) => {
-    activeNodes.add(e.from);
-    activeNodes.add(e.to);
-  });
-
   const jobCtx = kind === 'routine' ? (ctx || CANON.routine) : null;
+  const jobs = jobCtx?.jobs || [];
   return {
     edges,
     nodeIds: Array.from(nodeIds).filter((id) => {
       if (!isJob(id)) return true;
-      return !!jobCtx && (jobCtx.jobs || []).some((j) => j.id === id);
+      return jobs.some((j) => j.id === id);
     }),
-    activeNodes,
-    currentNodes: task ? currentNodesOf(kind, task, ctx) : new Set<string>(),
-    jobs: jobCtx?.jobs || [],
+    liveKeys,
+    liveNodes: new Set(live.flatMap((e) => [e.from, e.to])),
+    jobs,
+    ctx,
   };
 }
 
@@ -592,6 +1036,13 @@ function durationText(t: TaskItem): string {
 function statusLabel(status: unknown): string {
   const s = String(status || '');
   return STATUS_LABEL[s] || s || '—';
+}
+
+function isFinished(task: TaskItem | null): boolean {
+  if (!task) return false;
+  const s = String(task.status || '').toLowerCase();
+  const stage = String(task.stage || '').toLowerCase();
+  return s === 'finished' || s === 'completed' || stage === 'finished' || stage === 'completed';
 }
 
 function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
@@ -634,17 +1085,66 @@ function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
 }
 
 // ---------------------------------------------------------------------------
+// playback state
+// ---------------------------------------------------------------------------
+type PlayMode = 'auto' | 'play' | 'pin';
+
+interface PlayState {
+  id: string;
+  index: number;
+  mode: PlayMode;
+}
+
+const STEP_MS = 900;
+const DWELL_MS = 1200;
+
+function initialPlayState(id: string, task: TaskItem | null, stepsLen: number, reduced: boolean): PlayState {
+  const last = Math.max(0, stepsLen - 1);
+  if (!id || stepsLen < 2) return { id, index: last, mode: 'auto' };
+  if (isFinished(task)) {
+    // play the finished flow once; reduced-motion users get the end state
+    return reduced ? { id, index: last, mode: 'pin' } : { id, index: 0, mode: 'play' };
+  }
+  return { id, index: 0, mode: 'auto' };
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(!!mq.matches);
+    const on = () => setReduced(!!mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', on);
+    else if (mq.addListener) mq.addListener(on);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', on);
+      else if (mq.removeListener) mq.removeListener(on);
+    };
+  }, []);
+  return reduced;
+}
+
+// ---------------------------------------------------------------------------
 // component
 // ---------------------------------------------------------------------------
-const TONES: Tone[] = ['ghost', 'past', 'current', 'pending', 'failed'];
+const TONES: Tone[] = ['ghost', 'past', 'current', 'pending', 'unrelated', 'failed'];
 
-const LEGEND: { tone: Tone; text: string }[] = [
-  { tone: 'ghost', text: '标准路径 GHOST' },
-  { tone: 'past', text: '已执行 DONE' },
-  { tone: 'current', text: '当前阶段 CURRENT' },
-  { tone: 'pending', text: '待执行 PENDING' },
-  { tone: 'failed', text: '失败 FAILED' },
+const LEGEND: { state: Tone; text: string }[] = [
+  { state: 'past', text: '已执行 PASSED' },
+  { state: 'current', text: '当前 CURRENT' },
+  { state: 'pending', text: '待执行 PENDING' },
+  { state: 'unrelated', text: '无关 UNRELATED' },
+  { state: 'failed', text: '失败 FAILED' },
+  { state: 'ghost', text: '无任务 · 标准路径' },
 ];
+
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩',
+  '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'];
+
+function circled(i: number): string {
+  return CIRCLED[i] || `(${i + 1})`;
+}
 
 export default function TaskTrajectoryMap({
   tasks, initialKind = 'diagnosis',
@@ -657,6 +1157,8 @@ export default function TaskTrajectoryMap({
   const [kind, setKind] = useState<ModelKind>(initialKind);
   const [selId, setSelId] = useState<string | null>(null);
   const [autoFollow, setAutoFollow] = useState(true);
+  const [play, setPlay] = useState<PlayState>({ id: '', index: 0, mode: 'auto' });
+  const reduced = usePrefersReducedMotion();
 
   const kindTasks = useMemo(() => {
     const list = (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.model === kind);
@@ -669,7 +1171,121 @@ export default function TaskTrajectoryMap({
     return kindTasks.find((t) => t.id === selId) || kindTasks[0];
   }, [kindTasks, autoFollow, selId]);
 
+  // geometry only depends on kind + traced task, never on the cursor
   const view = useMemo(() => buildView(kind, traced), [kind, traced]);
+
+  // ordered execution timeline — real task when available, canonical otherwise
+  const steps = useMemo(
+    () => buildSteps(kind, traced, view.ctx || CANON[kind]),
+    [kind, traced, view],
+  );
+
+  const tracedId = traced?.id || '';
+  const stepsLen = steps.length;
+
+  const autoState = useMemo(
+    () => initialPlayState(tracedId, traced, stepsLen, reduced),
+    [tracedId, traced, stepsLen, reduced],
+  );
+  // state derived synchronously for the task at hand (no first-frame flash)
+  const active = play.id === tracedId && tracedId ? play : autoState;
+
+  const dataCursor = useMemo(
+    () => (traced && stepsLen ? stageStepIndex(kind, traced, steps) : 0),
+    [kind, traced, steps, stepsLen],
+  );
+  const lastStep = Math.max(0, stepsLen - 1);
+  const cursor = traced
+    ? Math.min(active.mode === 'auto' ? dataCursor : active.index, lastStep)
+    : -1;
+
+  // keep the stored state in sync when the traced task changes
+  useEffect(() => {
+    setPlay((s) => (s.id === tracedId ? s : autoState));
+  }, [tracedId, autoState]);
+
+  // auto-advance once through a finished task, then park on the last step
+  useEffect(() => {
+    if (active.mode !== 'play' || stepsLen < 2) return undefined;
+    const delay = active.index >= lastStep ? DWELL_MS : STEP_MS;
+    const id = window.setTimeout(() => {
+      setPlay((s) => {
+        if (s.mode !== 'play') return s;
+        return s.index >= lastStep ? { ...s, mode: 'pin' } : { ...s, index: s.index + 1 };
+      });
+    }, delay);
+    return () => window.clearTimeout(id);
+  }, [active, stepsLen, lastStep]);
+
+  // ---- step / edge / node state maps ----
+  const stepTones = useMemo<Tone[]>(() => {
+    if (!traced || !stepsLen) return [];
+    const failed = String(traced.status || '').toLowerCase() === 'failed';
+    return steps.map((_, i) => {
+      if (i === cursor) return failed ? 'failed' : 'current';
+      return i < cursor ? 'past' : 'pending';
+    });
+  }, [steps, stepsLen, cursor, traced]);
+
+  const edgeStep = useMemo(() => {
+    const m = new Map<string, number>();
+    steps.forEach((s, i) => {
+      s.edges.forEach((k) => {
+        const prev = m.get(k);
+        if (prev === undefined || i < prev) m.set(k, i);
+      });
+    });
+    return m;
+  }, [steps]);
+
+  const edgeTone = useMemo(() => {
+    const m = new Map<string, Tone>();
+    view.edges.forEach((e) => {
+      if (!traced) { m.set(e.key, 'ghost'); return; }
+      const i = edgeStep.get(e.key);
+      if (i === undefined) { m.set(e.key, e.live ? 'pending' : 'unrelated'); return; }
+      m.set(e.key, stepTones[i] || 'pending');
+    });
+    return m;
+  }, [view, traced, edgeStep, stepTones]);
+
+  const nodeTone = useMemo(() => {
+    const m = new Map<string, NodeState>();
+    const curTone: NodeState = stepTones[cursor] || 'current';
+    view.nodeIds.forEach((id) => {
+      if (!traced) { m.set(id, 'ghost'); return; }
+      let past = false;
+      let cur = false;
+      let pend = false;
+      steps.forEach((s, i) => {
+        if (!s.nodes.includes(id)) return;
+        if (i === cursor) cur = true;
+        else if (i < cursor) past = true;
+        else pend = true;
+      });
+      if (cur) m.set(id, curTone);
+      else if (past) m.set(id, 'past');
+      else if (pend) m.set(id, 'pending');
+      else m.set(id, 'unrelated');
+    });
+    return m;
+  }, [view, steps, cursor, stepTones, traced]);
+
+  // ---- interaction ----
+  const togglePlay = () => {
+    if (!traced || stepsLen < 2) return;
+    setPlay((s) => {
+      const at = s.id === tracedId && s.mode === 'play' ? s.index : cursor;
+      if (s.id === tracedId && s.mode === 'play') return { ...s, mode: 'pin' };
+      const restart = at >= lastStep;
+      return { id: tracedId, index: restart ? 0 : Math.max(0, at), mode: 'play' };
+    });
+  };
+
+  const jumpTo = (i: number) => {
+    if (!traced) return;
+    setPlay({ id: tracedId, index: Math.min(Math.max(0, i), lastStep), mode: 'pin' });
+  };
 
   const toneClass = (t: Tone) => `tm-edge ${t}`;
   const labelOf = (id: string): { name: string; caption: string } => {
@@ -682,7 +1298,20 @@ export default function TaskTrajectoryMap({
     return NODE_META[id] || { name: id, caption: '' };
   };
 
-  const liveDots = view.edges.filter((e) => e.live && (e.tone === 'current' || e.tone === 'past')).slice(0, 3);
+  const totalMs = useMemo(() => {
+    const known = steps.map((s) => s.durationMs).filter((d): d is number => typeof d === 'number');
+    return known.length ? known.reduce((a, b) => a + b, 0) : undefined;
+  }, [steps]);
+
+  // only the current step's edges carry the travelling dot
+  const dotEdges = useMemo(() => {
+    if (reduced || !traced || cursor < 0) return [];
+    const cur = steps[cursor];
+    if (!cur) return [];
+    return view.edges.filter((e) => cur.edges.includes(e.key)).slice(0, 3);
+  }, [view, steps, cursor, reduced, traced]);
+
+  const curStep = cursor >= 0 ? steps[cursor] : null;
 
   return (
     <section className="card tmap">
@@ -696,8 +1325,8 @@ export default function TaskTrajectoryMap({
       </div>
 
       <p className="eyebrow tmap-caption">
-        云 / 边 / 端 三层拓扑上的实际执行连线 —— 选择任务类型与具体任务，粗亮动画路径即该任务真实走过的链路；
-        细灰虚线为同类任务的标准执行路径
+        云 / 边 / 端 三层拓扑按时间顺序回放 —— 粗亮黄铜为已执行、橙色脉冲为当前步骤、淡灰虚线为待执行、
+        最淡灰为与本任务无关的其它链路
       </p>
 
       <div className="tmap-controls">
@@ -773,6 +1402,12 @@ export default function TaskTrajectoryMap({
             </span>
             <InfoCell k="阶段" v={STAGE_TEXT[String(traced.stage || '')] || String(traced.stage || '—')} />
             <InfoCell k="耗时" v={durationText(traced)} mono />
+            <InfoCell
+              k="步骤"
+              v={curStep ? `${circled(cursor)} ${curStep.label}` : `— / ${stepsLen}`}
+              mono
+              title={curStep?.detail || ''}
+            />
             {factsFor(kind, traced).map((f) => (
               <InfoCell key={f.k} k={f.k} v={f.v} mono />
             ))}
@@ -832,32 +1467,34 @@ export default function TaskTrajectoryMap({
           </g>
 
           <g className="tm-edges ghost-layer">
-            {view.edges.filter((e) => e.tone === 'ghost').map((e) => (
-              <g key={`g-${e.key}`} className={toneClass(e.tone)}>
-                <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${e.tone})`} />
-                <text
-                  className="tm-edge-label"
-                  x={e.mid.horizontal ? e.mid.p.x : (e.mid.p.x > VB_W - 150 ? e.mid.p.x - 8 : e.mid.p.x + 8)}
-                  y={e.mid.horizontal ? e.mid.p.y - 6 : e.mid.p.y + 3.5}
-                  textAnchor={e.mid.horizontal ? 'middle' : (e.mid.p.x > VB_W - 150 ? 'end' : 'start')}
-                >
-                  {e.label}
-                </text>
-              </g>
-            ))}
+            {['ghost', 'unrelated', 'pending'].flatMap((tone) => view.edges
+              .filter((e) => edgeTone.get(e.key) === tone)
+              .map((e) => (
+                <g key={`g-${e.key}`} className={toneClass(tone as Tone)}>
+                  <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${tone})`} />
+                  <text
+                    className="tm-edge-label"
+                    x={e.label_at.x}
+                    y={e.label_at.y}
+                    textAnchor={e.label_at.anchor}
+                  >
+                    {e.label}
+                  </text>
+                </g>
+              )))}
           </g>
 
           <g className="tm-edges live-layer">
-            {['pending', 'past', 'current', 'failed'].flatMap((tone) => view.edges
-              .filter((e) => e.live && e.tone === tone)
+            {['past', 'current', 'failed'].flatMap((tone) => view.edges
+              .filter((e) => edgeTone.get(e.key) === tone)
               .map((e) => (
-                <g key={`l-${e.key}`} className={toneClass(e.tone)}>
-                  <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${e.tone})`} />
+                <g key={`l-${e.key}`} className={toneClass(tone as Tone)}>
+                  <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${tone})`} />
                   <text
                     className="tm-edge-label"
-                    x={e.mid.horizontal ? e.mid.p.x : (e.mid.p.x > VB_W - 150 ? e.mid.p.x - 8 : e.mid.p.x + 8)}
-                    y={e.mid.horizontal ? e.mid.p.y - 6 : e.mid.p.y + 3.5}
-                    textAnchor={e.mid.horizontal ? 'middle' : (e.mid.p.x > VB_W - 150 ? 'end' : 'start')}
+                    x={e.label_at.x}
+                    y={e.label_at.y}
+                    textAnchor={e.label_at.anchor}
                   >
                     {e.label}
                   </text>
@@ -866,8 +1503,8 @@ export default function TaskTrajectoryMap({
           </g>
 
           <g className="tm-dots">
-            {liveDots.map((e) => (
-              <circle key={`d-${e.key}`} className={`tm-dot ${e.tone}`} r="3.4">
+            {dotEdges.map((e) => (
+              <circle key={`d-${e.key}`} className={`tm-dot ${edgeTone.get(e.key) || 'current'}`} r="3.4">
                 <animateMotion dur="3.2s" repeatCount="indefinite" path={e.d} />
               </circle>
             ))}
@@ -878,17 +1515,20 @@ export default function TaskTrajectoryMap({
               const b = boxOf(id);
               if (!b) return null;
               const meta = labelOf(id);
-              const active = view.activeNodes.has(id);
-              const current = view.currentNodes.has(id);
+              const state = nodeTone.get(id) || 'ghost';
+              const focused = state === 'past' || state === 'current' || state === 'failed';
               const job = isJob(id);
               return (
-                <g key={id} className={`tm-node ${job ? 'job' : ''} ${active ? 'active' : ''} ${current ? 'current' : ''}`}>
+                <g
+                  key={id}
+                  className={`tm-node ${job ? 'job' : ''} ${focused ? 'active' : ''} ${state}`}
+                >
                   <title>
                     {job
                       ? `${meta.name} · Job pod on ${meta.caption}`
                       : `${meta.name} · ${meta.caption}`}
                   </title>
-                  {(active || current) && (job ? (
+                  {(state === 'current' || state === 'failed') && (job ? (
                     <circle className="tm-ring" cx={b.x} cy={b.y} r={b.w / 2 + 5} />
                   ) : (
                     <rect
@@ -934,18 +1574,70 @@ export default function TaskTrajectoryMap({
         </svg>
       </div>
 
+      <div className="tmap-timeline">
+        <div className="tm-tl-head">
+          <span className="eyebrow">执行时序 · STEP TIMELINE</span>
+          <span className="tm-tl-ctl">
+            {totalMs !== undefined && (
+              <span className="tm-tl-total mono">合计 {fmtMs(totalMs)}</span>
+            )}
+            <span className="tm-tl-count mono">
+              {!stepsLen ? '0/0' : cursor < 0 ? `—/${stepsLen}` : `${cursor + 1}/${stepsLen}`}
+            </span>
+            <button
+              type="button"
+              className="mini"
+              onClick={togglePlay}
+              disabled={!traced || stepsLen < 2}
+              aria-pressed={active.mode === 'play'}
+              title={traced ? '按执行顺序逐步回放' : '选择任务后可回放'}
+            >
+              {active.mode === 'play' ? '⏸ 暂停' : '▶ 按序播放'}
+            </button>
+          </span>
+        </div>
+        {stepsLen ? (
+          <ol className="tm-tl-steps">
+            {steps.map((s, i) => {
+              const tone: Tone = !traced ? 'ghost' : (stepTones[i] || 'pending');
+              return (
+                <li key={`${s.ref}-${i}`} className={`tm-tl-step ${tone}`}>
+                  <button
+                    type="button"
+                    className="tm-tl-chip"
+                    onClick={() => jumpTo(i)}
+                    disabled={!traced}
+                    aria-current={i === cursor ? 'step' : undefined}
+                    title={`${circled(i)} ${s.label}${s.detail ? ` · ${s.detail}` : ''}${s.durationMs !== undefined ? ` · ${fmtMs(s.durationMs)}` : ''}`}
+                  >
+                    <span className="tm-tl-no mono">{circled(i)}</span>
+                    <span className="tm-tl-label">{s.label}</span>
+                    <span className="tm-tl-meta mono">
+                      {s.durationMs !== undefined ? fmtMs(s.durationMs) : (s.detail || '')}
+                    </span>
+                  </button>
+                  {i < stepsLen - 1 && <i className={`tm-tl-link ${tone}`} />}
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <div className="tm-tl-empty xs muted">该类型暂无任务 · 选择任务后显示执行时序</div>
+        )}
+      </div>
+
       <div className="tmap-legend">
         {LEGEND.map((l) => (
-          <span className="tm-legend-item" key={l.tone}>
-            <i className={`tm-legend-line ${l.tone}`} />
+          <span className="tm-legend-item" key={l.state}>
+            <i className={`tm-legend-line ${l.state}`} />
             {l.text}
           </span>
         ))}
         <span className="tm-legend-note muted xs">
           {!traced
             ? '尚无该类型任务，仅绘制标准路径'
-            : view.edges.some((e) => e.live)
-              ? `节点 ${view.activeNodes.size} 个 / 连线 ${view.edges.filter((e) => e.live).length} 条来自任务 ${shortId(traced.id)}`
+            : curStep
+              ? `按序高亮 · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
               : '该任务发起端未知，未绘制实际连线'}
         </span>
       </div>
@@ -963,3 +1655,17 @@ function InfoCell({
     </span>
   );
 }
+
+/**
+ * Test hook (same spirit as the `initialKind` prop): lets a smoke harness assert
+ * the derived step timeline, cursor and geometry without a DOM. Every member is
+ * used by the component itself, so this costs nothing in the bundle.
+ */
+export const __internals = {
+  buildSteps,
+  buildView,
+  stageStepIndex,
+  failureStepIndex,
+  initialPlayState,
+  CANON,
+};

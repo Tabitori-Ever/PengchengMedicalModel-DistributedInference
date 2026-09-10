@@ -2016,3 +2016,139 @@ input[type='file'] { padding: 7px; }
 @media (max-width: 1180px) {
   .tmap-controls { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   任务执行轨迹 · 时序高亮 (append-only overrides + timeline strip)
+   States: 已执行 past / 当前 current / 待执行 pending / 无关 unrelated /
+           失败 failed / 标准路径 ghost.  Later rules intentionally win.
+   ========================================================================== */
+
+/* ---- sequential edge states (pending is now faint grey, unrelated fainter) */
+.tm-edge.pending .tm-line {
+  stroke: rgba(119, 111, 96, 0.34);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 7;
+  animation: none;
+}
+.tm-edge.pending .tm-edge-label { fill: rgba(119, 111, 96, 0.62); }
+.tm-arrow.pending { fill: rgba(119, 111, 96, 0.4); }
+
+.tm-edge.unrelated .tm-line {
+  stroke: rgba(119, 111, 96, 0.17);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+  animation: none;
+}
+.tm-edge.unrelated .tm-edge-label { fill: rgba(119, 111, 96, 0.3); }
+.tm-arrow.unrelated { fill: rgba(119, 111, 96, 0.2); }
+
+/* ---- sequential node states ---- */
+.tm-node.past .tm-box { stroke: var(--brass-2); stroke-width: 1.4; }
+.tm-node.past .tm-node-name { fill: var(--brass-2); }
+.tm-node.past .tm-node-cap { fill: rgba(148, 107, 60, 0.75); }
+
+.tm-node.pending .tm-box {
+  stroke: rgba(8, 10, 8, 0.16);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.tm-node.pending .tm-node-name { fill: var(--grey-3); font-weight: 400; }
+.tm-node.pending .tm-node-cap { fill: rgba(119, 111, 96, 0.55); }
+.tm-node.pending.job .tm-box { stroke: rgba(119, 111, 96, 0.3); }
+
+.tm-node.unrelated { opacity: 0.42; }
+.tm-node.unrelated .tm-box { stroke: rgba(8, 10, 8, 0.13); stroke-width: 1; stroke-dasharray: none; }
+.tm-node.unrelated .tm-node-name { fill: var(--grey-2); font-weight: 400; }
+.tm-node.unrelated .tm-node-cap { fill: rgba(119, 111, 96, 0.45); }
+.tm-node.unrelated .tm-tier-flag { opacity: 0.35; }
+
+.tm-node.failed .tm-box { stroke: var(--rust); stroke-width: 1.8; }
+.tm-node.failed .tm-node-name { fill: var(--rust); font-weight: 600; }
+.tm-node.failed .tm-ring { stroke: var(--rust); animation-duration: 1.6s; }
+
+/* ---- new legend sample for the unrelated state ---- */
+.tm-legend-line.unrelated { border-top-width: 1px; border-top-color: rgba(119, 111, 96, 0.32); }
+.tm-legend-line.pending { border-top-color: rgba(119, 111, 96, 0.5); }
+
+/* ---- step timeline strip ---- */
+.tmap-timeline {
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--panel-2);
+  padding: 9px 11px 10px;
+  margin-bottom: 10px;
+}
+.tm-tl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 22px;
+}
+.tm-tl-ctl { display: inline-flex; align-items: center; gap: 10px; }
+.tm-tl-total { font-size: 10px; letter-spacing: 0.08em; color: var(--grey-2); }
+.tm-tl-count { font-size: 10px; letter-spacing: 0.1em; color: var(--grey-3); }
+
+.tm-tl-steps {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  padding: 7px 0 3px;
+  min-height: 46px;
+}
+.tm-tl-step { display: flex; align-items: center; flex: 0 0 auto; }
+.tm-tl-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--panel);
+  padding: 5px 10px;
+  white-space: nowrap;
+  transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+.tm-tl-chip:disabled { cursor: default; opacity: 0.55; }
+.tm-tl-no { font-family: var(--mono); font-size: 11px; color: var(--grey-3); }
+.tm-tl-label { font-size: 11px; letter-spacing: 0.06em; color: var(--ink-3); }
+.tm-tl-meta {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--grey-2);
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tm-tl-link { display: block; width: 14px; height: 1px; background: var(--grey-1); margin: 0 3px; flex: 0 0 auto; }
+.tm-tl-link.past { background: var(--brass-line); }
+.tm-tl-link.pending, .tm-tl-link.unrelated, .tm-tl-link.ghost { background: rgba(119, 111, 96, 0.28); }
+.tm-tl-link.current { background: var(--orange); }
+.tm-tl-link.failed { background: var(--rust); }
+.tm-tl-empty { padding: 12px 2px; }
+
+.tm-tl-step.past .tm-tl-chip { border-color: var(--brass-line); background: var(--brass-soft); }
+.tm-tl-step.past .tm-tl-no, .tm-tl-step.past .tm-tl-label { color: var(--brass-2); }
+.tm-tl-step.current .tm-tl-chip {
+  border-color: var(--orange);
+  background: rgba(237, 130, 27, 0.1);
+  box-shadow: inset 2px 0 0 var(--orange);
+}
+.tm-tl-step.current .tm-tl-no { color: var(--orange); }
+.tm-tl-step.current .tm-tl-label { color: var(--ink); }
+.tm-tl-step.current .tm-tl-meta { color: #9a5a12; }
+.tm-tl-step.failed .tm-tl-chip {
+  border-color: rgba(156, 59, 30, 0.5);
+  background: rgba(156, 59, 30, 0.08);
+}
+.tm-tl-step.failed .tm-tl-no, .tm-tl-step.failed .tm-tl-label, .tm-tl-step.failed .tm-tl-meta { color: var(--rust); }
+.tm-tl-step.pending .tm-tl-chip { border-style: dashed; border-color: rgba(8, 10, 8, 0.14); }
+.tm-tl-step.pending .tm-tl-label { color: var(--grey-3); }
+.tm-tl-step.pending .tm-tl-no { color: var(--grey-2); }
+.tm-tl-step.unrelated .tm-tl-chip, .tm-tl-step.ghost .tm-tl-chip { border-style: dashed; opacity: 0.5; }
+.tm-tl-step.unrelated .tm-tl-label, .tm-tl-step.ghost .tm-tl-label { color: var(--grey-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-tl-chip { transition: none; }
+}
