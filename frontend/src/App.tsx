@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
+import ArchitecturePage from './pages/ArchitecturePage';
 import ClusterPage from './pages/ClusterPage';
 import HistoryPage from './pages/HistoryPage';
 import OverviewPage from './pages/OverviewPage';
@@ -12,6 +13,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<OverviewPage />} />
+          <Route path="/architecture" element={<ArchitecturePage />} />
           <Route path="/submit" element={<SubmitPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/test" element={<TestPage />} />

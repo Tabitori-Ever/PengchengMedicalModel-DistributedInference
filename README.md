@@ -71,6 +71,14 @@ source ∈ hospital-a | hospital-b | clinic-1 | clinic-2
 └── v3.0-重构报告.md       # ★ 本次版本重构报告
 ```
 
+## 前端页面（v3.0.4）
+
+导航：`01 总览` / `02 实时架构` / `03 任务提交` / `04 任务记录` / `05 综合测试` / `06 集群编排`（科研档案终端风：纸灰底、细线、黄铜点缀、编号导航、等宽数字）。
+
+- **实时架构（/architecture）**：5s 自动刷新，按 云 Data Center / 边 hospital / 端 clinic 三层展示组件健康（/health）、节点负载（/cluster/summary）、任务总线（/tasks/stats）与四类任务流程。
+- **集群编排（/cluster）**：`地图视图 / 列表视图` 双视图——地图为大圆(节点负载)+小圆(Pod)可拖动；列表按节点分组显示实体/副本/亲和/镜像/实例与只读部署，行可拖拽到其它边缘节点改 node；右侧 Pod 详情面板与 校验/应用/重置 两视图共用。
+- **任务提交/记录/综合测试**：四类任务提交（可选举发起 Pod；clinic 诊断可选转诊）、四类结果详情（含可展开的详细时延统计）、四类混合综合测试。
+
 ## 快速开始
 
 ```bash
@@ -91,7 +99,7 @@ python test/run_v3_comprehensive.py --base http://localhost:30080
 
 | 镜像 | tag | 说明 |
 |---|---|---|
-| `k8s-repo/inference-scheduler` | v3.0.3 | 控制面(迁 node3) + /cluster/* + React 前端 + 测试数据 |
+| `k8s-repo/inference-scheduler` | v3.0.4 | 控制面(迁 node3) + /cluster/* + React 前端 + 测试数据 |
 | `k8s-repo/hospital` | v3.0 | 边：诊断 worker + v3 worker（无 part1） |
 | `k8s-repo/clinic` | v3.0 | 端：v3 worker + 日常 Job 入口 |
 | `k8s-repo/dc` | v3.0 | 数据中心：患者库 + 协同计算/备份 |

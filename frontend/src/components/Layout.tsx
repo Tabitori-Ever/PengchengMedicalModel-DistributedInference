@@ -1,11 +1,24 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
+/** Double-ring monogram — pure SVG, no external assets. */
+function Monogram() {
+  return (
+    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label="云边端协同推理">
+      <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.32" />
+      <circle cx="24" cy="24" r="14" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M24 3v9M24 36v9M3 24h9M36 24h9" stroke="currentColor" strokeWidth="1" opacity="0.45" />
+      <circle cx="24" cy="24" r="3.2" fill="#a67d48" />
+    </svg>
+  );
+}
+
 const NAV = [
-  { to: '/', label: '总览', icon: '◈' },
-  { to: '/submit', label: '任务提交', icon: '＋' },
-  { to: '/history', label: '任务记录', icon: '≡' },
-  { to: '/test', label: '综合测试', icon: '⚡' },
-  { to: '/cluster', label: '集群编排', icon: '◉' },
+  { to: '/', no: '01', label: '总览', en: 'OVERVIEW' },
+  { to: '/architecture', no: '02', label: '实时架构', en: 'ARCHITECTURE' },
+  { to: '/submit', no: '03', label: '任务提交', en: 'SUBMIT' },
+  { to: '/history', no: '04', label: '任务记录', en: 'RECORDS' },
+  { to: '/test', no: '05', label: '综合测试', en: 'TEST SUITE' },
+  { to: '/cluster', no: '06', label: '集群编排', en: 'CLUSTER' },
 ];
 
 export default function Layout() {
@@ -14,29 +27,38 @@ export default function Layout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">医</div>
-          <div>
+          <Monogram />
+          <div className="brand-text">
             <div className="brand-name">云边端协同推理</div>
-            <div className="brand-sub">Hospital · Clinic Pods v3.0</div>
+            <div className="brand-caption">EDGE · CLOUD INFERENCE</div>
           </div>
         </div>
+
+        <div className="nav-rule">
+          <span className="eyebrow">控制台 · CONSOLE</span>
+        </div>
+
         <nav className="nav">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
-              className={({ isActive }) =>
-                'nav-item' + (isActive ? ' active' : '')}
+              className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}
             >
-              <span className="nav-ico">{n.icon}</span>
-              {n.label}
+              <span className="nav-no mono">{n.no}</span>
+              <span className="nav-label">{n.label}</span>
+              <span className="nav-en mono">{n.en}</span>
             </NavLink>
           ))}
         </nav>
+
         <div className="sidebar-foot">
-          <span className="pulse-dot" />
-          数据不出院 · 算力云端化
-          <div className="foot-ver">v3.0 四类任务编排</div>
+          <div className="foot-line">
+            <span className="pulse-dot" />
+            数据不出院 · 算力云端化
+          </div>
+          <div className="foot-ver mono">v3.0 · 四类任务编排</div>
+          <div className="foot-meta mono">K8S · 4 NODES · 2 EDGE / 1 DC / 1 CONTROL</div>
         </div>
       </aside>
       <main className="content">

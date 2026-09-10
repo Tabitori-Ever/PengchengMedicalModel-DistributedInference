@@ -14,7 +14,7 @@ const NODE_R = 128;
 const EDGE_NODE_R = 148;
 
 const KIND_R: Record<string, number> = { hospital: 34, clinic: 27 };
-const KIND_COLOR: Record<string, string> = { hospital: '#0284c7', clinic: '#0e7490' };
+const KIND_COLOR: Record<string, string> = { hospital: '#946b3c', clinic: '#4f5744' };
 
 interface Props {
   status: ClusterStatus;
@@ -137,10 +137,10 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
     >
       <defs>
         <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
-          <circle cx="1" cy="1" r="1.2" fill="#cbd5e1" opacity="0.5" />
+          <circle cx="1" cy="1" r="1.1" fill="#8e897b" opacity="0.4" />
         </pattern>
       </defs>
-      <rect width={W} height={H} fill="#f8fafc" stroke="none" />
+      <rect width={W} height={H} fill="#e9e6e1" stroke="none" />
       <rect width={W} height={H} fill="url(#grid)" />
 
       {/* nodes (big circles with load ring) */}
@@ -152,21 +152,21 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
         return (
           <g key={n.name} className={`node ${hoverNode === n.name ? 'hot' : ''}`}>
             <circle cx={c.x} cy={c.y} r={r + 16}
-              fill={isEdge(n.name) ? '#ecfeff' : '#f1f5f9'}
-              stroke={hoverNode === n.name ? '#0284c7' : '#cbd5e1'}
+              fill={isEdge(n.name) ? 'rgba(166,125,72,0.07)' : 'rgba(8,10,8,0.035)'}
+              stroke={hoverNode === n.name ? '#946b3c' : 'rgba(8,10,8,0.22)'}
               strokeWidth={hoverNode === n.name ? 2.5 : 1.2} />
-            <circle cx={c.x} cy={c.y} r={r + 2} fill="none" stroke="#e2e8f0" strokeWidth="12" />
+            <circle cx={c.x} cy={c.y} r={r + 2} fill="none" stroke="rgba(8,10,8,0.10)" strokeWidth="12" />
             <circle cx={c.x} cy={c.y} r={r + 2} fill="none"
               stroke={loadColor(pct)} strokeWidth="12" strokeLinecap="round"
               strokeDasharray={`${Math.max(pct * C, 3)} ${C}`}
               transform={`rotate(-90 ${c.x} ${c.y})`} />
-            <circle cx={c.x} cy={c.y} r={r - 22} fill="#ffffff" stroke="#e2e8f0" strokeWidth="1.4" />
+            <circle cx={c.x} cy={c.y} r={r - 22} fill="#efedea" stroke="rgba(8,10,8,0.16)" strokeWidth="1.2" />
             <text x={c.x} y={c.y - 30} textAnchor="middle" className="node-name">{n.name}</text>
             <text x={c.x} y={c.y - 4} textAnchor="middle" className="node-role">
               {n.role || '—'}{isEdge(n.name) ? ' · edge' : ''}{n.ready ? '' : ' · NotReady'}
             </text>
             <text x={c.x} y={c.y + 26} textAnchor="middle"
-              className={`node-load ${pct > 0.85 ? 'l-red' : pct > 0.6 ? 'l-amber' : ''}`}>
+              className="node-load" style={{ fill: loadColor(pct) }}>
               {(pct * 100).toFixed(0)}%
             </text>
             <text x={c.x} y={c.y + 52} textAnchor="middle" className="node-cap">
@@ -200,13 +200,13 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
             onPointerDown={(e) => startDrag(e, id)}
             onClick={(e) => { e.stopPropagation(); onPick(id); }}>
             <circle r={r + 8} className="pod-halo" />
-            <circle r={r} fill={KIND_COLOR[ent.kind]} stroke="#fff" strokeWidth={3}
+            <circle r={r} fill={KIND_COLOR[ent.kind]} stroke="#f1efeb" strokeWidth={2.4}
               className={unready ? 'unready' : ''} />
             <text y={5} textAnchor="middle" className="pod-ico">
               {ent.kind === 'hospital' ? '院' : '诊'}
             </text>
             {ent.replicas > 1 && (
-              <circle cx={r * 0.62} cy={-r * 0.62} r={10} fill="#0f172a" />
+              <circle cx={r * 0.62} cy={-r * 0.62} r={10} fill="#171713" />
             )}
             {ent.replicas > 1 && (
               <text x={r * 0.62} y={-r * 0.62 + 4} textAnchor="middle" className="pod-n">{ent.replicas}</text>
@@ -229,7 +229,7 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
           const pos = { x: c.x + Math.cos(ang) * rad, y: c.y + Math.sin(ang) * rad };
           return (
             <g key={`ro-${p.name}`} className="pod-ro" transform={`translate(${pos.x},${pos.y})`}>
-              <circle r={r} fill={p.ready ? '#94a3b8' : '#e2e8f0'} stroke="#fff" strokeWidth={1.5} />
+              <circle r={r} fill={p.ready ? '#a49b8a' : 'rgba(8,10,8,0.18)'} stroke="#f1efeb" strokeWidth={1.4} />
               <title>{p.name}</title>
             </g>
           );
@@ -238,17 +238,17 @@ export default function ClusterMap({ status, desired, selected, onPick, onMove }
 
       {/* legend */}
       <g transform={`translate(20, ${H - 106})`}>
-        <rect width={400} height={86} rx={12} fill="#ffffff" stroke="#e2e8f0" strokeWidth={1} />
-        <circle cx={48} cy={26} r={11} fill="#0284c7" />
+        <rect width={560} height={86} rx={2} fill="#efedea" stroke="rgba(8,10,8,0.16)" strokeWidth={1} />
+        <circle cx={48} cy={26} r={11} fill="#946b3c" />
         <text x={66} y={30} className="legend-t">hospital pod（可拖拽）</text>
-        <circle cx={218} cy={26} r={8} fill="#0e7490" />
+        <circle cx={218} cy={26} r={8} fill="#4f5744" />
         <text x={232} y={30} className="legend-t">clinic pod</text>
-        <circle cx={318} cy={26} r={6} fill="#94a3b8" />
+        <circle cx={318} cy={26} r={6} fill="#a49b8a" />
         <text x={330} y={30} className="legend-t">只读 Pod</text>
-        <circle cx={42} cy={58} r={14} fill="none" stroke="#22c55e" strokeWidth={5} />
-        <circle cx={92} cy={58} r={14} fill="none" stroke="#eab308" strokeWidth={5} />
-        <circle cx={142} cy={58} r={14} fill="none" stroke="#dc2626" strokeWidth={5} />
-        <text x={164} y={62} className="legend-t">节点负载环：绿 → 黄 → 红（拖动 Pod 到目标节点后点击“应用”）</text>
+        <circle cx={42} cy={58} r={14} fill="none" stroke="#6b7a4a" strokeWidth={4} />
+        <circle cx={92} cy={58} r={14} fill="none" stroke="#a67d48" strokeWidth={4} />
+        <circle cx={142} cy={58} r={14} fill="none" stroke="#b23a12" strokeWidth={4} />
+        <text x={164} y={62} className="legend-t">负载环：橄榄 → 黄铜 → 橙红（拖 Pod 到目标节点后点击“应用”）</text>
       </g>
     </svg>
   );

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { useTicker } from '../hooks';
 import ClusterMap from '../components/ClusterMap';
+import ClusterList from '../components/ClusterList';
 import PodPanel from '../components/PodPanel';
 import { canonicalEntities, IMG_CLINIC } from '../utils';
 import type { ApplyResult, ClusterDefault, ClusterStatus, EntityModel, EntityLive } from '../types';
@@ -20,6 +21,7 @@ export default function ClusterPage() {
   const [busy, setBusy] = useState(false);
   const [msgs, setMsgs] = useState<{ kind: 'ok' | 'err'; text: string }[]>([]);
   const [addNode, setAddNode] = useState('node1');
+  const [view, setView] = useState<'map' | 'list'>('map');
   const initRef = useRef(false);
 
   const notify = (kind: 'ok' | 'err', text: string) =>
@@ -220,6 +222,32 @@ export default function ClusterPage() {
         </div>
       </header>
 
+      <div className="cluster-topbar">
+        <div className="seg view-seg" role="tablist" aria-label="集群视图切换">
+          <button
+            role="tab"
+            aria-selected={view === 'map'}
+            className={`seg-btn ${view === 'map' ? 'on' : ''}`}
+            onClick={() => setView('map')}
+          >
+            地图视图
+          </button>
+          <button
+            role="tab"
+            aria-selected={view === 'list'}
+            className={`seg-btn ${view === 'list' ? 'on' : ''}`}
+            onClick={() => setView('list')}
+          >
+            列表视图
+          </button>
+        </div>
+        <span className="cluster-topbar-hint muted xs">
+          {view === 'map'
+            ? '拖拽 Pod 到目标节点 · 点击 Pod 选中并在右侧编辑'
+            : '按节点分组的实体清单 · 拖拽行到节点分组迁移 · 只读部署可折叠查看'}
+        </span>
+      </div>
+
       {live?.ok === false && live.error && (
         <div className="errbox">Kubernetes 不可达：{live.error}（地图只读展示，应用/重置需集群可用）</div>
       )}
@@ -233,13 +261,26 @@ export default function ClusterPage() {
       <div className="cluster-grid">
         <section className="card map-card">
           {live && desired ? (
-            <ClusterMap
-              status={live}
-              desired={desired}
-              selected={selected}
-              onPick={setSelected}
-              onMove={move}
-            />
+            view === 'map' ? (
+              <ClusterMap
+                status={live}
+                desired={desired}
+                selected={selected}
+                onPick={setSelected}
+                onMove={move}
+              />
+            ) : (
+              <ClusterList
+                status={live}
+                desired={desired}
+                selected={selected}
+                onPick={setSelected}
+                onMove={move}
+                onRestart={restart}
+                onDelete={removeClinic}
+                onNotice={notify}
+              />
+            )
           ) : (
             <div className="empty" style={{ height: 360 }}>加载集群状态…</div>
           )}

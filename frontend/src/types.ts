@@ -270,3 +270,22 @@ export interface ApplyResult {
   warnings?: string[];
   applied?: { name: string; action: string; message: string }[];
 }
+
+// ---------------------------------------------------------------------------
+// GET /health — scheduler health map.
+// keys: scheduler | redis | hospital-a | hospital-b | clinic-1 | clinic-2 |
+//       'datacenter(patient-db)' | medical_server
+// values are heterogeneous by design ('ok' | object | 'unavailable' | any
+// other string), so the frontend renders them defensively.
+// ---------------------------------------------------------------------------
+export type HealthValue =
+  | string
+  | number
+  | boolean
+  | Record<string, unknown>
+  | null;
+
+export type HealthMap = Record<string, HealthValue>;
+
+/** Normalized status used by the live schematic dots. */
+export type HealthState = 'ok' | 'degraded' | 'down' | 'unknown';

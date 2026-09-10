@@ -68,7 +68,8 @@ export default function OverviewPage() {
           </div>
         </div>
         <div className="hero-goto">
-          <Link className="btn primary" to="/submit">＋ 提交任务</Link>
+          <Link className="btn primary" to="/architecture">◈ 实时架构</Link>
+          <Link className="btn ghost" to="/submit">＋ 提交任务</Link>
           <Link className="btn ghost" to="/test">⚡ 综合测试</Link>
           <Link className="btn ghost" to="/cluster">◉ 编辑集群</Link>
         </div>

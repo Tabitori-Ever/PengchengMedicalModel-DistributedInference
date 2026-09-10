@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
-  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, HospitalId,
-  Patient, SourceId, TaskItem, TaskResult, TaskStats, ValidateResp,
+  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, HealthMap,
+  HospitalId, Patient, SourceId, TaskItem, TaskResult, TaskStats, ValidateResp,
 } from './types';
 
 // Same origin in production (scheduler serves /app + REST API under /).
@@ -111,6 +111,11 @@ export const api = {
 
   clusterRestart: async (deployment: string): Promise<{ ok: boolean }> =>
     (await http.post('/cluster/restart', { deployment })).data,
+
+  // ---- platform health ----
+  /** GET /health — scheduler reachability probe for every platform service. */
+  health: async (): Promise<HealthMap> =>
+    (await http.get('/health')).data,
 };
 
 /** Send 'auto' target_hospital as null so the backend picks the least-loaded hospital. */
