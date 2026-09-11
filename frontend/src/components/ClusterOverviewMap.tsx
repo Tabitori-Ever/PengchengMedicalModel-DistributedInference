@@ -6,40 +6,41 @@ import { fmtPct, healthDetail, healthState, loadColor } from '../utils';
 import { iconShapes, type IconKind } from './TaskTrajectoryMap';
 
 /* ===========================================================================
-   当前集群架构总览 · LIVE CLUSTER OVERVIEW —— 逻辑架构视图 (LOGICAL VIEW)
+   当前集群架构总览 · LIVE CLUSTER OVERVIEW —— 逻辑架构视图
 
-   Bottom-to-top logical subgraphs mirroring the platform's flow chart:
+   Bottom-to-top logical groups (Chinese-only vocabulary):
 
-     01 CLOUD     云 Data Center   scheduler · medical-server · dc-services · redis
-     02 EDGE      边 hospital      hospital-a @node1 · hospital-b @node2
-     03 TERMINAL  端 clinic        clinic-1 @node1 · clinic-2 @node2 (+ clinic-N)
-     04 OPS       运维 desktop     monitoring · prediction
+     云数据中心   scheduler · medical-server · dc-services · redis   (node3)
+     医院 · 边    hospital-a · hospital-b                             (node1 / node2)
+     诊所 · 端    clinic-1 · clinic-2 (+ clinic-N)                    (node1 / node2)
+     运维         monitoring · prediction                             (desktop)
 
-   Entities are borderless icon medallions + name + capability caption + live
-   state (health probe / pod readiness / node CPU·memory). Group-to-group
-   relations are hairline connectors laid out in box-free gutters, labelled on
-   their longest segment. Live data comes from { status, summary, health } —
-   the architecture page polls all three on its 5 s ticker.
+   Entities are borderless icon medallions + name + one short Chinese caption +
+   live state (health probe / pod readiness / node CPU·内存). Group relations
+   are hairline connectors drawn in box-free gutters, labelled on their longest
+   segment. Live data: { status, summary, health } — polled by the page.
    =========================================================================== */
 
 const CV_W = 1240;
 const PANEL_X = 60;
 const PANEL_W = 800;
-const OPS_X = 1010;
-const OPS_W = 200;
+const OPS_X = 968;
+const OPS_W = 242;
 const PAD = 16;
-const COL_GAP = 32;
+const COL_GAP = 20;
 const ROW_GAP = 12;
-const TILE_H = 86;
-const TILE_H_SM = 48;
+const TILE_H = 76;
+const TILE_H_SM = 56;
 const HEADER_H = 50;
+const BUS_GAP = 16;
 const GUTTER = 68;
 const TOP_Y = 26;
 const BOTTOM_PAD = 22;
-/** left lanes for the TERMINAL ⇄ CLOUD relation (up / down) */
+/** free lanes left of the panels for the 端 ⇄ 云 relation (up / down) */
 const LANE_UP = 28;
 const LANE_DOWN = 52;
-const MEDAL_R = 21;
+const MEDAL_R = 18;
+const TEXT_X = 46;
 
 interface Box { x1: number; y1: number; x2: number; y2: number }
 interface Rect { x: number; y: number; w: number; h: number }
@@ -66,9 +67,7 @@ interface Tile {
 
 interface Panel {
   key: 'cloud' | 'edge' | 'terminal' | 'ops';
-  no: string;
-  zh: string;
-  en: string;
+  title: string;
   summary: string;
   load?: { cpu: number; mem: number } | null;
   rect: Rect;
@@ -81,10 +80,9 @@ interface Link {
   /** deliberate label anchor (bypasses the automatic search) */
   labelHint?: { x: number; y: number; anchor: 'start' | 'middle' | 'end' };
   label?: string;
-  labelLines?: string[];
   dotted?: boolean;
   arrow?: boolean;
-  labelAt?: { x: number; y: number; anchor: 'start' | 'middle' | 'end'; lines?: boolean };
+  labelAt?: { x: number; y: number; anchor: 'start' | 'middle' | 'end' };
 }
 
 interface Layout {
@@ -122,10 +120,14 @@ function polyline(pts: Pt[]): string {
   return pts.slice(1).reduce((acc, p) => `${acc} L ${p.x} ${p.y}`, `M ${pts[0].x} ${pts[0].y}`);
 }
 
+/** x of the 云数据中心 header load block — always right of the summary text */
+function headerLoadX(r: Rect): number {
+  return r.x + Math.max(330, r.w * 0.52);
+}
+
 /**
  * Label placement: walk the longest segments and take the first anchor whose
- * text box avoids every panel / tile / earlier label (same approach as the
- * trajectory map, kept local so that file stays untouched).
+ * text box avoids every panel / tile / earlier label and stays in the canvas.
  */
 function placeLabel(
   pts: Pt[],
@@ -198,15 +200,15 @@ interface EntityItem {
 }
 
 const CLOUD_TILES: { name: string; caption: string; icon: IconKind; keys: string[] }[] = [
-  { name: 'scheduler', caption: '任务队列 · 调度选点 · 任务记录', icon: 'scheduler', keys: ['scheduler'] },
-  { name: 'medical-server', caption: '医疗模型后端推理', icon: 'server', keys: ['medical_server', 'medical-server'] },
+  { name: 'scheduler', caption: '调度', icon: 'scheduler', keys: ['scheduler'] },
+  { name: 'medical-server', caption: '医疗推理', icon: 'server', keys: ['medical_server', 'medical-server'] },
   {
     name: 'dc-services',
-    caption: '患者数据库 patient-db · 协同计算 · 备份',
+    caption: '患者库 · 协同计算 · 备份',
     icon: 'database',
     keys: ['datacenter(patient-db)', 'datacenter', 'dc-services', 'patient-db'],
   },
-  { name: 'redis', caption: '任务队列 / 任务记录', icon: 'cache', keys: ['redis'] },
+  { name: 'redis', caption: '队列 / 记录', icon: 'cache', keys: ['redis'] },
 ];
 
 const OPS_FALLBACK = ['monitoring', 'prediction'];
@@ -234,15 +236,15 @@ function lookupHealth(health: HealthMap | null | undefined, keys: string[]): unk
 function healthTone(v: unknown): TileState {
   const st = healthState(v);
   const label = st === 'ok' ? '运行正常' : st === 'degraded' ? '降级' : st === 'down' ? '不可达' : '未知';
-  return { tone: st === 'ok' ? 'ok' : st, text: label, detail: healthDetail(v) };
+  return { tone: st === 'ok' ? 'ok' : st, text: label, detail: `探针 ${healthDetail(v)}` };
 }
 
 function podTone(pods: PodInfo[]): TileState {
   const total = pods.length;
   const ready = pods.filter((p) => p?.ready).length;
-  if (!total) return { tone: 'unknown', text: '无 Pod 上报', detail: 'no pods reported' };
+  if (!total) return { tone: 'unknown', text: '无 Pod', detail: '尚未上报 Pod' };
   const tone: Tone = ready === total ? 'ok' : ready === 0 ? 'down' : 'degraded';
-  return { tone, text: `${ready}/${total} Ready`, detail: `${ready} of ${total} pods ready` };
+  return { tone, text: `${ready}/${total} 就绪`, detail: `${total} 个 Pod 中 ${ready} 个就绪` };
 }
 
 function nodeOf(nodeName: string | null | undefined, nodes: NodeInfo[]): NodeInfo | undefined {
@@ -287,13 +289,13 @@ function buildLayout(
   const avoid: Box[] = [];
   const tileBox = (r: Rect): Box => ({ x1: r.x - 1, y1: r.y - 1, x2: r.x + r.w + 1, y2: r.y + r.h + 1 });
 
-  const colW = (PANEL_W - 2 * PAD - COL_GAP) / 2;
-  const colX = (col: number) => PANEL_X + PAD + col * (colW + COL_GAP);
-
-  // ---- 01 CLOUD -----------------------------------------------------------
+  // ---- 云数据中心 ---------------------------------------------------------
+  const cloudRowY = TOP_Y + HEADER_H;
+  const cloudBusY = cloudRowY + TILE_H + BUS_GAP;
   const cloudRect: Rect = {
-    x: PANEL_X, y: TOP_Y, w: PANEL_W, h: HEADER_H + 2 * TILE_H + ROW_GAP + PAD,
+    x: PANEL_X, y: TOP_Y, w: PANEL_W, h: HEADER_H + TILE_H + BUS_GAP + 10 + PAD,
   };
+  const cloudW = (PANEL_W - 2 * PAD - 3 * COL_GAP) / 4;
   const cloudTiles: Tile[] = CLOUD_TILES.map((spec, i) => ({
     id: spec.name,
     icon: spec.icon,
@@ -303,58 +305,53 @@ function buildLayout(
     state: healthTone(lookupHealth(health, spec.keys)),
     load: null,
     rect: {
-      x: colX(i % 2),
-      y: TOP_Y + HEADER_H + Math.floor(i / 2) * (TILE_H + ROW_GAP),
-      w: colW,
+      x: PANEL_X + PAD + i * (cloudW + COL_GAP),
+      y: cloudRowY,
+      w: cloudW,
       h: TILE_H,
     },
   }));
   const cloudOk = cloudTiles.filter((t) => t.state.tone === 'ok').length;
   panels.push({
     key: 'cloud',
-    no: '01',
-    zh: 'CLOUD · 云 Data Center',
-    en: 'node3',
-    summary: `组件 ${cloudTiles.length} · Ready ${cloudOk}/${cloudTiles.length}`,
+    title: '云数据中心',
+    summary: `${cloudTiles.length} 个组件 · 就绪 ${cloudOk}`,
     load: loadOf(nodeOf('node3', nodes)),
     rect: cloudRect,
     tiles: cloudTiles,
   });
   const cloudBottom = cloudRect.y + cloudRect.h;
 
-  // internal cloud relations (scheduler is tile 0, top-left)
+  // internal relations: scheduler ↔ medical-server directly + a dispatch bus
+  // under the row feeding dc-services and redis (every line stays box-free)
   const sched = cloudTiles[0].rect;
   const med = cloudTiles[1].rect;
   const dbc = cloudTiles[2].rect;
   const rds = cloudTiles[3].rect;
+  const rowMid = sched.y + sched.h / 2;
+  const cOf = (r: Rect) => r.x + r.w / 2;
   links.push({
     id: 'cloud-sched-med',
-    d: polyline([
-      { x: sched.x + sched.w, y: sched.y + sched.h * 0.5 },
-      { x: med.x, y: sched.y + sched.h * 0.5 },
-    ]),
+    d: polyline([{ x: sched.x + sched.w, y: rowMid }, { x: med.x, y: rowMid }]),
+  });
+  links.push({
+    id: 'cloud-bus',
+    d: polyline([{ x: cOf(sched), y: cloudBusY }, { x: cOf(rds), y: cloudBusY }]),
   });
   links.push({
     id: 'cloud-sched-dc',
-    d: polyline([
-      { x: sched.x + sched.w * 0.5, y: sched.y + sched.h },
-      { x: dbc.x + dbc.w * 0.5, y: dbc.y },
-    ]),
+    d: polyline([{ x: cOf(sched), y: sched.y + sched.h }, { x: cOf(sched), y: cloudBusY }]),
   });
-  {
-    const midX = sched.x + sched.w + COL_GAP / 2;
-    links.push({
-      id: 'cloud-sched-redis',
-      d: polyline([
-        { x: sched.x + sched.w, y: sched.y + sched.h * 0.78 },
-        { x: midX, y: sched.y + sched.h * 0.78 },
-        { x: midX, y: rds.y + rds.h * 0.5 },
-        { x: rds.x, y: rds.y + rds.h * 0.5 },
-      ]),
-    });
-  }
+  links.push({
+    id: 'cloud-bus-dc',
+    d: polyline([{ x: cOf(dbc), y: cloudBusY }, { x: cOf(dbc), y: dbc.y + dbc.h }]),
+  });
+  links.push({
+    id: 'cloud-bus-redis',
+    d: polyline([{ x: cOf(rds), y: cloudBusY }, { x: cOf(rds), y: rds.y + rds.h }]),
+  });
 
-  // ---- 04 OPS (right of CLOUD, dotted 观测 link) ---------------------------
+  // ---- 运维 (secondary, right of 云数据中心) -------------------------------
   const opsDefs = (status?.readonly || []).filter((rd) => /monitor|predict/i.test(String(rd?.name || '')));
   const opsItems = opsDefs.length
     ? opsDefs.map((rd) => ({ name: String(rd.name), pods: (Array.isArray(rd.pods) ? rd.pods : []) as PodInfo[] }))
@@ -363,21 +360,21 @@ function buildLayout(
     x: OPS_X,
     y: TOP_Y,
     w: OPS_W,
-    h: HEADER_H + opsItems.length * TILE_H_SM + (opsItems.length - 1) * 6 + PAD,
+    h: HEADER_H + opsItems.length * TILE_H_SM + (opsItems.length - 1) * 8 + PAD,
   };
   const opsTiles: Tile[] = opsItems.map((it, i) => ({
     id: `ops:${it.name}`,
     icon: 'monitor',
     name: it.name,
-    caption: /predict/i.test(it.name) ? '可选预测服务' : 'Prometheus 指标观测',
+    caption: /predict/i.test(it.name) ? '预测（可选）' : '指标观测',
     node: 'desktop',
     state: it.pods.length
       ? podTone(it.pods)
-      : { tone: 'unknown', text: '可选 / 未部署', detail: 'optional deployment' },
+      : { tone: 'unknown', text: '可选', detail: '可选部署，未上报' },
     load: null,
     rect: {
       x: opsRect.x + PAD,
-      y: opsRect.y + HEADER_H + i * (TILE_H_SM + 6),
+      y: opsRect.y + HEADER_H + i * (TILE_H_SM + 8),
       w: OPS_W - 2 * PAD,
       h: TILE_H_SM,
     },
@@ -385,10 +382,8 @@ function buildLayout(
   const opsOk = opsTiles.filter((t) => t.state.tone === 'ok').length;
   panels.push({
     key: 'ops',
-    no: '04',
-    zh: 'OPS · 运维',
-    en: '',
-    summary: `组件 ${opsTiles.length} · Ready ${opsOk}/${opsTiles.length} · desktop`,
+    title: '运维',
+    summary: `${opsTiles.length} 个组件 · 就绪 ${opsOk} · desktop`,
     load: null,
     rect: opsRect,
     tiles: opsTiles,
@@ -400,14 +395,13 @@ function buildLayout(
       d: polyline([{ x: opsRect.x, y }, { x: PANEL_X + PANEL_W, y }]),
       dotted: true,
       arrow: true,
-      labelLines: ['Prometheus/metrics-server', '观测 · 指标采集'],
+      label: '指标观测',
     });
   }
 
-  // ---- 02 EDGE / 03 TERMINAL ----------------------------------------------
+  // ---- 医院 · 边 / 诊所 · 端 ---------------------------------------------
   const placeGroup = (
     key: 'edge' | 'terminal',
-    no: string,
     title: string,
     items: EntityItem[],
     top: number,
@@ -416,6 +410,7 @@ function buildLayout(
     const rect: Rect = {
       x: PANEL_X, y: top, w: PANEL_W, h: HEADER_H + rows * TILE_H + (rows - 1) * ROW_GAP + PAD,
     };
+    const colW = (PANEL_W - 2 * PAD - COL_GAP) / 2;
     const tiles: Tile[] = items.map((it, i) => ({
       id: it.name,
       icon: it.kind === 'clinic' ? 'clinic' : 'hospital',
@@ -425,7 +420,7 @@ function buildLayout(
       state: podTone(it.pods),
       load: loadOf(nodeOf(it.node, nodes)),
       rect: {
-        x: colX(i % 2),
+        x: rect.x + PAD + (i % 2) * (colW + COL_GAP),
         y: top + HEADER_H + Math.floor(i / 2) * (TILE_H + ROW_GAP),
         w: colW,
         h: TILE_H,
@@ -436,10 +431,8 @@ function buildLayout(
     return {
       panel: {
         key,
-        no,
-        zh: title,
-        en: key === 'edge' ? 'node1 / node2' : 'node1 / node2',
-        summary: `实体 ${items.length} · Pod ${ready}/${total} Ready`,
+        title,
+        summary: `${items.length} 个实体 · 就绪 ${ready}/${total}`,
         load: null,
         rect,
         tiles,
@@ -448,9 +441,9 @@ function buildLayout(
     };
   };
 
-  const edge = placeGroup('edge', '02', 'EDGE · 边 hospital', entitiesOf(status, 'hospital'), cloudBottom + GUTTER);
+  const edge = placeGroup('edge', '医院 · 边', entitiesOf(status, 'hospital'), cloudBottom + GUTTER);
   panels.push(edge.panel);
-  const term = placeGroup('terminal', '03', 'TERMINAL · 端 clinic', entitiesOf(status, 'clinic'), edge.bottom + GUTTER);
+  const term = placeGroup('terminal', '诊所 · 端', entitiesOf(status, 'clinic'), edge.bottom + GUTTER);
   panels.push(term.panel);
   const height = term.bottom + BOTTOM_PAD;
 
@@ -458,14 +451,14 @@ function buildLayout(
   const edgeTopY = edge.panel.rect.y;
   const termTopY = term.panel.rect.y;
 
-  // EDGE ⇄ CLOUD: two parallel lines with opposite arrowheads + one label
+  // 边 ⇄ 云: two parallel lines with opposite arrowheads + one label
   const upX = 420;
   const downX = 452;
   links.push({
     id: 'edge-cloud-up',
     d: polyline([{ x: upX, y: edgeTopY }, { x: upX, y: cloudBottom }]),
     arrow: true,
-    label: '协同诊断 / 协同计算 / 数据同步 / 日常任务',
+    label: '协同诊断 / 计算 / 同步 / 日常',
   });
   links.push({
     id: 'edge-cloud-down',
@@ -473,7 +466,7 @@ function buildLayout(
     arrow: true,
   });
 
-  // TERMINAL ⇄ CLOUD: routed around the EDGE panel through the left lanes
+  // 端 ⇄ 云: routed around 医院 · 边 through the free left lanes
   const termMid = term.panel.tiles.length ? term.panel.tiles[0].rect.y + 24 : termTopY + HEADER_H;
   const cloudMid = cloudTiles[2].rect.y + 20;
   links.push({
@@ -485,9 +478,9 @@ function buildLayout(
       { x: PANEL_X, y: cloudMid },
     ]),
     arrow: true,
-    label: '协同计算 / 数据同步 / 日常任务',
-    // the left lane has no room beside it, so the label sits in the CLOUD/EDGE gutter
-    labelHint: { x: 76, y: 318, anchor: 'start' },
+    label: '协同计算 / 同步 / 日常',
+    // the lane has no room beside it → label it in the 云/边 gutter
+    labelHint: { x: 76, y: cloudBottom + GUTTER / 2 + 4, anchor: 'start' },
   });
   links.push({
     id: 'term-cloud-down',
@@ -500,7 +493,7 @@ function buildLayout(
     arrow: true,
   });
 
-  // 转诊: clinic-N ⇢ hospital-N (same host node preferred), dotted
+  // 转诊: 诊所 → 医院 (same host node preferred), dotted
   const hospitals = edge.panel.tiles;
   const used = new Set<string>();
   const pairs: { from: Tile; to: Tile; row: number }[] = [];
@@ -511,24 +504,23 @@ function buildLayout(
     if (to) used.add(to.id);
     if (to) pairs.push({ from: c, to, row: pairs.length });
   });
+  const colW2 = (PANEL_W - 2 * PAD - COL_GAP) / 2;
+  const gutter2Mid = (edge.bottom + termTopY) / 2;
   let channelled = 0;
   pairs.forEach((p) => {
     const fromX = p.from.rect.x + p.from.rect.w / 2;
     const fromMid = p.from.rect.y + p.from.rect.h / 2;
     const toMid = p.to.rect.y + p.to.rect.h / 2;
     const fromRow = Math.round((p.from.rect.y - (termTopY + HEADER_H)) / (TILE_H + ROW_GAP));
-    const toCol = Math.round((p.to.rect.x - (PANEL_X + PAD)) / (colW + COL_GAP));
+    const toCol = Math.round((p.to.rect.x - (PANEL_X + PAD)) / (colW2 + COL_GAP));
     const direct = Math.abs(fromX - (p.to.rect.x + p.to.rect.w / 2)) < 1 && fromRow === 0;
     let pts: Pt[];
     let hint: Link['labelHint'];
     if (direct) {
-      // straight shot: clinic tile top → hospital tile bottom
       pts = [{ x: fromX, y: p.from.rect.y }, { x: fromX, y: p.to.rect.y + p.to.rect.h }];
     } else {
-      // route through the free channel beside the tiles (left for column 0,
-      // right for column 1) so no other tile is crossed
       const chanX = toCol === 0
-        ? 70 - (p.row % 2) * 4
+        ? PANEL_X + 10 - (p.row % 2) * 4
         : PANEL_X + PANEL_W - 10 - (p.row % 2) * 4;
       const startX = chanX > fromX ? p.from.rect.x + p.from.rect.w : p.from.rect.x;
       const endX = chanX > p.to.rect.x + p.to.rect.w / 2 ? p.to.rect.x + p.to.rect.w : p.to.rect.x;
@@ -538,8 +530,7 @@ function buildLayout(
         { x: chanX, y: toMid },
         { x: endX, y: toMid },
       ];
-      // the channel leaves no room beside the line → label it in the gutter
-      hint = { x: 84 + channelled * 120, y: termTopY - 46 + (channelled % 2) * 14, anchor: 'start' };
+      hint = { x: 84 + channelled * 70, y: gutter2Mid - 10 + (channelled % 2) * 15, anchor: 'start' };
       channelled += 1;
     }
     links.push({
@@ -547,7 +538,7 @@ function buildLayout(
       d: polyline(pts),
       dotted: true,
       arrow: true,
-      label: '医疗推理转诊',
+      label: '转诊',
       labelHint: hint,
     });
   });
@@ -558,16 +549,10 @@ function buildLayout(
     p.tiles.forEach((t) => avoid.push(tileBox(t.rect)));
   });
   links.forEach((l) => {
-    if (!l.label && !l.labelLines) return;
-    const nums = (l.d.match(/-?[\d.]+/g) || []).map(Number);
-    const pts: Pt[] = [];
-    for (let i = 0; i + 1 < nums.length; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
-    const widest = l.label || (l.labelLines || [])
-      .slice()
-      .sort((a, b) => textWidth(b, 9.5) - textWidth(a, 9.5))[0] || '';
+    if (!l.label) return;
     const placed = l.labelHint
       ? (() => {
-        const w = textWidth(widest, 9.5);
+        const w = textWidth(l.label as string, 9.5);
         const left = l.labelHint!.anchor === 'middle' ? l.labelHint!.x - w / 2
           : l.labelHint!.anchor === 'end' ? l.labelHint!.x - w : l.labelHint!.x;
         return {
@@ -575,9 +560,13 @@ function buildLayout(
           box: { x1: left, y1: l.labelHint!.y - 9.5, x2: left + w, y2: l.labelHint!.y + 2.5 },
         };
       })()
-      : placeLabel(pts, widest, avoid, 9.5, { w: CV_W, h: height });
-    l.labelAt = { x: placed.x, y: placed.y, anchor: placed.anchor, lines: !!l.labelLines };
-    if (l.labelLines) placed.box.y2 += 11; // reserve the second tspan line
+      : (() => {
+        const nums = (l.d.match(/-?[\d.]+/g) || []).map(Number);
+        const pts: Pt[] = [];
+        for (let i = 0; i + 1 < nums.length; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
+        return placeLabel(pts, l.label as string, avoid, 9.5, { w: CV_W, h: height });
+      })();
+    l.labelAt = { x: placed.x, y: placed.y, anchor: placed.anchor };
     avoid.push(placed.box);
   });
 
@@ -601,7 +590,6 @@ export default function ClusterOverviewMap({
   const layout = useMemo(() => buildLayout(status, summary, health), [status, summary, health]);
   const stamp = updatedAt ? updatedAt.toLocaleTimeString('zh-CN', { hour12: false }) : null;
   const entityCount = layout.panels.reduce((a, p) => a + p.tiles.length, 0);
-  const readyPanels = layout.panels.filter((p) => p.tiles.some((t) => t.state.tone === 'ok')).length;
 
   return (
     <section className="card lmap">
@@ -617,8 +605,7 @@ export default function ClusterOverviewMap({
       </div>
 
       <p className="eyebrow tmap-caption">
-        逻辑架构视图 · LOGICAL VIEW —— 云 / 边 / 端 / 运维 四个逻辑分组（实体以 @node 标注物理归属），
-        连线为协同关系，圆点与百分比为实时探针状态与节点负载
+        逻辑架构视图 —— 按 云数据中心 / 医院 · 边 / 诊所 · 端 / 运维 分组，数值与状态点为实时采集
       </p>
 
       {error && <div className="cm-inline-err">集群拓扑接口异常：{error}（保留上次成功数据）</div>}
@@ -671,55 +658,49 @@ export default function ClusterOverviewMap({
                   rx="3"
                 />
                 <rect className="lm-panel-bar" x={p.rect.x} y={p.rect.y} width="3" height={p.rect.h} />
-                <text className="lm-panel-no mono" x={p.rect.x + 16} y={p.rect.y + 23}>{p.no}</text>
-                <text className="lm-panel-title" x={p.rect.x + 46} y={p.rect.y + 23}>{p.zh}</text>
-                {p.rect.w < 420 ? (
-                  <text className="lm-panel-sum mono" x={p.rect.x + 46} y={p.rect.y + 41}>
-                    {p.summary}
-                  </text>
-                ) : (
-                  <text
-                    className="lm-panel-sum mono"
-                    x={p.rect.x + p.rect.w - 16}
-                    y={p.rect.y + 23}
-                    textAnchor="end"
-                  >
-                    {p.en ? `${p.summary} · ${p.en}` : p.summary}
-                  </text>
-                )}
-                {p.load && (
-                  <g className="lm-panel-load">
-                    <text className="lm-load-k" x={p.rect.x + 46} y={p.rect.y + 41}>node3</text>
-                    <text className="lm-load-k" x={p.rect.x + 96} y={p.rect.y + 41}>CPU</text>
-                    <text className="lm-load-v mono" x={p.rect.x + 126} y={p.rect.y + 41}>{fmtPct(p.load.cpu)}</text>
-                    <rect className="lm-bar-bg" x={p.rect.x + 160} y={p.rect.y + 36} width="70" height="3" />
-                    <rect
-                      className="lm-bar-fill"
-                      x={p.rect.x + 160}
-                      y={p.rect.y + 36}
-                      width={70 * p.load.cpu}
-                      height="3"
-                      fill={loadColor(p.load.cpu)}
-                    />
-                    <text className="lm-load-k" x={p.rect.x + 248} y={p.rect.y + 41}>内存</text>
-                    <text className="lm-load-v mono" x={p.rect.x + 284} y={p.rect.y + 41}>{fmtPct(p.load.mem)}</text>
-                    <rect className="lm-bar-bg" x={p.rect.x + 318} y={p.rect.y + 36} width="70" height="3" />
-                    <rect
-                      className="lm-bar-fill"
-                      x={p.rect.x + 318}
-                      y={p.rect.y + 36}
-                      width={70 * p.load.mem}
-                      height="3"
-                      fill={loadColor(p.load.mem)}
-                    />
-                  </g>
-                )}
+                <text className="lm-panel-title" x={p.rect.x + 16} y={p.rect.y + 23}>{p.title}</text>
+                <text className="lm-panel-sum mono" x={p.rect.x + 16} y={p.rect.y + 41}>{p.summary}</text>
+                {p.load && (() => {
+                  const lx = headerLoadX(p.rect);
+                  const ly = p.rect.y + 41;
+                  return (
+                    <g className="lm-panel-load">
+                      <text className="lm-load-k" x={lx} y={ly}>node3</text>
+                      <text className="lm-load-k" x={lx + 34} y={ly}>CPU</text>
+                      <text className="lm-load-v mono" x={lx + 82} y={ly} textAnchor="end">
+                        {fmtPct(p.load.cpu)}
+                      </text>
+                      <rect className="lm-bar-bg" x={lx + 92} y={ly - 5} width="70" height="3" />
+                      <rect
+                        className="lm-bar-fill"
+                        x={lx + 92}
+                        y={ly - 5}
+                        width={70 * p.load.cpu}
+                        height="3"
+                        fill={loadColor(p.load.cpu)}
+                      />
+                      <text className="lm-load-k" x={lx + 172} y={ly}>内存</text>
+                      <text className="lm-load-v mono" x={lx + 232} y={ly} textAnchor="end">
+                        {fmtPct(p.load.mem)}
+                      </text>
+                      <rect className="lm-bar-bg" x={lx + 242} y={ly - 5} width="70" height="3" />
+                      <rect
+                        className="lm-bar-fill"
+                        x={lx + 242}
+                        y={ly - 5}
+                        width={70 * p.load.mem}
+                        height="3"
+                        fill={loadColor(p.load.mem)}
+                      />
+                    </g>
+                  );
+                })()}
                 <line
                   className="lm-panel-rule"
                   x1={p.rect.x + 14}
-                  y1={p.rect.y + HEADER_H - 6}
+                  y1={p.rect.y + HEADER_H - 3}
                   x2={p.rect.x + p.rect.w - 14}
-                  y2={p.rect.y + HEADER_H - 6}
+                  y2={p.rect.y + HEADER_H - 3}
                 />
               </g>
             ))}
@@ -739,58 +720,58 @@ export default function ClusterOverviewMap({
 
           <g className="lm-tiles">
             {layout.panels.flatMap((p) => p.tiles.map((t) => {
-              const cx = t.rect.x + 30;
-              const cy = t.rect.y + 43;
-              const tx = t.rect.x + 62;
               const compact = t.rect.h < 60;
+              const cx = t.rect.x + (compact ? 24 : 26);
+              const cy = t.rect.y + t.rect.h / 2;
+              const tx = t.rect.x + (compact ? 46 : TEXT_X);
+              const nameY = compact ? t.rect.y + 22 : t.rect.y + 26;
+              const capY = compact ? t.rect.y + 37 : t.rect.y + 41;
+              const stateY = compact ? t.rect.y + 50 : t.rect.y + 61;
+              const right = t.rect.x + t.rect.w - 6;
               return (
                 <g key={`${p.key}:${t.id}`} className={`lm-tile ${t.state.tone}`}>
-                  <title>{`${t.name}${t.node ? ` @${t.node}` : ''} · ${t.state.text} · ${t.state.detail}`}</title>
-                  <circle className="lm-medal" cx={cx} cy={compact ? t.rect.y + t.rect.h / 2 : cy} r={MEDAL_R} />
+                  <title>{`${t.name} · ${t.caption} · ${t.state.text}（${t.state.detail}）`}</title>
+                  <circle className="lm-medal" cx={cx} cy={cy} r={compact ? 15 : MEDAL_R} />
                   <g
                     className="lm-ico"
-                    transform={`translate(${cx - 11} ${(compact ? t.rect.y + t.rect.h / 2 : cy) - 11}) scale(0.92)`}
+                    transform={`translate(${cx - (compact ? 9 : 11)} ${cy - (compact ? 9 : 11)}) scale(${compact ? 0.76 : 0.92})`}
                   >
                     {iconShapes(t.icon)}
                   </g>
-                  <text className="lm-name" x={tx} y={compact ? t.rect.y + 21 : cy - 13}>{t.name}</text>
-                  {t.node && (
-                    <text className="lm-node mono" x={tx + textWidth(t.name, 13) + 10} y={compact ? t.rect.y + 21 : cy - 13}>
-                      {`@${t.node}`}
-                    </text>
+                  <text className="lm-name" x={tx} y={nameY}>{t.name}</text>
+                  {t.node && (p.key === 'edge' || p.key === 'terminal') && (
+                    <text className="lm-node mono" x={right} y={nameY} textAnchor="end">{t.node}</text>
                   )}
-                  <text className="lm-cap" x={tx} y={compact ? t.rect.y + 37 : cy + 4}>
-                    {clip(t.caption, t.rect.w - 62 - 12, 9)}
+                  <text className="lm-cap" x={tx} y={capY}>
+                    {clip(t.caption, t.rect.w - (tx - t.rect.x) - 12, 9)}
                   </text>
-                  <circle className={`lm-dot ${t.state.tone}`} cx={tx + 3} cy={compact ? t.rect.y + t.rect.h / 2 : cy + 15} r="3.4" />
-                  <text className="lm-state" x={tx + 12} y={compact ? t.rect.y + t.rect.h / 2 + 4 : cy + 19}>
-                    {t.state.text}
-                  </text>
+                  <circle className={`lm-dot ${t.state.tone}`} cx={tx + 3} cy={stateY - 4} r="3.2" />
+                  <text className="lm-state" x={tx + 12} y={stateY}>{t.state.text}</text>
                   {t.load && !compact && (
                     <g className="lm-load">
-                      <text className="lm-load-k" x={t.rect.x + t.rect.w - 216} y={cy + 19}>CPU</text>
-                      <text className="lm-load-v mono" x={t.rect.x + t.rect.w - 192} y={cy + 19}>
+                      <text className="lm-load-k" x={right - 190} y={stateY} textAnchor="end">CPU</text>
+                      <text className="lm-load-v mono" x={right - 158} y={stateY} textAnchor="end">
                         {fmtPct(t.load.cpu)}
                       </text>
-                      <rect className="lm-bar-bg" x={t.rect.x + t.rect.w - 158} y={cy + 14} width="46" height="3" />
+                      <rect className="lm-bar-bg" x={right - 150} y={stateY - 5} width="34" height="3" />
                       <rect
                         className="lm-bar-fill"
-                        x={t.rect.x + t.rect.w - 158}
-                        y={cy + 14}
-                        width={46 * t.load.cpu}
+                        x={right - 150}
+                        y={stateY - 5}
+                        width={34 * t.load.cpu}
                         height="3"
                         fill={loadColor(t.load.cpu)}
                       />
-                      <text className="lm-load-k" x={t.rect.x + t.rect.w - 100} y={cy + 19}>内存</text>
-                      <text className="lm-load-v mono" x={t.rect.x + t.rect.w - 76} y={cy + 19}>
+                      <text className="lm-load-k" x={right - 92} y={stateY} textAnchor="end">内存</text>
+                      <text className="lm-load-v mono" x={right - 60} y={stateY} textAnchor="end">
                         {fmtPct(t.load.mem)}
                       </text>
-                      <rect className="lm-bar-bg" x={t.rect.x + t.rect.w - 42} y={cy + 14} width="26" height="3" />
+                      <rect className="lm-bar-bg" x={right - 52} y={stateY - 5} width="34" height="3" />
                       <rect
                         className="lm-bar-fill"
-                        x={t.rect.x + t.rect.w - 42}
-                        y={cy + 14}
-                        width={26 * t.load.mem}
+                        x={right - 52}
+                        y={stateY - 5}
+                        width={34 * t.load.mem}
                         height="3"
                         fill={loadColor(t.load.mem)}
                       />
@@ -802,22 +783,17 @@ export default function ClusterOverviewMap({
           </g>
 
           <g className="lm-labels">
-            {layout.links.filter((l) => l.labelAt).map((l) => {
-              const at = l.labelAt!;
-              if (at.lines && l.labelLines) {
-                return (
-                  <text key={`lb-${l.id}`} className="lm-label" x={at.x} y={at.y} textAnchor={at.anchor}>
-                    <tspan x={at.x} dy="0">{l.labelLines[0]}</tspan>
-                    <tspan x={at.x} dy="11">{l.labelLines[1]}</tspan>
-                  </text>
-                );
-              }
-              return (
-                <text key={`lb-${l.id}`} className="lm-label" x={at.x} y={at.y} textAnchor={at.anchor}>
-                  {l.label}
-                </text>
-              );
-            })}
+            {layout.links.filter((l) => l.labelAt && l.label).map((l) => (
+              <text
+                key={`lb-${l.id}`}
+                className="lm-label"
+                x={l.labelAt!.x}
+                y={l.labelAt!.y}
+                textAnchor={l.labelAt!.anchor}
+              >
+                {l.label}
+              </text>
+            ))}
           </g>
         </svg>
       </div>
@@ -827,10 +803,10 @@ export default function ClusterOverviewMap({
         <span className="lm-legend"><i className="lm-legend-dot degraded" />降级</span>
         <span className="lm-legend"><i className="lm-legend-dot down" />不可达</span>
         <span className="lm-legend"><i className="lm-legend-dot unknown" />未知 / 可选</span>
-        <span className="lm-legend"><i className="lm-legend-line solid" />协同关系</span>
+        <span className="lm-legend"><i className="lm-legend-line solid" />协同链路</span>
         <span className="lm-legend"><i className="lm-legend-line dotted" />转诊 / 观测</span>
         <span className="lm-legend-note muted xs mono">
-          {`逻辑分组 ${layout.panels.length} · 实体 ${entityCount} · 分组就绪 ${readyPanels}/${layout.panels.length}`}
+          {`逻辑分组 ${layout.panels.length} · 实体 ${entityCount}`}
           {status?.ok === false ? ' · K8s 不可达' : ''}
         </span>
       </div>
@@ -840,5 +816,5 @@ export default function ClusterOverviewMap({
 
 /** test hook: the layout builder is pure, so a harness can assert its geometry */
 export const __overviewInternals = {
-  buildLayout, CV_W, HEADER_H, TILE_H, PANEL_X, PANEL_W, OPS_X, OPS_W,
+  buildLayout, CV_W, HEADER_H, TILE_H, TILE_H_SM, PANEL_X, PANEL_W, OPS_X, OPS_W,
 };

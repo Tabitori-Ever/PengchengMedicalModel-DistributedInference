@@ -7,6 +7,18 @@ import type {
 // Same origin in production (scheduler serves /app + REST API under /).
 const http = axios.create({ baseURL: '/', timeout: 20000 });
 
+// 集群偶发抖动（kubelet/网络瞬时中断）时，GET 请求自动重试一次，避免页面直接超时。
+http.interceptors.response.use(undefined, async (error: any) => {
+  const cfg = error?.config || {};
+  const retriable = (cfg.method || 'get').toLowerCase() === 'get';
+  if (retriable && !cfg.__retried && (error?.code === 'ECONNABORTED' || !error?.response)) {
+    cfg.__retried = true;
+    await new Promise((r) => setTimeout(r, 800));
+    return http.request(cfg);
+  }
+  return Promise.reject(error);
+});
+
 export interface SubmitResp {
   task_id: string;
   status: string;
