@@ -184,6 +184,7 @@ export default function ArchitecturePage() {
       <ClusterOverviewMap
         status={cluster}
         summary={summary}
+        health={health}
         error={clusterErr}
         updatedAt={updatedAt}
       />

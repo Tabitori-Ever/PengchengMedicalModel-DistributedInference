@@ -28,7 +28,7 @@ spec:
 
       containers:
       - name: scheduler
-        image: 10.29.182.66:5000/k8s-repo/inference-scheduler:v3.0.8
+        image: 10.29.182.66:5000/k8s-repo/inference-scheduler:v3.0.9
         imagePullPolicy: IfNotPresent
 
         env:

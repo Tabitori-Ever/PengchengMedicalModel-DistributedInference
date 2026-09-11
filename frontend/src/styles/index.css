@@ -2666,3 +2666,104 @@ h4.sub-title { color: var(--ink); }
 /* 卡片内层框线弱化，靠分隔线与留白组织 */
 .card .card, .card .pp-inst, .card .clist-ro, .card .lat-rows { border-color: var(--line-soft); }
 .lat-rows { background: rgba(8, 10, 8, 0.025); }
+
+/* ==========================================================================
+   LOGICAL CLUSTER OVERVIEW (components/ClusterOverviewMap.tsx)
+   逻辑架构视图：四个逻辑分组面板 + 无框实体（徽章图标 + 名称 + 能力说明 +
+   实时状态），分组之间的发丝连线画在无盒子的间隙里。
+   ========================================================================== */
+.lmap-svg { display: block; width: 100%; height: auto; min-width: 780px; }
+
+/* ---- logical subgraph panels ---- */
+.lm-panel-bg { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.lm-panel.cloud .lm-panel-bg { fill: rgba(166, 125, 72, 0.07); stroke: var(--brass-line); }
+.lm-panel.edge .lm-panel-bg { fill: rgba(86, 92, 70, 0.055); stroke: rgba(86, 92, 70, 0.32); }
+.lm-panel.terminal .lm-panel-bg { fill: rgba(164, 86, 42, 0.05); stroke: rgba(164, 86, 42, 0.3); }
+.lm-panel.ops .lm-panel-bg { fill: rgba(90, 99, 96, 0.055); stroke: rgba(90, 99, 96, 0.32); }
+.lm-panel-bar { fill: var(--grey-1); }
+.lm-panel.cloud .lm-panel-bar { fill: var(--brass-2); }
+.lm-panel.edge .lm-panel-bar { fill: var(--olive); }
+.lm-panel.terminal .lm-panel-bar { fill: #a4562a; }
+.lm-panel.ops .lm-panel-bar { fill: #5a6360; }
+
+.lm-panel-no { font-size: 10px; letter-spacing: 0.14em; fill: var(--grey-2); }
+.lm-panel.cloud .lm-panel-no { fill: var(--brass-2); }
+.lm-panel-title { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; fill: var(--ink); }
+.lm-panel-sum { font-size: 9.5px; letter-spacing: 0.08em; fill: var(--grey-3); }
+.lm-panel-rule { stroke: var(--line-soft); stroke-width: 1; stroke-dasharray: 3 4; }
+
+/* ---- entities: borderless medallion + ink-dark name + live state ---- */
+.lm-medal { fill: var(--panel-2); stroke: rgba(8, 10, 8, 0.28); stroke-width: 1; }
+.lm-ico {
+  color: var(--grey-2);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lm-ico .tm-icon-dot { fill: currentColor; stroke: none; }
+.lm-tile.ok .lm-ico { color: var(--olive); }
+.lm-tile.degraded .lm-ico { color: #9a5a12; }
+.lm-tile.down .lm-ico { color: var(--rust); }
+.lm-tile.unknown .lm-ico { color: var(--grey-2); }
+
+.lm-name { font-family: var(--mono); font-size: 13px; font-weight: 500; fill: var(--ink); letter-spacing: 0.01em; }
+.lm-node { font-size: 9.5px; fill: var(--grey-2); letter-spacing: 0.06em; }
+.lm-cap { font-size: 9px; fill: var(--grey-3); letter-spacing: 0.03em; }
+.lm-state { font-size: 10.5px; fill: var(--ink-3); letter-spacing: 0.05em; }
+.lm-tile.down .lm-state { fill: var(--rust); }
+.lm-tile.degraded .lm-state { fill: #9a5a12; }
+
+.lm-dot { fill: var(--grey-1); }
+.lm-dot.ok { fill: #6b7a4a; }
+.lm-dot.degraded { fill: var(--orange); }
+.lm-dot.down { fill: var(--rust); }
+.lm-dot.unknown { fill: var(--grey-1); }
+
+.lm-load-k {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  fill: var(--grey-2);
+}
+.lm-load-v { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+.lm-bar-bg { fill: rgba(8, 10, 8, 0.1); }
+.lm-bar-fill { opacity: 0.9; }
+
+/* ---- group-to-group connectors ---- */
+.lm-line { fill: none; stroke: rgba(8, 10, 8, 0.34); stroke-width: 1.2; stroke-linecap: round; }
+.lm-link.dotted .lm-line { stroke: rgba(148, 107, 60, 0.6); stroke-width: 1.1; stroke-dasharray: 4 4; }
+.lm-arrow-p { fill: rgba(8, 10, 8, 0.42); }
+.lm-arrow-p.dot { fill: rgba(148, 107, 60, 0.75); }
+.lm-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  fill: var(--grey-3);
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* ---- footer legend ---- */
+.lm-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--grey-3);
+  letter-spacing: 0.06em;
+}
+.lm-legend { display: inline-flex; align-items: center; gap: 7px; }
+.lm-legend-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--grey-1); }
+.lm-legend-dot.ok { background: #6b7a4a; }
+.lm-legend-dot.degraded { background: var(--orange); }
+.lm-legend-dot.down { background: var(--rust); }
+.lm-legend-dot.unknown { background: var(--grey-1); }
+.lm-legend-line { display: inline-block; width: 24px; border-top: 1px solid rgba(8, 10, 8, 0.34); }
+.lm-legend-line.dotted { border-top-style: dashed; border-top-color: rgba(148, 107, 60, 0.6); }
+.lm-legend-note { margin-left: auto; }
