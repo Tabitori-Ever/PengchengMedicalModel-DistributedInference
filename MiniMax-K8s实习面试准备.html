@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniMax K8s 集群管理实习 · 面试准备手册</title>
+<style>
+/* ============================================================
+   面试准备手册 · 单文件离线版
+   视觉：纸灰底 + 墨色文字 + 黄铜点缀（与项目控制台一致的科研档案风）
+   ============================================================ */
+:root{
+  --paper:#e8e5e1; --paper-2:#efedea; --panel:#f6f4f1; --ink:#111310;
+  --ink-2:#1e201a; --ink-3:#3c3a31; --grey:#5f584c; --grey-2:#8a8375;
+  --line:rgba(17,19,16,.16); --line-soft:rgba(17,19,16,.09);
+  --brass:#946b3c; --brass-soft:rgba(148,107,60,.12); --orange:#d9701a;
+  --olive:#4f5744; --rust:#9c3b1e; --cyan:#2f6f6a;
+  --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --shadow:0 1px 0 rgba(17,19,16,.05), 0 10px 30px -22px rgba(17,19,16,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);font-size:15px;line-height:1.7;color:var(--ink-2);
+  background-color:var(--paper);
+  background-image:radial-gradient(rgba(17,19,16,.05) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+a{color:var(--brass);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.86em;background:rgba(17,19,16,.06);padding:1px 5px;border-radius:3px}
+pre{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:#14161a;color:#e6e3dc;
+  border-radius:8px;padding:14px 16px;overflow:auto;border:1px solid rgba(255,255,255,.06)}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+.kw{color:#e0a45e}.st{color:#9fd18a}.cm{color:#7d8a7a}.fn{color:#8fc7e8}.num{color:#e8a2a2}
+
+/* ---------- layout ---------- */
+.wrap{display:flex;align-items:flex-start;max-width:1500px;margin:0 auto}
+.side{
+  position:sticky;top:0;height:100vh;width:288px;flex:none;overflow-y:auto;
+  padding:26px 18px 40px;border-right:1px solid var(--line);background:rgba(239,237,234,.72);
+  backdrop-filter:blur(5px);
+}
+.side .brand{display:flex;gap:11px;align-items:center;margin-bottom:18px}
+.side .mark{width:38px;height:38px;flex:none;color:var(--ink)}
+.side h1{font-size:16px;line-height:1.3;color:var(--ink)}
+.side .sub{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--grey);text-transform:uppercase}
+.side nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.side nav a{
+  display:flex;gap:9px;align-items:baseline;padding:7px 9px;border-radius:5px;
+  color:var(--ink-3);font-size:13.5px;border-left:2px solid transparent;
+}
+.side nav a:hover{background:rgba(17,19,16,.045);text-decoration:none}
+.side nav a.on{background:var(--brass-soft);border-left-color:var(--brass);color:var(--ink);font-weight:600}
+.side nav a b{font-family:var(--mono);font-size:10.5px;color:var(--grey-2);font-weight:600;min-width:20px}
+.side .tip{margin-top:18px;padding:12px;border:1px solid var(--line-soft);border-radius:7px;background:var(--panel)}
+.side .tip h4{font-size:12px;letter-spacing:.06em;color:var(--ink);margin-bottom:6px}
+.side .tip p{font-size:12px;color:var(--grey);line-height:1.6}
+main{flex:1;min-width:0;padding:34px 46px 90px}
+@media(max-width:1080px){
+  .wrap{flex-direction:column}
+  .side{position:static;width:100%;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+  main{padding:24px 18px 70px}
+}
+
+/* ---------- hero ---------- */
+.hero{border:1px solid var(--line);border-radius:12px;background:linear-gradient(135deg,#f7f5f2,#efece7);
+  padding:30px 34px;box-shadow:var(--shadow);margin-bottom:26px}
+.hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--brass)}
+.hero h2{font-size:31px;line-height:1.25;color:var(--ink);margin:8px 0 10px;letter-spacing:-.01em}
+.hero p{color:var(--grey);max-width:900px}
+.hero .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.hero .chips span{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:3px 12px;color:var(--ink-3);background:rgba(255,255,255,.55)}
+.hero .chips span.hot{border-color:var(--brass);color:var(--brass);background:var(--brass-soft);font-weight:600}
+
+/* ---------- sections ---------- */
+section{margin:0 0 34px;scroll-margin-top:16px}
+.sec-head{display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+.sec-head .no{font-family:var(--mono);font-size:12px;color:var(--brass);letter-spacing:.12em}
+.sec-head h3{font-size:22px;color:var(--ink);font-weight:700}
+.sec-head .en{font-family:var(--mono);font-size:11px;color:var(--grey-2);letter-spacing:.14em;text-transform:uppercase;margin-left:auto}
+h4.blk{font-size:16.5px;color:var(--ink);margin:22px 0 10px;display:flex;align-items:center;gap:9px}
+h4.blk::before{content:"";width:16px;height:2px;background:var(--brass);flex:none}
+p.note{color:var(--grey);font-size:14px}
+
+/* ---------- cards & tables ---------- */
+.card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:18px 20px;margin:12px 0}
+.card.tight{padding:14px 16px}
+.grid{display:grid;gap:12px}
+.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:900px){.grid.c2,.grid.c3{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0}
+th{text-align:left;font-size:12px;letter-spacing:.06em;color:var(--ink-3);border-bottom:1px solid var(--line);padding:9px 10px;text-transform:uppercase}
+td{border-bottom:1px solid var(--line-soft);padding:10px;vertical-align:top;color:var(--ink-2)}
+tr:hover td{background:rgba(17,19,16,.025)}
+td.mono,th.mono{font-family:var(--mono);font-size:12.5px}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 9px;border:1px solid transparent}
+.tag.good{color:#3f5230;background:rgba(79,87,68,.14)}
+.tag.warn{color:#8a4a12;background:rgba(217,112,26,.14)}
+.tag.bad{color:#8d3418;background:rgba(156,59,30,.13)}
+.tag.info{color:#2f5f5b;background:rgba(47,111,106,.13)}
+.tag.v{color:var(--brass);background:var(--brass-soft)}
+.kv{display:flex;gap:8px;align-items:baseline;font-size:14px}
+.kv b{font-family:var(--mono);color:var(--ink);font-weight:700}
+
+/* ---------- Q&A ---------- */
+details.qa{border:1px solid var(--line-soft);border-radius:8px;background:#fbfaf8;margin:8px 0;overflow:hidden}
+details.qa>summary{cursor:pointer;padding:12px 14px;font-weight:600;color:var(--ink);list-style:none;display:flex;gap:10px;align-items:flex-start}
+details.qa>summary::-webkit-details-marker{display:none}
+details.qa>summary::before{content:"▸";color:var(--brass);font-family:var(--mono);flex:none;transition:transform .15s}
+details.qa[open]>summary::before{transform:rotate(90deg)}
+details.qa>summary .lvl{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--grey-2);letter-spacing:.08em;flex:none}
+details.qa .ans{padding:0 16px 14px 34px;color:var(--ink-2);font-size:14.2px}
+details.qa .ans ul{margin:6px 0 0 18px}
+details.qa .ans li{margin:3px 0}
+details.qa .ans .hl{background:rgba(148,107,60,.12);padding:0 3px;border-radius:2px}
+.qgroup{border-left:2px solid var(--brass-soft);padding-left:14px;margin:16px 0}
+.qgroup h5{font-size:14.5px;color:var(--ink);margin-bottom:6px}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 18px}
+.toolbar input[type=search]{
+  font:inherit;font-size:14px;padding:9px 13px;border:1px solid var(--line);border-radius:7px;
+  background:#fbfaf8;min-width:260px;color:var(--ink)
+}
+.btn{font:inherit;font-size:13.5px;padding:8px 14px;border:1px solid var(--line);border-radius:7px;background:#fbfaf8;color:var(--ink-2);cursor:pointer}
+.btn:hover{border-color:var(--brass);color:var(--ink)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#f6f4f1;font-weight:600}
+.btn.primary:hover{background:#22251f;color:#fff}
+.counter{font-family:var(--mono);font-size:12px;color:var(--grey)}
+mark{background:rgba(217,112,26,.28);padding:0 2px;border-radius:2px}
+.hide{display:none !important}
+
+/* ---------- misc ---------- */
+.callout{border-left:3px solid var(--brass);background:var(--brass-soft);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14.2px}
+.callout.warn{border-left-color:var(--orange);background:rgba(217,112,26,.1)}
+.callout.bad{border-left-color:var(--rust);background:rgba(156,59,30,.09)}
+.callout.good{border-left-color:var(--olive);background:rgba(79,87,68,.1)}
+ul.clean{margin:6px 0 6px 20px}
+ul.clean li{margin:4px 0}
+.timeline{position:relative;margin:14px 0 0 6px;padding-left:22px;border-left:1px solid var(--line)}
+.timeline .ev{position:relative;margin-bottom:16px}
+.timeline .ev::before{content:"";position:absolute;left:-28px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--paper);border:2px solid var(--brass)}
+.timeline .ev.bad::before{border-color:var(--rust)}
+.timeline .ev.good::before{border-color:var(--olive)}
+.timeline .ev h5{font-family:var(--mono);font-size:12.5px;color:var(--brass);letter-spacing:.04em;margin-bottom:3px}
+.timeline .ev p{font-size:14px;color:var(--ink-2)}
+footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:var(--grey-2);font-size:12.5px;font-family:var(--mono)}
+@media print{
+  .side,.toolbar,.btn{display:none !important}
+  body{background:#fff;font-size:12px}
+  main{padding:0}
+  details.qa{break-inside:avoid}
+  details.qa>summary{font-weight:700}
+  a{color:#000;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="side">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="21" fill="none" stroke="currentColor" stroke-width="3"/>
+        <circle cx="32" cy="32" r="10" fill="none" stroke="#946b3c" stroke-width="3"/>
+        <path d="M32 4v10M32 50v10M4 32h10M50 32h10" stroke="currentColor" stroke-width="3"/>
+      </svg>
+      <div>
+        <h1>MiniMax K8s 实习<br>面试准备手册</h1>
+        <div class="sub">K8s Cluster Mgmt · Intern</div>
+      </div>
+    </div>
+    <nav id="toc">
+      <a href="#howto"><b>00</b>使用说明</a>
+      <a href="#pitch"><b>01</b>项目介绍脚本</a>
+      <a href="#retro"><b>02</b>版本复盘·问题与解法</a>
+      <a href="#arch"><b>03</b>架构与设计决策</a>
+      <a href="#qbank"><b>04</b>面试官视角题库</a>
+      <a href="#scenario"><b>05</b>故障排查场景</a>
+      <a href="#code"><b>06</b>手撕代码专区</a>
+      <a href="#design"><b>07</b>系统设计题</a>
+      <a href="#behavior"><b>08</b>行为面与反问</a>
+      <a href="#cheat"><b>09</b>速查与资料</a>
+    </nav>
+    <div class="tip">
+      <h4>使用建议</h4>
+      <p>① 先背 <b>01 的 60 秒版</b>；② 用自己的话讲 <b>02 的 5 个故事</b>；③ 用 04 题库自测（点开看要点）；④ 06 手撕至少手写 6 题；⑤ 面试前 10 分钟只看 09 速查。</p>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+    <div class="hero">
+      <div class="eyebrow">Interview Prep · Edge/Cloud Inference Platform</div>
+      <h2>云边端协同推理平台项目复盘<br>与 MiniMax K8s 集群管理实习面试准备</h2>
+      <p>本手册基于仓库真实版本记录（Alexnet-K8s v1→v16、PengchengMedicalModel-DistributedInference v1.0→v3.0.9）、故障分析文档与本次重构过程整理：
+        把“踩过的坑”变成可讲述的工程故事，并配套面试官视角题库、K8s 知识复习与手撕代码模板。</p>
+      <div class="chips">
+        <span class="hot">云边端三层架构</span>
+        <span class="hot">K8s 调度 / 编排 / RBAC</span>
+        <span>FastAPI + Redis 队列</span>
+        <span>Prometheus 可观测</span>
+        <span>React 集群编辑器</span>
+        <span>性能治理：17s→0.55s</span>
+        <span>镜像 3GB→550MB</span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="搜索题目 / 关键词（如：探针、亲和、etcd、LRU）…">
+      <button class="btn" id="expandAll">展开全部答案</button>
+      <button class="btn" id="collapseAll">收起全部答案</button>
+      <button class="btn primary" onclick="window.print()">打印 / 导出 PDF</button>
+      <span class="counter" id="counter"></span>
+    </div>
+
+    <!-- ===================== 00 HOW TO USE ===================== -->
+    <section id="howto">
+      <div class="sec-head"><span class="no">00</span><h3>使用说明与时间分配</h3><span class="en">How to use</span></div>
+      <div class="grid c3">
+        <div class="card"><h4 class="blk">面试前 3 天</h4>
+          <ul class="clean">
+            <li>通读 <a href="#retro">02 版本复盘</a>，能按时间线讲出 5 个“问题→根因→解决→结果”。</li>
+            <li>按 <a href="#qbank">04 题库</a> 自测，答不出的记进错题本（K8s 模块 + 项目深挖）。</li>
+          </ul>
+        </div>
+        <div class="card"><h4 class="blk">面试前 1 天</h4>
+          <ul class="clean">
+            <li>手写 <a href="#code">06 手撕代码</a> 中的 LRU、并发 worker pool、限流、TopK、拓扑排序。</li>
+            <li>把 <a href="#arch">03 架构决策</a> 的“为什么这样设计”讲顺（取舍 > 名词）。</li>
+          </ul>
+        </div>
+        <div class="card"><h4 class="blk">面试当天</h4>
+          <ul class="clean">
+            <li>只看 <a href="#pitch">01 介绍脚本</a> 与 <a href="#cheat">09 速查</a>。</li>
+            <li>准备好 <a href="#behavior">08 反问</a> 3 个问题；口述代码时先说思路与边界。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout"><b>核心策略：</b>面试官不期待实习生精通 K8s 全部源码，但非常看重
+        <span class="hl">“能否定位问题 → 能否解释根因 → 能否给出可落地且可回滚的方案 → 能否量化结果”</span>。
+        本项目的价值恰好在于：每一个坑都有“现象—根因—修复—指标”闭环。</div>
+    </section>
+
+    <!-- ===================== 01 PITCH ===================== -->
+    <section id="pitch">
+      <div class="sec-head"><span class="no">01</span><h3>项目介绍脚本（背下来）</h3><span class="en">Pitch</span></div>
+
+      <h4 class="blk">60 秒电梯版</h4>
+      <div class="card">
+        <p>“我做的是一个<b>基于 Kubernetes 的云边端协同医疗推理平台</b>：医院（边）和诊所（端）Pod 发起任务，
+          <b>数据中心（云，node3）承载调度器、推理后端和患者数据库</b>。平台支持四类任务：
+          <b>诊断</b>（医疗模型前端在院内、后端在云）、<b>计算</b>（多 Pod 分区协同）、
+          <b>通信</b>（患者库 P2P 云同步与备份）、<b>日常</b>（调度器按节点空闲创建一次性 Job 并回收）。
+          我的工作覆盖架构演进、调度与路由、性能与稳定性治理、可观测性，以及一个 React 集群编排前端。”</p>
+        <p class="note">技术栈一句话：<span class="mono">K8s (Deployment/Service/Job/RBAC/Affinity) · FastAPI · Redis 优先级队列 · Prometheus/metrics-server · PyTorch 分布式拆分 · React+TS</span></p>
+      </div>
+
+      <h4 class="blk">3 分钟版（背景 → 架构 → 我做的 → 难点与结果）</h4>
+      <div class="card">
+        <ul class="clean">
+          <li><b>背景与目标：</b>医疗数据不能出院，但模型后端需要算力 → 把推理拆成“院内前端 + 云端后端”，用 K8s 做编排与资源隔离；后续扩展为四类任务。</li>
+          <li><b>架构：</b>三层云/边/端；hospital Pod = 诊断前端 + 通用 worker；clinic Pod = 任务发起与数据 peer；Data Center = scheduler（调度继承）+ medical-server + dc-services（患者库/协同计算/备份）+ Redis。</li>
+          <li><b>我做的四件事：</b>
+            ① <b>调度与路由</b>——把“节点选择”真正落到实体 Pod 服务路由（原实现只在元数据里节点打分，请求仍打到共享 Service）；<br>
+            ② <b>性能治理</b>——定位 <span class="mono">/tasks/stats</span> 17 秒的根因（任务把数 MB 输入存 Redis，列表接口全量解析），改为终态剥离 input，降到 ~0.55s；<br>
+            ③ <b>稳定性</b>——定位 scheduler 探针失败→崩溃循环的根因（同步阻塞 + 线程池/GIL 与轮询放大），通过单次 pod list、轻量 summary、降低轮询频率修复；<br>
+            ④ <b>交付</b>——集群编排前端（地图/列表双视图、拖拽改节点、应用/重置）、四类任务可视化与执行轨迹实时地图。</li>
+          <li><b>结果：</b>四类任务综合测试 6/6 通过；关键接口 P95 从秒级降到百毫秒级；镜像 3GB→550MB 级别的体积优化；scheduler 0 重启稳定运行；形成 v3.0 正式版与完整版本记录/重构报告。</li>
+        </ul>
+      </div>
+
+      <h4 class="blk">深挖版：三个“技术决策”讲法</h4>
+      <div class="grid c3">
+        <div class="card tight"><b>① 为什么调度在云、业务在边？</b>
+          <p class="note">数据主权（患者数据不出院）决定前端必须落地院内；算力与模型集中决定后端与调度放数据中心。调度器集中=全局资源视图；代价是单点与跨节点 RTT，用“单副本+快速重建+幂等任务”兜底。</p></div>
+        <div class="card tight"><b>② 为什么用 Redis 队列而不是 K8s 原生 Job 做所有任务？</b>
+          <p class="note">长流水线任务需要优先级/可查询状态/跨 Pod 编排，Redis ZSET 简单可控；<b>日常类</b>才用 K8s Job（一次性、可回收、天然隔离）。混合用法各取所长。</p></div>
+        <div class="card tight"><b>③ 为什么负载从 Prometheus 换成 metrics-server？</b>
+          <p class="note">调度器需要的是“节点可用量”的快速读数：metrics-server 聚合 API 一次拿全，避免 Prometheus 多查询串联导致的超时/0 值；Prometheus 仍用于历史与告警。</p></div>
+      </div>
+
+      <h4 class="blk">MiniMax 面试三段式应对（有来源）</h4>
+      <div class="card">
+        <p>MiniMax AI Infra 实习面试为 <b>① 项目经历提问 → ② 理论问答 → ③ 代码题</b> 三段式；项目环节的原文要求是
+          「着重描述你遇到的<b>最大技术难题</b>以及取得的<b>优化成果</b>」，所以项目介绍必须是“问题—方案—量化收益”结构。
+          来源：<a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%BA%8C%E9%9D%A2/" target="_blank" rel="noopener">AIInfraGuide · 实习二面</a> ·
+          <a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%B8%80%E9%9D%A2-2/" target="_blank" rel="noopener">实习一面（2）</a>
+          （两篇均记录代码题为<b>滑动窗口最大值 / 单调队列</b>）。</p>
+        <table>
+          <thead><tr><th style="width:120px">环节</th><th style="width:230px">面试官要什么</th><th>你的应对</th></tr></thead>
+          <tbody>
+            <tr><td><b>① 项目深挖</b></td><td>最大技术难题 + 优化成果，能追问到细节</td>
+              <td>用下面的 60 秒“难题+成果”话术开场，再预留 2 个钩子（分阶段计时怎么做、探针为什么被杀）等追问。</td></tr>
+            <tr><td><b>② 理论问答</b></td><td>K8s 原理与边界，能否把概念接到实践</td>
+              <td>按 <a href="#qbank">04 题库</a> 的模块顺序自测；每答一条都补一句“我们项目里对应的是……”。</td></tr>
+            <tr><td><b>③ 代码题</b></td><td>编码基本功与沟通</td>
+              <td>优先手写 <a href="#code">06 的单调队列（滑动窗口最大值）</a>；先确认边界与规模，再说复杂度，最后跑例子。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid c2">
+        <div class="card tight"><b>60 秒“难题+成果”话术 · A：17s → 0.55s 的崩溃循环</b>
+          <p class="note">“我遇到的最大技术难题是：总览页一打开就卡死、30 秒超时，紧接着调度器 Pod 被 liveness 探针反复杀掉，进入崩溃循环，整个平台不可用。
+            <b>定位</b>靠分段计时——发现只有 <span class="mono">/tasks/stats</span> 慢到 17 秒；顺着 Redis 查下去，每条任务记录里都存着数 MB 的医疗输入，
+            列表/统计接口每次都要全量扫描并解析 JSON；再叠加 5 秒一轮的多接口轮询，线程池被打满，GIL 让健康检查也排不上队，于是探针超时 → Pod 被 kill。
+            <b>修复</b>三步：任务进终态时剥离 input（存量清理 21 条）、列表接口改单次 pod list 且只返回必要字段、轮询从 5 秒放宽到 8/15 秒。
+            <b>结果</b>：<span class="mono">/tasks/stats</span> 从 17 秒降到 0.55 秒，调度器 0 重启。
+            我最大的收获是：探针失败往往不是探针的问题，而是主线程被阻塞的<b>可观测信号</b>。”</p></div>
+        <div class="card tight"><b>60 秒“难题+成果”话术 · B：从“假调度”到真路由</b>
+          <p class="note">“我的最大难题是：调度器看起来一直在工作——策略模块会给节点打分、把结果写进任务记录——但任务实际执行位置和打分结果完全不一致。
+            <b>定位</b>：对比任务元数据里的 node 与日志里的真实执行 Pod，发现请求永远打到同一个共享 Service，由 K8s 负载均衡随机挑 Pod，
+            也就是说 policy 只写了元数据、从未影响路由。<b>修复</b>：把调用目标从共享 Service 换成按实体划分的 Service（hospital-a/b、clinic-1/2），
+            让策略结果真正决定请求发往哪个实体；后续 v2/v3 的实体化架构都建立在这个认识上。
+            <b>成果</b>：调度语义与行为一致，任务真正落到目标医院/诊所，并沉淀出一份《任务调度与分发分析》文档。
+            <b>收获</b>：‘节点选择 ≠ 请求路由’，决策必须落到真实数据路径上，而可观测性（记录实际执行者）是发现假调度的前提。”</p></div>
+      </div>
+      <div class="callout"><b>用法：</b>A 适合被问“讲讲你排查过的最难的问题 / 做过哪些性能优化”；
+        B 适合被问“你项目里最有技术含量的设计 / 你和 K8s 调度器是什么关系”。
+        两条都背，开场用一条、追问时用另一条交叉印证（性能问题背后是架构问题，架构问题最终要靠指标验证）。</div>
+
+      <div class="callout warn"><b>不要这样讲：</b>“我搭了一个 K8s 集群”就结束。面试官要听的是
+        <span class="hl">你做的取舍、你定位过的真实故障、以及你如何证明修好了</span>。</div>
+    </section>
+
+    <!-- ===================== 02 RETRO ===================== -->
+    <section id="retro">
+      <div class="sec-head"><span class="no">02</span><h3>版本复盘：问题 → 根因 → 解决 → 结果</h3><span class="en">Retrospective</span></div>
+      <p class="note">下表基于两个仓库的真实版本记录与故障分析文档（Alexnet-K8s v1→v16、Pengcheng v1.0→v3.0.9）。标 ★ 的是最适合面试深挖的故事。</p>
+
+      <h4 class="blk">2.1 早期（Alexnet-K8s v1 → v16）：从单机 Demo 到可运维集群</h4>
+      <div class="tbl-scroll">
+      <table>
+        <thead><tr><th style="width:74px">版本</th><th>问题现象</th><th>根因</th><th>解决</th><th style="width:150px">结果 / 收获</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">v1</td><td>K8s 上跑通推理，但流程靠手工</td><td>无编排与部署规范</td><td>首次 Deployment/Service 落地，模型拆分 part1/part2</td><td>验证“拆分推理”可行</td></tr>
+          <tr><td class="mono">v2</td><td>镜像 3GB+，节点拉取慢</td><td>带 CUDA 依赖 + 单阶段构建</td><td>CPU-only PyTorch + 多阶段构建</td><td class=""><span class="tag good">3GB→550MB</span></td></tr>
+          <tr><td class="mono">v3</td><td>容器启动报找不到 uvicorn</td><td>多阶段构建未拷贝入口二进制</td><td>统一 <code>python -m uvicorn</code>，拷贝 bin</td><td>构建可复现</td></tr>
+          <tr><td class="mono">v5-v6</td><td>无法观测/无法上传图片</td><td>缺指标与上传接口</td><td>接入 <code>/metrics</code> + Redis 任务追踪 + 图片上传</td><td>可观测起点</td></tr>
+          <tr><td class="mono">v7</td><td>Redis 断连后服务不可用</td><td>无重连与降级</td><td>wait/重连/内存回退</td><td>弱依赖可用性</td></tr>
+          <tr><td class="mono">v8-v10</td><td>任务看不到进度与结果</td><td>任务模型只有 id/status</td><td>任务 API + 进度 + 结果 + Grafana 面板；端口命名规范</td><td>可查询任务闭环</td></tr>
+          <tr><td class="mono">v11-v12</td><td>压测下指标错乱/端口冲突</td><td>多进程指标 + 业务/指标同端口（v11 多进程方式在容器内 9000 未真正监听）</td><td>指标端口拆到 9000，改用 <code>prometheus_client.start_http_server</code> 在独立线程暴露</td><td>压测可解释；8000 被推理占满时 9000 仍可响应<br><span class="mono">[版本记录 v11/v12]</span></td></tr>
+          <tr><td class="mono">v13</td><td>高并发下 HTTP 入口阻塞、任务堆积</td><td>同步预处理占满请求线程</td><td>入口与推理解耦 + 异步队列，立即返回 task_id</td><td>吞吐提升、可排队</td></tr>
+          <tr><td class="mono">v13.1 ★</td><td>大批任务 OOM，Pod 被杀</td><td>大张量在内存队列里堆积：调度器限 1Gi，4 个 worker + 10 个排队任务 ≈ 900MB+，2-3 个并发医疗任务即 OOMKilled</td><td>预处理前移到 worker 线程 + <code>threading.Semaphore</code> 限流（此前误用 <code>asyncio.Semaphore</code>）</td><td><span class="tag good">OOM 消除</span><br><span class="mono">[版本记录 v13.1 · BUG_ANALYSIS]</span></td></tr>
+          <tr><td class="mono">v13.2 ★</td><td>Pod 反复重启（探针失败）</td><td>探针打业务端口 8000，被推理阻塞后 1s 超时，连续 3 次失败即杀 Pod</td><td>探针改到 9000 指标端口（<code>start_http_server</code> 独立线程、不执行推理），超时放宽到 5s、周期 10/15s</td><td><span class="tag good">10/10 成功 · 5 分钟+ 0 重启</span><br><span class="mono">平均 940ms / 最大 1797ms</span></td></tr>
+          <tr><td class="mono">v13.4-v13.6</td><td>任务列表过长、轮询压力大、连接耗尽</td><td>全量返回 + 无连接池</td><td>限制最近 N 条、结果内联、HTTP 连接池与请求间隔</td><td>稳定性提升</td></tr>
+          <tr><td class="mono">v14 ★</td><td>单节点算力瓶颈、扩展性差</td><td>硬 nodeSelector 把 part1/part2 钉死在 node1/node2</td><td>去固定节点 + 副本扩至 4 + <b>软</b>反亲和（preferred，weight 100）期望每节点 2 个</td><td>可水平扩展；但软约束失效——<br>实测 part1 四副本 3 个仍落 node1 <span class="mono">[架构报告]</span></td></tr>
+          <tr><td class="mono">v15-v16 ★</td><td>Grafana 能看到数据，业务却拿不到</td><td>把监控系统当业务数据源（跨命名空间/DNS/权限）；且预测口径≠实测口径（通信预测 5ms vs 实际 918ms）</td><td>新增 monitoring API 服务做查询代理（NodePort 30090，<code>/latency/all</code>），预测/优化与展示解耦</td><td>“展示≠可编程访问”<br><span class="mono">[版本记录 v15/v16 · Addtional.txt]</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h4 class="blk">2.2 本仓库（Pengcheng v1.0 → v3.0.9）：多模型 + Pod 化 + 正式版</h4>
+      <table>
+        <thead><tr><th style="width:74px">版本</th><th>问题 / 目标</th><th>根因 / 关键点</th><th>解决</th><th style="width:160px">结果 / 指标</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">v1.0</td><td>单模型扩展为多模型（医疗 DoubleTower + AlexNet）</td><td>两套流水线、资源约束不同</td><td>统一调度器 + 三级策略（优先级→资源→模型约束）、模型 profile</td><td>双模型流水线打通</td></tr>
+          <tr><td class="mono">v1.2-v1.3</td><td>权重缺失/服务异常时整体崩</td><td>启动即加载、无降级</td><td>模型加载守卫（缺失时 503）、健康检查、任务状态机</td><td>可诊断、可恢复</td></tr>
+          <tr><td class="mono">v1.5 ★</td><td>“调度看起来很智能，但任务并不按预期落到目标节点”</td><td><b>节点选择≠请求路由</b>：policy 打的节点分只写进元数据，HTTP 仍打到共享 Service</td><td>写分析文档；改为按实体服务路由（hospital-a/b、clinic-1/2）；连接池/SCAN/缓存加锁</td><td>调度语义与行为一致</td></tr>
+          <tr><td class="mono">v2.0 ★</td><td>“医院”只是节点标签，无法表达多医院多诊所拓扑</td><td>实体粒度绑死在 node 上</td><td>实体 Pod 化：hospital Pod（worker+part1 合并）、clinic Pod + 自有 Service；scheduler 按实体路由；新增 /cluster/* 与 RBAC</td><td>拓扑可编排、可拖拽</td></tr>
+          <tr><td class="mono">v2.0.1</td><td>clinic 内存查询恒为 0；/health 误报 part2</td><td>K8s 量纲（<span class="mono">478Mi</span>）被 <code>int()</code> 解析成 0；路径探测用错 endpoint</td><td>统一量纲解析器（Ki/Mi/Gi/n/m）；修正探测路径</td><td>指标恢复真实</td></tr>
+          <tr><td class="mono">v2.0.2</td><td>患者列表 503、图像任务“无 image 数据”、新增 clinic 报 422</td><td>镜像未内置数据集；前端把 image 放在 payload 顶层；空镜像被 K8s 拒绝（Required）</td><td>数据集入镜像；请求结构对齐 <code>input.image</code>；服务端空镜像兜底 + 错误信息完整透出</td><td>三类失败清零</td></tr>
+          <tr><td class="mono">v2.0.3 ★</td><td>节点负载恒 0%，总览 30s 超时</td><td>逐节点串行查 Prometheus（多查询 × 1s 超时 + 命名空间/DNS 配置风险）</td><td>改用 metrics-server 聚合 API 一次性读数 + allocatable 计算百分比；新增轻量 <span class="mono">/cluster/summary</span></td><td><span class="tag good">接口 ~0.25s，负载真实</span></td></tr>
+          <tr><td class="mono">v2.0.5 ★</td><td>访问总览后整站卡死、30s 超时、Pod 反复重启</td><td>任务把数 MB 输入存入 Redis，列表/统计接口每次全量解析（实测 17s/次），并发下线程池耗尽→探针超时→崩溃循环</td><td>终态剥离 input（存量清理 21 条）；列表改单次 pod list；轮询 5s→8/15s；失败快速返回</td><td><span class="tag good">/tasks/stats 17s → 0.55s，0 重启</span></td></tr>
+          <tr><td class="mono">v2.0.6</td><td>集群编辑器点不中 Pod、无法删除 clinic</td><td>拖拽 pointer 捕获与 click 竞态；删除仅限非默认实体</td><td>pointerdown 即选中；clinic 允许删除并在后端支持（医院强制保留）</td><td>编辑器可用</td></tr>
+          <tr><td class="mono">v3.0 ★</td><td>功能方向调整：去掉图像分类，聚焦云/边/端与四类任务</td><td>part1/part2 与平台主线目标不一致</td><td>移除 AlexNet 全链路；调度归入数据中心（scheduler 迁 node3）；新增 dc-services（患者库+协同计算）；四类任务 + 综合测试</td><td><span class="tag good">6/6 通过</span></td></tr>
+          <tr><td class="mono">v3.0.1-v3.0.2</td><td>查询任务 500；诊断总失败</td><td>重构后漏 import <code>redis_get</code>；URL 未补 <span class="mono">/infer</span></td><td>补 import；URL 归一化</td><td>诊断全绿</td></tr>
+          <tr><td class="mono">v3.0.3</td><td>时延统计太粗，无法定位慢在哪</td><td>只记录整体耗时</td><td>分阶段计时：队列/worker(计算·网络)/阶段间/server(计算·网络)/流水线/端到端；前端默认汇总 + 可展开明细</td><td>可定位瓶颈</td></tr>
+          <tr><td class="mono">v3.0.4-v3.0.9</td><td>运维与演示体验：信息密度、可读性、可讲解性</td><td>单视图、字小、轨迹一次全亮难以理解</td><td>列表+地图双视图、逻辑架构总览图、实时执行轨迹（时序高亮/并行步/手动下一步/循环演示）、图标化与字号层次提升</td><td>可演示、可讲解</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">2.3 五个“可深挖”的故事（面试时按 STAR 讲）</h4>
+      <div class="timeline">
+        <div class="ev bad"><h5>故事 1 · 17 秒的 /tasks/stats 与崩溃循环</h5>
+          <p><b>S</b>：总览页一打开就卡死、30s 超时，随后 scheduler 被 liveness 杀掉重启。<b>T</b>：恢复可用并找到根因。
+          <b>A</b>：先用 curl 逐接口计时（stats 17s、tasks 3s），发现任务记录里存着数 MB 医疗输入；读 Pod events 确认探针超时→Killing；
+          再算并发：每 5s 一轮多接口轮询 + 全量 JSON 解析把线程池打满。
+          <b>R</b>：终态任务剥离 input（清理存量 21 条）、列表接口单次 pod list、轮询降频，stats 降到 0.55s，scheduler 0 重启。</p></div>
+        <div class="ev"><h5>故事 2 · “调度器看起来在工作，其实没生效”</h5>
+          <p><b>S</b>：策略打出的节点分与任务实际执行位置不一致。<b>A</b>：读代码发现 policy 只把节点写进 task 元数据，HTTP 仍打到共享 Service（K8s LB 随机）。
+          <b>R</b>：把路由改为实体 Service（hospital-a/b、clinic-1/2），并在文档中明确“元数据≠路由”，后续 v2/v3 的实体化架构都建立在这个认识上。</p></div>
+        <div class="ev bad"><h5>故事 3 · Prometheus 负载恒 0 与 30s 超时</h5>
+          <p><b>S</b>：节点负载环永远 0%，总览偶发超时。<b>A</b>：定位到逐节点、逐指标串行查 Prometheus，任一环节慢就放大；
+          且监控命名空间/DNS 与实际不一致的风险一直存在。<b>R</b>：改为 metrics-server 聚合 API（一次拿全节点用量）+ allocatable 计算百分比，并加轻量 summary 接口；Prometheus 继续承担历史与告警。</p></div>
+        <div class="ev"><h5>故事 4 · 反亲和 + 滚动更新死锁</h5>
+          <p><b>S</b>：part2 升级时新 Pod 一直 Pending，旧 Pod 不退出。<b>A</b>：Deployment 设了 required podAntiAffinity（每节点 1 个）+ 默认滚动策略 maxUnavailable≈0，
+          新 Pod 无处可调度、旧 Pod 又不能先删 → 互相等待。<b>R</b>：显式 <span class="mono">maxUnavailable=1, maxSurge=0</span>，并前置预拉镜像；总结为“有反亲和约束时必须算清滚动预算”。</p></div>
+        <div class="ev good"><h5>故事 5 · 从“能跑”到“可演示、可解释”（v3.0.4→v3.0.9）</h5>
+          <p><b>S</b>：功能齐了但演示讲不清。<b>A</b>：把架构拆成逻辑视图（云/边/端/运维分组 + 关系连线）、任务加“执行轨迹地图”（时序高亮、并行步骤同亮、手动下一步/循环演示、图标化与字号层次）。
+          <b>R</b>：非作者也能在 5 分钟内看懂“哪个任务走了哪条路径、哪一步在并行、慢在哪一段”。</p></div>
+      </div>
+
+      <h4 class="blk">2.4 反复出现的 12 条教训 / 模式（面试时用“我总结过几条规律”收尾）</h4>
+      <div class="card">
+        <ul class="clean">
+          <li><span class="mono">01</span> <b>探针/健康检查绝不能和业务负载走同一条路径。</b>业务端口被推理占满时 1 秒超时 → K8s 判死 → 杀 Pod；
+            改到独立指标端口（9000，由 <code>start_http_server</code> 在独立线程运行、不执行任何推理）后，
+            压测 10/10 成功、稳定运行 5 分钟+ 0 重启。<span class="tag v">[版本记录 v13.2]</span></li>
+          <li><span class="mono">02</span> <b>大 payload 不能留在热路径的存储里。</b>数 MB~10MB 的医疗 input 存进 Redis 任务记录，
+            列表/统计接口每次全量取出解析（实测 17s+/次）；终态剥离 input 后降到 ~0.6s。<span class="tag v">[版本记录 v2.0.5]</span></li>
+          <li><span class="mono">03</span> <b>有内存上限就有并发上限，必须显式限流。</b>调度器限制 1Gi，4 个 worker + 队列堆积 ≈ 900MB+，
+            2-3 个并发医疗任务即触发 OOMKilled；把预处理前移到 worker 线程 + <code>threading.Semaphore</code> 后消除。<span class="tag v">[BUG_ANALYSIS 根因 2 · 版本记录 v13.1]</span></li>
+          <li><span class="mono">04</span> <b>单进程 + 阻塞调用 = 健康检查连带阵亡。</b>uvicorn 单 worker 下，4 个 worker 线程共享 GIL，
+            序列化大张量时 asyncio event loop 被阻塞，健康检查排队超时，连续 3 次就杀 Pod。<span class="tag v">[BUG_ANALYSIS 根因 1]</span></li>
+          <li><span class="mono">05</span> <b>没有连接池就会耗光 FD 与端口。</b><code>requests</code> 每次调用新建 TCP 连接、Redis 每次实例化新建连接，
+            高并发下 FD 泄漏/连接打满。<span class="tag v">[BUG_ANALYSIS 根因 3 · 4]</span></li>
+          <li><span class="mono">06</span> <b>软约束不可靠，硬约束必须算清滚动预算。</b>软反亲和实测失效（part1 4 副本里 3 个落 node1）；
+            而硬反亲和 + 默认滚动策略又造成升级死锁，最后显式 <code>maxUnavailable=1</code> 解套。<span class="tag v">[架构报告 §实测 · 版本记录 v14]</span></li>
+          <li><span class="mono">07</span> <b>“决策”必须落在数据路径上，元数据不等于行为。</b>节点打分结果只写进 Redis 元数据，HTTP 请求仍打固定 Service，
+            表现为“调度器在工作但任务不按预期落位”。<span class="tag v">[TASK_DISPATCH_ANALYSIS §3.1]</span></li>
+          <li><span class="mono">08</span> <b>监控展示 ≠ 业务可编程访问。</b>Grafana 能看到数据，不代表算法模块能取到；需要独立的 Monitoring API 做数据访问层，
+            让“展示系统”与“决策系统”解耦。<span class="tag v">[Addtional.txt · 版本记录 v15/v16]</span></li>
+          <li><span class="mono">09</span> <b>预测/模型的口径必须与测量口径一致。</b>预测模型算的是 layer compute，实测却包含序列化+网络+队列+容器开销，
+            于是出现“通信预测 5ms、实际 918ms”的荒谬偏差。<span class="tag v">[Addtional.txt §10]</span></li>
+          <li><span class="mono">10</span> <b>量纲与语义细节是真实 bug 来源。</b>K8s 量纲 <span class="mono">478Mi</span> 被 <code>int()</code> 解析成 0（内存显示恒 0）；
+            part2 返回 raw logit 被当概率显示成 485.7%。<span class="tag v">[版本记录 v2.0.1 · v2.0.5]</span></li>
+          <li><span class="mono">11</span> <b>没有分段计时就没有优化方向。</b>只记录整体耗时无法定位慢在哪；改为记录队列/worker(计算·网络)/阶段间/server/流水线/端到端后，
+            瓶颈一眼可见。<span class="tag v">[版本记录 v3.0.3]</span></li>
+          <li><span class="mono">12</span> <b>可演示、可解释是交付的一部分。</b>逻辑架构视图 + 执行轨迹地图（时序高亮、并行步骤、手动下一步）让非作者也能在 5 分钟内
+            看懂“哪个任务走了哪条路径、慢在哪一段”。<span class="tag v">[版本记录 v3.0.4→v3.0.9]</span></li>
+        </ul>
+      </div>
+
+      <h4 class="blk">2.5 已知风险与未彻底解决的问题（主动谈局限更加分）</h4>
+      <p class="note">面试时的句式：“这个问题我当时只做到了止血/规避，彻底方案应该是……”——比声称“全做对了”可信得多。</p>
+      <table>
+        <thead><tr><th style="width:180px">风险 / 局限</th><th>证据（来源文件）</th><th style="width:270px">当时的临时办法</th></tr></thead>
+        <tbody>
+          <tr><td><b>调度器单副本 = 单点故障</b></td>
+            <td>v3.0 起 scheduler 单副本部署在数据中心 node3；一旦它崩溃循环，整个平台不可用。<span class="tag v">[版本记录 v3.0 · 故事 1]</span></td>
+            <td>无状态化 + 崩溃后快速重建 + 任务幂等/终态可查；<b>未做</b>多副本选主（Lease）。</td></tr>
+          <tr><td><b>控制面单节点、与业务同集群</b></td>
+            <td>集群为 1 个 Control Plane（desktop-jm5iec6）+ 3 个 Worker，控制面与业务共用资源。<span class="tag v">[架构报告 §1.1]</span></td>
+            <td>按演示规模接受；<b>未做</b>多 master / 多 etcd 成员与前置 LB。</td></tr>
+          <tr><td><b>Redis 单实例、持久化弱</b></td>
+            <td>queue/任务记录共用单实例 Redis，是队列与状态的唯一依赖。<span class="tag v">[版本记录 v3.0]</span></td>
+            <td>AOF + 终态剥离 + 幂等任务 id 兜底；<b>未上</b>哨兵/集群模式。</td></tr>
+          <tr><td><b>副本分布仍不均衡（软约束失效）</b></td>
+            <td>实测 part1 4 副本分布在 node1(3 个)/node2(1 个)，part2 为 node1(2)/node2(2)。<span class="tag v">[架构报告 §实测]</span></td>
+            <td>保留软反亲和以维持可调度性；<b>未改</b> required 约束或 <code>topologySpreadConstraints</code>。</td></tr>
+          <tr><td><b>预测模型精度与口径不一致</b></td>
+            <td>通信开销预测 5ms、实测 918ms；Conv 预测 113ms、实测 13ms。<span class="tag v">[Addtional.txt §10]</span></td>
+            <td>预测结果仅作为 debug 展示（保留在返回体但标注），决策仍用实测；<b>未重训</b>模型。</td></tr>
+          <tr><td><b>业务调度与 K8s 调度能力重叠、存在死代码</b></td>
+            <td><code>should_schedule()</code> 全仓库无调用方、两处评分逻辑完全重复、<code>predictor.py</code> 未被使用。<span class="tag v">[TASK_DISPATCH_ANALYSIS §3.2 · §5]</span></td>
+            <td>写文档说明“当前固定集群下真正起作用的是什么”；<b>未下沉</b>为 CRD + 调度插件。</td></tr>
+          <tr><td><b>患者库/数据集是模拟实现</b></td>
+            <td>确定性产数（同 seed 同结果）+ 分块 + 校验和，用于表达 P2P 同步语义。<span class="tag v">[v3.0-重构报告 §5]</span></td>
+            <td>用确定性数据与校验和自证正确性；<b>未接</b>真实 ORM/CDC/对象存储与冲突解决。</td></tr>
+          <tr><td><b>告警与 On-call 闭环缺失</b></td>
+            <td>仓库中只有指标暴露与 Grafana 面板（<span class="mono">grafana-dashboard.json</span>），未见告警规则与值班流程文件。<span class="tag v">[monitoring/ 目录 · 仓库文件]</span></td>
+            <td>靠人工看板 + 接口实测耗时定位；<b>未落地</b> burn-rate 告警与演练。</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">2.6 可量化亮点（面试时背这 6 条，每条都能落到文件）</h4>
+      <div class="grid c2">
+        <div class="card tight"><b>1. 镜像 3GB+ → 约 550MB（-82%）</b>
+          <p class="note">CPU-only PyTorch（<span class="mono">--index-url .../whl/cpu</span>）+ 多阶段构建，runtime 阶段只复制 site-packages。
+            <span class="tag v">[Alexnet-K8s/版本记录 v2]</span></p></div>
+        <div class="card tight"><b>2. /tasks/stats 17s+ → 约 0.6s</b>
+          <p class="note">任务进终态自动移除 <code>input</code>；存量 24 条历史任务一次性清理 21 条；新增轻量 <span class="mono">/cluster/summary</span>。
+            <span class="tag v">[版本记录 v2.0.5]</span></p></div>
+        <div class="card tight"><b>3. 探针修复后压测：10/10 成功、5 分钟+ 0 重启</b>
+          <p class="note">平均延迟 <b>940ms</b>、最大 <b>1797ms</b>；健康检查从业务端口 8000 改到指标端口 9000，超时从 1s 放宽到 5s。
+            <span class="tag v">[Alexnet-K8s/版本记录 v13.2]</span></p></div>
+        <div class="card tight"><b>4. OOM 消除：1Gi 限制下 4-5 个医疗任务即 OOMKilled → 0</b>
+          <p class="note">根因是任务对象含完整 input（单任务 10-100MB，14 个任务约 900MB+）；修复为预处理前移到 worker 线程 + <code>threading.Semaphore</code> 限流。
+            <span class="tag v">[BUG_ANALYSIS 根因 2 · 版本记录 v13.1]</span></p></div>
+        <div class="card tight"><b>5. 四类任务综合测试全部通过（6 条记录，全部 completed）</b>
+          <p class="note">诊断×2、计算×1、通信×1、日常×2；CLI 与前端“综合测试”页跑同一套件。
+            <span class="tag v">[test/output/v3_comprehensive.json · v3.0-重构报告 §6]</span></p></div>
+        <div class="card tight"><b>6. 调度语义修正：从“元数据假调度”到实体路由</b>
+          <p class="note">请求目标从共享 Service 改为按实体划分的 Service（hospital-a/b、clinic-1/2），并配套 4 节点集群的拖拽式集群编辑器与一键重置。
+            <span class="tag v">[TASK_DISPATCH_ANALYSIS §3.1 · 版本记录 v1.5/v2.0]</span></p></div>
+      </div>
+      <div class="callout good"><b>用法：</b>被问“你的优化成果是什么”时，先说第 2、3 条（有前后对比、有压力测试数据），
+        再说第 1、5 条（交付面），最后用第 6 条把话题引向架构与 K8s（面试官最想聊的部分）。</div>
+
+    </section>
+
+    <!-- ===================== 03 ARCH ===================== -->
+    <section id="arch">
+      <div class="sec-head"><span class="no">03</span><h3>架构与设计决策（讲“为什么”）</h3><span class="en">Architecture</span></div>
+
+      <h4 class="blk">3.1 一张图讲清三层</h4>
+      <div class="card">
+        <pre><code><span class="cm"># 逻辑架构（当前正式版 v3.0.9）</span>
+        ┌──────────────────────── DATA CENTER · 云（node3）────────────────────────┐
+        │  scheduler(调度继承)   medical-server(诊断后端)                          │
+        │  dc-services(患者库 patient-db + 协同计算 + 备份)   redis(任务队列/记录)   │
+        └───────▲───────────────────────▲─────────────────────────────────────────┘
+   协同诊断/协同计算/数据同步/日常任务    │
+        ┌───────┴────────── EDGE · 边（hospital）──────────┐
+        │  hospital-a @node1        hospital-b @node2       │
+        │  诊断 worker 前端 · 计算分区 · 数据 peer · 日常    │
+        └───────▲───────────────────────────────────────────┘
+                │ 医疗推理转诊（clinic → hospital）
+        ┌───────┴────────── TERMINAL · 端（clinic）─────────┐
+        │  clinic-1 @node1          clinic-2 @node2         │
+        │  转诊 · 计算 · 通信 · 日常（任务发起方）             │
+        └───────────────────────────────────────────────────┘</code></pre>
+      </div>
+
+      <h4 class="blk">3.2 四类任务与调度路径</h4>
+      <table>
+        <thead><tr><th>任务</th><th>发起</th><th>执行路径</th><th>设计要点</th></tr></thead>
+        <tbody>
+          <tr><td><b>诊断</b><br><span class="tag v">diagnosis</span></td><td>hospital / clinic</td>
+            <td>hospital worker 前端 → DC medical-server → bpCR</td>
+            <td>clinic 发起自动/指定转诊；原始数据不出院，仅传中间特征</td></tr>
+          <tr><td><b>计算</b><br><span class="tag info">compute</span></td><td>hospital / clinic</td>
+            <td>模拟监护仪产数 → 发起端+DC+另一 hospital 分区协同 → DC 聚合校验</td>
+            <td>确定性产数（同 seed 同结果）避免搬运大数组；分区并行</td></tr>
+          <tr><td><b>通信</b><br><span class="tag info">sync</span></td><td>hospital / clinic</td>
+            <td>取云 manifest → 多 peer 并行拉缺失分块 → 上传本地增量 → 云备份</td>
+            <td>P2P 多源 + 带宽节流 + 校验和 + 备份快照</td></tr>
+          <tr><td><b>日常</b><br><span class="tag warn">routine</span></td><td>hospital / clinic</td>
+            <td>按空闲节点创建一次性 Job → 执行输出 JSON → 读日志 → 删除 Job</td>
+            <td>用 K8s 原生 Job 做隔离与回收；RBAC 最小权限</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">3.3 关键取舍速答（面试高频追问）</h4>
+      <div class="grid c2">
+        <div class="card tight"><b>调度器单副本？</b><p class="note">当前规模下单副本最简单；风险是 SPOF。方案：无状态化 + 多副本选主（Lease/etcd），任务幂等 + Redis 队列支持重复消费；或把队列换成 K8s 原生 + 控制器。</p></div>
+        <div class="card tight"><b>为什么 Redis 队列，不用 Kafka？</b><p class="note">任务量级与时长（秒级~分钟级）不需要高吞吐日志；Redis ZSET 提供优先级与简单运维。代价：持久化与顺序保证弱，用 AOF + 幂等 + 状态机兜底。</p></div>
+        <div class="card tight"><b>患者库为什么是“模拟”？如何演进为真实？</b><p class="note">演示阶段用确定性子集 + 分块 + 校验和表达 P2P 语义；真实场景替换为：ORM/数据库 + 变更日志(CDC) + 对象存储分块 + 签名校验 + 版本向量冲突解决。</p></div>
+        <div class="card tight"><b>如何保证“数据不出院”？</b><p class="note">架构层：前端只在院内 Pod；网络层：NetworkPolicy 限制出口仅允许到 DC 的中间特征端口；审计层：任务结果记录数据流向与字段。</p></div>
+        <div class="card tight"><b>资源隔离与容量？</b><p class="note">requests/limits + QoS；节点超卖用 limit 而非 request 约束；关键组件独立 namespace/优先级（PriorityClass）；后续可上 HPA/VPA 与 Cluster Autoscaler。</p></div>
+        <div class="card tight"><b>如何观测一个任务的慢点？</b><p class="note">三层：任务层（分阶段 metrics：队列/worker 计算·网络/阶段间/server/pipeline/e2e）、服务层（直方图 + P95）、节点层（CPU/内存/负载）。先定位段，再下钻到 Pod。</p></div>
+      </div>
+    </section>
+
+    <!-- ===================== 04 QBANK ===================== -->
+    <section id="qbank">
+      <div class="sec-head"><span class="no">04</span><h3>面试官视角题库（含答题要点）</h3><span class="en">Question bank</span></div>
+      <p class="note">用顶部搜索框过滤；每题的“参考”给的是要点骨架，面试时按 STAR/因果链展开。</p>
+
+      <div class="qgroup">
+        <h5>A. 项目深挖（必问）</h5>
+        <details class="qa"><summary>为什么把推理拆成“院内前端 + 云端后端”？拆分点怎么定的？<span class="lvl">项目</span></summary>
+          <div class="ans"><ul>
+            <li>约束：患者影像不能出院（合规/隐私） vs 后端算力需求大。</li>
+            <li>拆分点选择“浅层卷积之后”：前端只做 conv1+maxpool 与表格特征编码，传输中间特征而非原图，兼顾带宽与隐私。</li>
+            <li>量化：可对比 e2e 时延中“网络段”占比（本项目分阶段指标可解释 worker_network / server_network）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>你的调度器具体“调度”了什么？和 K8s 调度器是什么关系？<span class="lvl">项目+K8s</span></summary>
+          <div class="ans"><ul>
+            <li>K8s 调度器负责 <b>Pod → Node</b>（资源、亲和、污点）；我的调度器负责 <b>任务 → 实体/Pod 选择 + 流水线编排</b>（优先级、模型约束、转诊、分区、Job 生成）。</li>
+            <li>两者互补：K8s 决定“有没有地方放”，业务调度决定“该由谁做、按什么顺序做”。</li>
+            <li>延伸：可将业务调度以 CRD + 自定义调度器/调度框架插件形式下沉到 K8s。</li>
+          </ul></div></details>
+        <details class="qa"><summary>任务状态机怎么设计的？失败/超时/重复消费怎么处理？<span class="lvl">项目</span></summary>
+          <div class="ans"><ul>
+            <li>状态：queued → running(stage: scheduler/worker/server/... ) → finished/failed；进度按 stage 映射。</li>
+            <li>幂等：任务 id 唯一 + 终态剥离大 payload；重试由 HTTP 客户端重试与失败标记控制，避免重复执行副作用。</li>
+            <li>超时：deadline 字段 + 阶段超时；死信思路：超过重试上限落入 failed 并在指标里计数。</li>
+          </ul></div></details>
+        <details class="qa"><summary>“节点选择≠请求路由”这个问题你是怎么发现并修的？<span class="lvl">★高频</span></summary>
+          <div class="ans"><ul>
+            <li>发现：对比任务元数据里的 node 与 Pod 实际执行节点/服务日志，发现不一致；读代码确认 policy 结果只写元数据。</li>
+            <li>修复：把 http 调用的目标 URL 由“共享 Service”改为“实体 Service”，并让策略真正决定实体。</li>
+            <li>收获：可观测性（记录实际执行者）是发现“假调度”的关键。</li>
+          </ul></div></details>
+        <details class="qa"><summary>/tasks/stats 为什么 17 秒？怎么定位与优化？<span class="lvl">★项目</span></summary>
+          <div class="ans"><ul>
+            <li>逐接口计时（curl/python）→ 发现只有 stats/list 慢；检查 Redis → 任务记录里存着数 MB 输入。</li>
+            <li>接口每次 KEYS/SCAN + 全量 json.loads 放大延迟；多接口 5s 轮询把线程池打满。</li>
+            <li>优化：终态剥离 input、缓存/限制返回字段、合并 pod 查询为单次 list、降低轮询频率；结果 17s→0.55s。</li>
+          </ul></div></details>
+        <details class="qa"><summary>节点负载为什么改用 metrics-server？和 Prometheus 的区别？<span class="lvl">★K8s</span></summary>
+          <div class="ans"><ul>
+            <li>metrics-server：聚合 API，数据来自 kubelet/cAdvisor，短窗口（默认 ~15s），只保留最新值，适合“当前用量/可用量”。</li>
+            <li>Prometheus：长周期时序 + 多维查询，适合历史、告警、SLO；但多查询串联 + 跨命名空间访问易放大延迟/失败。</li>
+            <li>结论：实时决策用 metrics-server，历史与趋势用 Prometheus；两者都需 RBAC 与网络可达性保障。</li>
+          </ul></div></details>
+        <details class="qa"><summary>滚动更新 + 强制反亲和为什么会卡住？<span class="lvl">★K8s</span></summary>
+          <div class="ans"><ul>
+            <li>required podAntiAffinity（每节点最多 1 个）+ 默认 maxUnavailable=0/25% 取整为 0：新 Pod 无处调度，旧 Pod 不允许先下线。</li>
+            <li>解法：显式滚动预算（maxUnavailable=1, maxSurge=0 或反之）、拓扑从 hostname 放宽、预拉镜像、必要时用 PDB 明确可用性下限。</li>
+          </ul></div></details>
+        <details class="qa"><summary>集群编辑器（改副本/亲和/拖节点）如何保证安全？<span class="lvl">项目</span></summary>
+          <div class="ans"><ul>
+            <li>服务端校验模型（医院不可删、节点必须合法、fixed 策略副本=1 等）+ dry-run 校验接口；</li>
+            <li>只 patch 允许的字段；RBAC 最小权限（仅 default 命名空间 deployments/services/jobs）；</li>
+            <li>重置回默认配置 + 操作结果逐条回报（部分失败可见、可重试）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>如果 QPS 提升 100 倍，瓶颈在哪、怎么扩展？<span class="lvl">设计</span></summary>
+          <div class="ans"><ul>
+            <li>瓶颈顺序：调度器单进程（CPU/连接池）→ Redis 单实例 → 后端推理 CPU/GPU → 镜像拉取与节点带宽。</li>
+            <li>扩展：调度器无状态多副本 + 队列分片；Redis Cluster/哨兵；推理侧 HPA + 队列深度指标；节点侧预热镜像与 P2P 分发。</li>
+          </ul></div></details>
+        <details class="qa"><summary>项目里做过哪些“可回滚/可恢复”设计？<span class="lvl">项目</span></summary>
+          <div class="ans"><ul>
+            <li>集群配置有默认模型（reset 一键恢复）；</li>
+            <li>部署用声明式 YAML + 镜像 tag 版本化（每次修复一个 tag，可回退）；</li>
+            <li>患者库有备份快照 + 校验和，可验证恢复正确性。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="callout"><b>本节来源与诚实性说明：</b>以下模块整理自本次网络检索报告（<span class="mono">minimax-k8s-intern-prep.md</span>），全部链接已实测。
+        <b>✅</b> = 该问法/答案出自真实面经或官方文档；<b>⚠️</b> = 通用经验或推断、<b>无特定来源</b>——面试时请用“我的理解是……”，不要当成事实断言。</div>
+
+      <div class="qgroup">
+        <h5>K8s 01 · Pod 生命周期与探针</h5>
+        <details class="qa"><summary>✅ k8s 为什么不直接跑容器，而要引入 Pod？<span class="lvl">Pod</span></summary>
+          <div class="ans"><ul>
+            <li>Pod 是<b>最小调度单元</b>：调度、扩缩、驱逐的粒度都是 Pod，而不是容器。</li>
+            <li>同 Pod 内容器共享 Network / UTS / IPC 命名空间，而 USR / MNT / PID 默认隔离，因此可共享 IP、端口与卷。</li>
+            <li>价值在于 sidecar 模式：日志/代理/注入类容器与主容器同生命周期、同网络栈，一起被调度与被销毁。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Pod 如何“体面终止”？默认宽限期是多少？<span class="lvl">Pod</span></summary>
+          <div class="ans"><ul>
+            <li>删除流程：标记 Terminating → 从 Endpoints 摘除 → 执行 <code>preStop</code> → 向主进程发 SIGTERM → 宽限期到点 SIGKILL。</li>
+            <li>默认 <code>terminationGracePeriodSeconds=30</code>；宽限期从 preStop 开始计时，两者共用同一预算。</li>
+            <li>直接拆桥会丢在途请求：长连接服务要么在 preStop 里 sleep 等到连接排空，要么让应用自己处理 SIGTERM 优雅退出。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ preStop 执行时间超过宽限期会怎样？<span class="lvl">Pod</span></summary>
+          <div class="ans"><ul>
+            <li>宽限期到点 kubelet 直接强制关闭（SIGKILL），preStop 未执行完就被中断——这是<b>预期行为</b>，不是 bug。</li>
+            <li>工程含义：preStop 里的等待/排空逻辑必须显著短于宽限期，例如宽限期 60s、preStop 最多等 20s。</li>
+            <li>只写 <code>sleep</code> 而不真正优雅退出，本质只是“猜一个等待时间”，不如让应用自己处理信号。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 静态 Pod 是什么？哪些组件是静态 Pod？<span class="lvl">Pod</span></summary>
+          <div class="ans"><ul>
+            <li>由 kubelet 直接读取节点上的 manifest 启动，<b>只存在于本节点</b>，API 不能管理、没有探针与健康检查。</li>
+            <li>我们仍能在 <code>kubectl get pods</code> 里“看见”它，是因为 kubelet 在 API 里建了一个镜像 Pod（mirror pod）。</li>
+            <li>典型：kube-apiserver、etcd、kube-scheduler、kube-controller-manager——这也是为什么控制面由 kubelet 而非 Deployment 拉起。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Init 容器与普通容器有什么差异？多个 Init 失败会怎样？<span class="lvl">Pod</span></summary>
+          <div class="ans"><ul>
+            <li>Init 容器<b>顺序串行</b>执行，必须成功退出才会启动下一个；全部成功后才启动业务容器。</li>
+            <li>不支持探针与 lifecycle，也不参与 Service Endpoints；失败时按 restartPolicy 重试，Pod 一直卡在 <span class="mono">Init:0/2</span> 之类状态。</li>
+            <li>常见用途：等待依赖（DB/Redis）就绪、修正挂载目录权限、预置配置——比在主容器里写等待脚本更干净。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 02 · Deployment 与滚动更新</h5>
+        <details class="qa"><summary>✅ Deployment 滚动更新时，ReplicaSet 和 Pod 到底怎么变？<span class="lvl">Deployment</span></summary>
+          <div class="ans"><ul>
+            <li>改 Pod 模板会创建<b>新 ReplicaSet</b>，然后按 <code>maxSurge</code> / <code>maxUnavailable</code> 交替扩容新 RS、缩容旧 RS。</li>
+            <li>旧 RS 不会被删（受 <code>revisionHistoryLimit</code> 约束），所以 <code>kubectl rollout undo</code> 才能秒回滚。</li>
+            <li>进度用 <code>kubectl rollout status deployment/&lt;name&gt;</code> 观察；卡住超过 <code>progressDeadlineSeconds</code> 会写入 ProgressDeadlineExceeded 条件。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 上线停滞（rollout 卡住）如何判定与排查？<span class="lvl">★Deployment</span></summary>
+          <div class="ans"><ul>
+            <li>判定：<code>rollout status</code> 长时间不结束、新 RS 期望副本数与就绪数对不上、出现 ProgressDeadlineExceeded。</li>
+            <li>常见原因清单：镜像拉取失败、ResourceQuota/资源不足、探针一直失败、PVC 未绑定、调度失败（亲和/污点）。</li>
+            <li>排查顺序：<code>describe pod</code> 看 Events → <code>describe rs</code> 看副本账本 → <code>get events</code> → 必要时先 <code>rollout undo</code> 止血再定位。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ StatefulSet 与 Deployment 的本质区别？<span class="lvl">StatefulSet</span></summary>
+          <div class="ans"><ul>
+            <li>StatefulSet 提供<b>稳定网络标识</b>（<code>&lt;name&gt;-&lt;ordinal&gt;</code> + Headless Service DNS）、<b>稳定存储</b>（volumeClaimTemplates）与有序启停。</li>
+            <li>默认<b>逆序</b>滚动更新与逆序缩容，保证主从/分片语义；Deployment 只保证“无状态副本数”。</li>
+            <li>代价：扩缩与故障恢复更慢（要等旧 Pod 真正删除），且需要应用自身支持身份语义。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 为什么 StatefulSet 需要 volumeClaimTemplates？<span class="lvl">StatefulSet</span></summary>
+          <div class="ans"><ul>
+            <li>每个副本需要<b>独占且与身份绑定</b>的 PVC（<code>data-&lt;name&gt;-0/1/2</code>），不能像 Deployment 那样共用一个卷模板。</li>
+            <li>缩容时 PVC <b>不删除</b>，扩回同序号副本会复用原存储，避免数据错配或丢失。</li>
+            <li>因此清理必须显式做（手动删 PVC），否则会有“孤儿卷”长期占容量——这也是面试常追问的成本点。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 分区滚动更新（partition）有什么用？<span class="lvl">StatefulSet</span></summary>
+          <div class="ans"><ul>
+            <li>设置 <code>updateStrategy.rollingUpdate.partition=N</code> 后，只更新序号 ≥ N 的 Pod，其余保持旧版本。</li>
+            <li>典型用途：金丝雀/灰度——先升最高序号做验证，再逐步把 partition 降到 0 全量升级。</li>
+            <li>它与 Deployment 的“副本比例灰度”是两种粒度：StatefulSet 按<b>身份序号</b>，Deployment 按<b>副本百分比</b>。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 03 · Service · Ingress · kube-proxy</h5>
+        <details class="qa"><summary>✅ kube-proxy 的 iptables 与 IPVS 模式差异？<span class="lvl">★网络</span></summary>
+          <div class="ans"><ul>
+            <li>两者都基于 Netfilter，但设计目标不同：iptables 是防火墙规则链，<b>线性匹配</b>，Service/Endpoints 多时规则数量爆炸、同步与匹配都变慢。</li>
+            <li>IPVS 是为高性能 L4 负载均衡设计的，用 <b>Hash 表</b>查找，配合 ipset 减少规则数，支持 rr/wrr/lc 等调度算法与后端健康检查。</li>
+            <li>结论：中小集群 iptables 足够；大规模、Service 数量多时优先 IPVS；nftables 是更新的替代方向。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Service 四种类型在自建集群里怎么落地？<span class="lvl">Service</span></summary>
+          <div class="ans"><ul>
+            <li>ClusterIP：集群内默认类型，自建集群主力；LoadBalancer 在自建环境需要 MetalLB/云控制器之类实现，否则一直 Pending。</li>
+            <li>NodePort：节点 IP + 30000-32767 静态端口，适合测试与临时暴露（本项目的 monitoring/prediction 就是这样暴露给测试脚本的）。</li>
+            <li>ExternalName：只做 DNS CNAME，指向集群外服务（如托管数据库），没有代理与负载均衡，也没有 Endpoints。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Service 访问不通，定位顺序是什么？<span class="lvl">★排障</span></summary>
+          <div class="ans"><ul>
+            <li>第一步永远看 <code>kubectl get endpoints &lt;svc&gt;</code>：为 <code>&lt;none&gt;</code> 说明 selector 没选中 Pod（或 Pod 未 Ready）。</li>
+            <li>第二步 <code>kubectl port-forward</code> 直连 Pod 验证容器本身是否在监听；再核对 <code>targetPort</code> 与 <code>containerPort</code>/实际监听地址（必须是 0.0.0.0）。</li>
+            <li>第三步查代理与网络：kube-proxy 是否正常、CNI 是否健康、NetworkPolicy 是否拦了流量、DNS 是否能解析 FQDN。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Ingress 与 Ingress Controller 是什么关系？<span class="lvl">Ingress</span></summary>
+          <div class="ans"><ul>
+            <li>Ingress 只是<b>HTTP/HTTPS 路由规则</b>（host/path → Service 的声明），本身不转发任何流量。</li>
+            <li>必须部署 Ingress Controller（ingress-nginx、Traefik 等）才会生效；只有 Ingress 对象而没有 Controller 时规则完全无效。</li>
+            <li>四层（TCP/UDP）与更多协议能力通常靠 CRD 扩展（如 nginx 的 TCP 转发、Gateway API 的 Gateway/HTTPRoute）。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 04 · 网络 CNI · DNS · NetworkPolicy</h5>
+        <details class="qa"><summary>CNI 到底解决什么问题？<span class="lvl">CNI</span></summary>
+          <div class="ans"><ul>
+            <li>为 Pod 分配 IP、创建 veth/bridge 与路由，实现<b>跨节点 Pod 互通</b>并清理回收网络资源。</li>
+            <li>K8s 只定义接口规范（CNI spec），具体实现有 Flannel / Calico / Cilium 等，所以“换 CNI”等于换整个数据面方案。</li>
+            <li>CNI 出问题的典型后果：Pod 起不来（IP 分配失败）、跨节点不通但同节点正常、域名解析正常但连接超时。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Flannel 与 Calico 怎么选？<span class="lvl">★网络</span></summary>
+          <div class="ans"><ul>
+            <li>Flannel：走 Overlay（VXLAN/IPIP），部署简单、心智负担低；代价是封装开销，而且<b>不支持 NetworkPolicy</b>。</li>
+            <li>Calico：基于 L3 BGP 路由转发，通常无封装（性能更好），并且<b>支持 Pod 级 NetworkPolicy</b>。</li>
+            <li>选型逻辑：只要“能通”且规模小 → Flannel；要网络隔离/多租户/更好性能 → Calico（或 Cilium/eBPF 路线）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ VXLAN 原理与开销？<span class="lvl">网络</span></summary>
+          <div class="ans"><ul>
+            <li>把二层以太帧封装进 UDP 报文（默认端口 4789），在三层网络上打通“大二层”，使 Pod IP 看起来在同一网段。</li>
+            <li>两个直接代价：一是 MTU 必须下调（常见 1450），否则大包会被分片或丢弃；二是封装/解封装的 CPU 成本。</li>
+            <li>排查提示：如果小包 ping 通、大包卡住，第一反应就是 MTU/分片问题，而不是“网络全断”。</li>
+          </ul></div></details>
+        <details class="qa"><summary>同节点与跨节点 Pod 通信路径差在哪？<span class="lvl">网络</span></summary>
+          <div class="ans"><ul>
+            <li>同节点：两个 veth pair 挂在同一网桥上，二层直接转发，<b>不经物理网卡、不做 VXLAN 封装</b>，所以延迟与吞吐明显更好。</li>
+            <li>跨节点：需要走 CNI 维护的路由或 Overlay 封装，经过物理网络 → 这是跨节点通信抖动的主要来源。</li>
+            <li>调度含义：把频繁交互的两个服务尽量放在同一节点（亲和/拓扑分布），能实打实降低时延。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ DNS 解析失败怎么查？<span class="lvl">★排障</span></summary>
+          <div class="ans"><ul>
+            <li>先在 Pod 内验证：<code>nslookup kubernetes.default</code> 或 <code>getent hosts &lt;svc&gt;.&lt;ns&gt;.svc.cluster.local</code>，区分“完全解析不了”与“短名解析不了”。</li>
+            <li>查 CoreDNS：Pod 是否 Running/Ready、日志有无报错、副本数是否足够（被驱逐会导致间歇性失败）。</li>
+            <li>再查配置与策略：<code>/etc/resolv.conf</code> 的 <code>ndots</code>/search 域、NetworkPolicy 是否放行 UDP/TCP 53、conntrack 表是否打满。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ 装了 Calico、NetworkPolicy 却不生效，常见原因？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>CNI 本身不支持策略（Flannel 单独用时策略对象会被接受但不起作用），或策略没有落到目标端口的<b>两个方向</b>。</li>
+            <li>漏了 DNS 出向放行，表现为“网络被隔离后所有域名都解析不了”，很容易误判成 DNS 故障。</li>
+            <li>这是<b>通用经验、无特定来源</b>；面试时按“我会先确认 CNI 是否支持策略、再确认方向与端口”表述。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 05 · 存储 PV · PVC · CSI</h5>
+        <details class="qa"><summary>✅ PVC 一直 Pending 的典型原因？<span class="lvl">★存储</span></summary>
+          <div class="ans"><ul>
+            <li>StorageClass 的 provisioner 不存在或未就绪；容量/配额不足；访问模式（RWO/RWX）不被后端支持。</li>
+            <li>云盘/本地卷的可用区与节点不在同一 zone，绑定后也无法挂载。</li>
+            <li><code>volumeBindingMode: WaitForFirstConsumer</code> 时，PVC 会一直 Pending 直到 Pod 被调度——这是<b>预期</b>，不要误判为故障。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ CSI 动态供给与 WaitForFirstConsumer 的意义？<span class="lvl">存储</span></summary>
+          <div class="ans"><ul>
+            <li>CSI 用统一接口对接任意存储厂商（云盘/NFS/Ceph 等），K8s 不必内置各家驱动，符合“外部化插件”的设计。</li>
+            <li>默认 Immediate 模式会先建卷再调度，可能出现“卷在 zone-A、Pod 被调度到 zone-B”的死结。</li>
+            <li>WaitForFirstConsumer 先调度再建卷，让卷落在 Pod 所在 zone，是生产中更稳的默认选择。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ PVC 挂载失败（WaitForAttach / Could not mount）怎么查？<span class="lvl">★排障</span></summary>
+          <div class="ans"><ul>
+            <li>先 <code>describe pvc</code> 看绑定与事件，再 <code>describe pod</code> 找 MountVolume 相关事件与具体错误文本。</li>
+            <li>进容器 <code>df -h</code>、<code>ls /mnt/path</code> 验证是否真挂上；节点侧看 CSI 插件 Pod 状态与 kubelet 日志。</li>
+            <li>常见根因：zone 不一致、Secret/凭据缺失（Ceph/RBD 常见）、同一 RWO 卷被多节点争用、权限（fsGroup/SELinux）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ PV 的回收策略 Delete / Retain 怎么选？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>Delete：删 PVC 时自动删后端存储，适合临时/无状态数据；Retain：保留卷，需要人工清理与复用。</li>
+            <li>数据库、备份类数据一定用 Retain（或至少快照策略），否则一次误删 PVC 就是数据事故。</li>
+            <li>这是<b>通用实践结论、无特定来源</b>；面试时补一句“我们项目里 Redis 用 hostPath 属于实验级取舍”。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 06 · 调度器与亲和 · 污点 · 拓扑分布</h5>
+        <details class="qa"><summary>✅ 调度两阶段流程（Filter / Score）？<span class="lvl">★调度</span></summary>
+          <div class="ans"><ul>
+            <li>Filter（预选）：剔除不满足资源、亲和/反亲和、污点容忍、卷拓扑等硬条件的节点。</li>
+            <li>Score（优选）：对通过预选的节点按插件加权打分（0-100），取最高分；同分时随机/bind 阶段决胜。</li>
+            <li>之后还有 Reserve / Permit / Bind 阶段；全部节点被过滤掉时会走 PostFilter 尝试抢占。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Scheduling Framework 有哪些扩展点？<span class="lvl">★源码</span></summary>
+          <div class="ans"><ul>
+            <li>QueueSort、PreFilter、Filter、PostFilter（抢占）、PreScore、Score、NormalizeScore、Reserve、Permit、PreBind、Bind、PostBind。</li>
+            <li>插件通过 KubeSchedulerConfiguration 的 profiles/pluginConfig 启用与调权重，可多 profile 组合不同策略。</li>
+            <li>面试落点：想加“业务感知调度”不必改 K8s 源码，写一个调度插件就能挂进 Filter/Score 链路。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ 常用打分插件与权重怎么配？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>常用：NodeResourcesFit（LeastAllocated / MostAllocated / RequestedToCapacityRatio）、NodeAffinity、InterPodAffinity、PodTopologySpread、TaintToleration、ImageLocality。</li>
+            <li>NodeResourcesFit 默认权重 1，可在 pluginConfig 改权重与打分策略；LeastAllocated 更均衡、MostAllocated 更“装箱省资源”。</li>
+            <li>该项为<b>通用知识、无特定来源</b>；说的时候强调“先明确目标是均衡还是碎片最少，再调权重”。</li>
+          </ul></div></details>
+        <details class="qa"><summary>抢占（Preemption）是怎么工作的？<span class="lvl">调度</span></summary>
+          <div class="ans"><ul>
+            <li>高优先级 Pod 调度失败时，PostFilter 在候选节点上寻找可驱逐的低优先级 Pod，驱逐后重新入队调度。</li>
+            <li>受 PodDisruptionBudget 与 <code>preemptionPolicy</code> 约束；受害者是“刚好够用”的最小集合，而不是随便删。</li>
+            <li>工程含义：PriorityClass 配错会导致“低优先级任务被反复驱逐”，任务型集群必须显式设计优先级层级。</li>
+          </ul></div></details>
+        <details class="qa"><summary>节点 NotReady 之后，上面的 Pod 会怎样？<span class="lvl">节点</span></summary>
+          <div class="ans"><ul>
+            <li>新 Pod 不再调度到该节点；节点上的 Pod 因 node lease 超时被标记为 NotReady/Unknown。</li>
+            <li>Deployment 会触发重建（在其他节点拉起新副本）；StatefulSet 必须等原 Pod <b>真正删除</b>才能重建，因此多副本会短暂不可用。</li>
+            <li>缓解手段：<code>node-monitor-grace-period</code> 与容忍时间调优、PDB、以及把有状态负载做到能快速故障转移。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 07 · 资源 requests · limits · QoS</h5>
+        <details class="qa"><summary>内存超限与 CPU 超限的表现差异？<span class="lvl">★资源</span></summary>
+          <div class="ans"><ul>
+            <li>CPU 是<b>可压缩</b>资源：超限只是被 CFS 限流（throttle），表现为延迟变高，可用 <span class="mono">container_cpu_cfs_throttled_periods_total</span> 观察。</li>
+            <li>内存是<b>不可压缩</b>资源：cgroup 超限直接 OOMKilled，退出码 137，Pod 进入 CrashLoopBackOff。</li>
+            <li>所以“CPU 打得满”和“内存超了”是两类完全不同的故障：前者要调权重/限流策略，后者要查泄漏与 limit 是否过小。</li>
+          </ul></div></details>
+        <details class="qa"><summary>怎么防止 noisy neighbor（邻居干扰）？<span class="lvl">资源</span></summary>
+          <div class="ans"><ul>
+            <li>关键服务设 Guaranteed（requests==limits）；非关键负载用 limits 约束，避免抢占式消耗。</li>
+            <li>用 LimitRange 兜底默认 requests/limits，用 ResourceQuota 限制命名空间总量，防止单个团队吃满集群。</li>
+            <li>极致场景再用 cpu-manager 静态绑核（cpuset）与内存大页，让关键负载独占 CPU 核。</li>
+          </ul></div></details>
+        <details class="qa"><summary>节点内存不足时，kubelet 按什么顺序驱逐 Pod？<span class="lvl">资源</span></summary>
+          <div class="ans"><ul>
+            <li>依据 kubelet 的软/硬驱逐阈值（memory.available、nodefs 等），按 QoS 与<b>超用量</b>排序。</li>
+            <li>QoS 顺序：BestEffort → Burstable → Guaranteed；同类中优先驱逐“用量超出 requests 最多”的 Pod。</li>
+            <li>因此设 requests 不只是为了调度，也是<b>被驱逐顺位的保护</b>；同时用 system-reserved/kube-reserved 保住系统进程。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 08 · RBAC 与安全</h5>
+        <details class="qa"><summary>✅ RBAC 的授权流程与“只增不减”是什么意思？<span class="lvl">★安全</span></summary>
+          <div class="ans"><ul>
+            <li>请求先认证（Authentication）再鉴权（Authorization）：Subject（User/Group/ServiceAccount）→ Role/ClusterRole → Binding。</li>
+            <li>规则是<b>白名单、只增不减</b>：没有 deny 规则，匹配到任意一条 allow 即通过；因此“多绑一个 Role”就等于永久放权。</li>
+            <li>排查利器：<code>kubectl auth can-i &lt;verb&gt; &lt;resource&gt; -n &lt;ns&gt; --as=system:serviceaccount:&lt;ns&gt;:&lt;sa&gt;</code>。</li>
+          </ul></div></details>
+        <details class="qa"><summary>Role 与 ClusterRole 什么时候用哪个？<span class="lvl">安全</span></summary>
+          <div class="ans"><ul>
+            <li>Role 只作用于单一命名空间（配合 RoleBinding）；ClusterRole 用于集群级资源（nodes、PV、CRD）或需要跨命名空间复用。</li>
+            <li>常见组合：定义 ClusterRole 描述权限，再用 RoleBinding 把它绑到某个命名空间的 SA，做到“权限模板 + 命名空间隔离”。</li>
+            <li>反面案例：直接给 CI/CD 或调度器绑 cluster-admin，一旦被利用就是集群级失陷。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ default ServiceAccount 有什么风险？<span class="lvl">★安全</span></summary>
+          <div class="ans"><ul>
+            <li>Pod 默认挂载 default SA 的 token；如果该 SA 被授予过宽权限，任何一个被攻破的 Pod 都能横向提权。</li>
+            <li>缓解：<code>automountServiceAccountToken: false</code>（不需要访问 API 的 Pod 一律关闭）、为应用建专用最小权限 SA。</li>
+            <li>更彻底：用 TokenRequest 拿<b>短期、受众受限</b>的 token，而不是长期有效的 Secret 式 token。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ 怎么快速验证一个 SA 的权限边界？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li><code>kubectl auth can-i --list --as=system:serviceaccount:&lt;ns&gt;:&lt;sa&gt;</code> 列出全部允许项，比逐个动词试快得多。</li>
+            <li>再结合实际调用（例如让 Pod 内的 client 去 list deployments）验证是否被拒绝，避免“看起来有权限其实绑定没生效”。</li>
+            <li>属<b>通用操作经验、无特定来源</b>；本项目里的做法是：只给调度器 default 命名空间的 deployments/services/jobs/pods/log 权限。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 09 · 控制面与 etcd</h5>
+        <details class="qa"><summary>✅ etcd 的性能与容量注意点？<span class="lvl">★etcd</span></summary>
+          <div class="ans"><ul>
+            <li>etcd 是<b>唯一持久化数据源</b>，强一致（Raft）：每次写都要多数派确认，因此磁盘 fsync 延迟直接决定 apiserver 写延迟。</li>
+            <li>建议 SSD；控制 <code>--quota-backend-bytes</code>（默认 2GB）；定期 <code>defrag</code> 回收空间；避免高频写入大对象（超大 ConfigMap/CR status）。</li>
+            <li>watch 数量过多会显著推高内存；大规模场景要控制 informer 数量与对象体量。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ apiserver 变慢，怎么判断是不是 etcd 的问题？<span class="lvl">etcd</span></summary>
+          <div class="ans"><ul>
+            <li>看 etcd 自身指标：<span class="mono">backend_commit_duration_seconds</span>、<span class="mono">wal_fsync_duration_seconds</span>、mvcc db size、leader 切换次数、磁盘 IO。</li>
+            <li>再对比 apiserver 各 verb/resource 的 latency 直方图：如果只有写类 verb 慢，且 etcd commit/fsync 同步升高，基本可定位到 etcd 与磁盘。</li>
+            <li>常见诱因：磁盘抖动、大对象写入（如数 MB 状态）、list 全量读、quota 接近上限触发告警式 compaction。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 控制面高可用要注意什么？<span class="lvl">控制面</span></summary>
+          <div class="ans"><ul>
+            <li>多 master + 多 etcd 成员，成员数取<b>奇数</b>（3 或 5）以保证多数派；前置 LB 统一暴露 6443。</li>
+            <li>etcd 与 apiserver 尽量同机房低延迟部署——Raft 对 RTT 极其敏感，跨机房会放大写延迟。</li>
+            <li>必须有定期快照备份，并且<b>演练过恢复</b>：没演练过的备份等于没有备份。</li>
+          </ul></div></details>
+        <details class="qa"><summary>etcd 备份与恢复怎么演练？<span class="lvl">★控制面</span></summary>
+          <div class="ans"><ul>
+            <li>用 <code>etcdctl snapshot save</code> 定期导出快照，并记录集群版本/成员列表，恢复时保持一致以免版本不兼容。</li>
+            <li>演练要点：在隔离环境用 <code>snapshot restore</code> 起单节点，验证关键对象（Deployment/Service/CRD）是否完整。</li>
+            <li>指标口径：RTO（多久恢复）与 RPO（丢多少数据）必须写下来，否则“有备份”无法回答面试追问。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 10 · 监控与可观测</h5>
+        <details class="qa"><summary>✅ Prometheus 的拉取模型与生态？<span class="lvl">★监控</span></summary>
+          <div class="ans"><ul>
+            <li>主动 <b>pull</b>：按服务发现抓取目标的 <code>/metrics</code>，天然适合“目标是否存活”的判断；Pushgateway 只用于短生命周期任务。</li>
+            <li>生态分工：Prometheus 存储与查询、Alertmanager 做分组/抑制/静默、Grafana 做可视化。</li>
+            <li>所以 <code>/metrics</code> 是<b>给 Prometheus 拉取的</b>，不是给业务调用的 API——本项目 v15/v16 的“Grafana 看得到、程序取不到”就是这个边界。</li>
+          </ul></div></details>
+        <details class="qa"><summary>四种指标类型怎么选（Histogram vs Summary）？<span class="lvl">监控</span></summary>
+          <div class="ans"><ul>
+            <li>Counter（只增，如请求总数）、Gauge（可增减，如内存/队列长度）、Histogram（服务端分桶，可聚合算分位）、Summary（客户端算分位）。</li>
+            <li>Histogram 可跨实例聚合（sum 后再算分位），是 P95/P99 与 SLO 告警的首选；Summary 分位无法跨实例聚合。</li>
+            <li>Histogram 的成本在桶边界设计：桶选得不合理，要么精度不够，要么时间序列基数爆炸。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ K8s 常用告警怎么设？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>以 SLO 为锚：Pod 重启率、<span class="mono">container_memory_working_set_bytes</span> 接近 limit、节点磁盘/inode 水位、apiserver 5xx 与 P99 延迟。</li>
+            <li>再加等得起的信号：etcd fsync 延迟、PDB 违反次数、队列积压与任务排队时长。</li>
+            <li>本条为<b>通用经验、无特定来源</b>；实践上用多窗口 burn rate 告警，避免单窗口抖动造成“告警疲劳”。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ 为什么高基数标签会拖垮 Prometheus？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>时间序列数 ≈ 指标名 × 标签取值组合：把 <span class="mono">task_id</span>、Pod 名、患者 ID 之类放进标签，序列数会随请求量线性膨胀。</li>
+            <li>后果：内存与磁盘暴涨、查询变慢、甚至 Prometheus 被压死——本项目 v11 就明确避开“每请求一条 time series”。</li>
+            <li>属<b>通用经验、无特定来源</b>（本项目版本记录 v11 有同类结论）；正确做法是高基数维度只进日志/追踪，不进标签。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 11 · Job · CronJob · Operator · CRD</h5>
+        <details class="qa"><summary>✅ CRD 与 Operator 是什么关系？<span class="lvl">★Operator</span></summary>
+          <div class="ans"><ul>
+            <li>CRD 只定义新的 API 类型与 schema（“能存什么对象”）；Operator = CRD + Controller，用调谐循环把期望状态落地。</li>
+            <li>Operator 的价值是把“运维知识”编码成控制器：扩缩、备份、故障恢复都不再依赖人执行脚本。</li>
+            <li>本项目对应关系：现在的脚本化调度/集群编辑可以收敛成“Mission CRD + reconcile”，这正是面试加分表达。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Reconcile 的设计要点？<span class="lvl">Operator</span></summary>
+          <div class="ans"><ul>
+            <li>必须<b>幂等</b>、无状态（状态存 etcd）、基于 <b>level-based</b> 而非 edge-based：每次都对账“当前状态 vs 期望状态”。</li>
+            <li>配套机制：finalizer 做外部资源清理、Status conditions 表达阶段、ownerReference 做级联回收、RateLimiter 做退避重试。</li>
+            <li>反模式：把业务状态藏在控制器内存里、靠事件顺序假设、reconcile 里做长耗时阻塞操作。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 为什么 List 大量 CR 会超时？<span class="lvl">Operator</span></summary>
+          <div class="ans"><ul>
+            <li>apiserver 需要序列化整个对象集合，etcd 需要读全量，体量随对象数量与单对象大小同时放大。</li>
+            <li>正确姿势：用 <b>watch + informer 本地缓存</b> 代替轮询全量 list，分页用 <code>limit/continue</code>，必要时按 label/field selector 收窄。</li>
+            <li>治理手段：精简 status（不要把大数组写进 status）、拆分分片 CR、设置合理的 resync 周期。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ Job 的 parallelism / completions / backoffLimit 怎么配？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li><code>completions</code> 是需要的成功次数，<code>parallelism</code> 是同时可跑几个 Pod；<code>backoffLimit</code> 控制失败重试上限。</li>
+            <li>配合 <code>activeDeadlineSeconds</code> 控超时、<code>ttlSecondsAfterFinished</code> 自动清理，避免 Job 与 Pod 长期堆积。</li>
+            <li>属<b>通用知识、无特定来源</b>；本项目 routine 任务用的是“创建 Job → 轮询 → 读日志解析 JSON → 删除 Job”闭环。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ CronJob 的并发与“错过调度”怎么处理？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li><code>concurrencyPolicy</code>：Allow（默认）/ Forbid（上一次没跑完就跳过）/ Replace（替换上一次）。</li>
+            <li><code>startingDeadlineSeconds</code> 决定“错过多久之内还补跑”，设置过小会静默丢任务，过大又可能集中补跑压垮集群。</li>
+            <li>属<b>通用知识、无特定来源</b>；生产建议 Forbid + 告警“该跑没跑”，而不是默默 Replace。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 12 · 容器运行时与节点运维</h5>
+        <details class="qa"><summary>✅ 容器隔离的原理（namespace + cgroups）？<span class="lvl">★运行时</span></summary>
+          <div class="ans"><ul>
+            <li>Linux Namespace 做<b>视图隔离</b>：PID/NET/MNT/UTS/IPC/USER 各自看到独立的进程、网络、挂载与主机名。</li>
+            <li>cgroups 做<b>资源限制与统计</b>：CPU（CFS 配额/权重）、内存（limit→OOMKill）、IO、PID 数量。</li>
+            <li>因此“容器不是轻量虚拟机”：共享内核，隔离强度弱于 VM；这是多租户安全讨论的起点（gVisor/Kata 就是补这块）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>kubelet 与 containerd 的调用链？<span class="lvl">运行时</span></summary>
+          <div class="ans"><ul>
+            <li>kubelet → <b>CRI</b>（gRPC）→ containerd（cri 插件）→ containerd-shim → runc → 容器进程。</li>
+            <li>shim 的作用：让容器进程与 containerd 解耦，containerd 重启不影响运行中的容器。</li>
+            <li>调试入口 <code>crictl ps / crictl logs / crictl pods</code>，是节点侧排障时比 docker 更贴近真实运行时的一层。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ Docker 与 containerd 是什么关系？<span class="lvl">运行时</span></summary>
+          <div class="ans"><ul>
+            <li>Docker 曾内置 containerd 作为运行时内核；K8s 1.24 起移除 dockershim，改用 CRI 直连 containerd/CRI-O。</li>
+            <li>设计意图：镜像构建（docker build）与运行时（containerd）解耦，集群不再依赖 Docker 这个“大而全”的守护进程。</li>
+            <li>迁移影响：节点排障命令从 <code>docker ps</code> 换成 <code>crictl</code>/<code>nerdctl</code>，镜像命名与命名空间也略有差异。</li>
+          </ul></div></details>
+        <details class="qa"><summary>节点层排障的命令清单？<span class="lvl">★排障</span></summary>
+          <div class="ans"><ul>
+            <li><code>kubectl describe node</code> 看 Conditions、Allocated resources 与 Events；<code>kubectl top node/pod</code> 看实时用量。</li>
+            <li>节点上：<code>journalctl -u kubelet -f</code>、<code>systemctl status containerd</code>、<code>crictl ps/pods/logs</code>。</li>
+            <li>资源侧：<code>df -h</code>（ephemeral-storage/镜像/日志）、<code>free -m</code>、<code>ss/iptables -L</code>、以及到 apiserver 的网络连通性。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>K8s 13 · 高频源码级追问</h5>
+        <details class="qa"><summary>✅ kubectl 更新 Pod 配置时，Kubernetes 内部发生了什么？<span class="lvl">★源码</span></summary>
+          <div class="ans"><ul>
+            <li>kubectl 把改动转成 API 请求 → apiserver 认证/鉴权/准入（Mutating→Validating）→ 写 etcd。</li>
+            <li>controller-manager 的 Deployment/RS 控制器通过 watch 感知模板变化，创建<b>新 RS 与新 Pod</b>；scheduler 绑定节点；kubelet 拉镜像起容器。</li>
+            <li>关键点：Pod 的 spec <b>绝大部分字段不可变</b>，所以“改配置”实际上是新建 Pod 而非原地修改——能原地改的只有少数（如 image、activeDeadlineSeconds、tolerations 的部分场景）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 为什么控制器要 level-based，而不是 edge-based？<span class="lvl">★源码</span></summary>
+          <div class="ans"><ul>
+            <li>事件可能丢失、重复、乱序；只有“对账当前状态与期望状态”才能自我修复（自愈来自反复对账，而不是事件可靠性）。</li>
+            <li>因此 reconcile 要求幂等：同一对象被处理 N 次，结果必须一致。</li>
+            <li>工程延伸：写业务调度器同样应“可重入、可重放”，本项目用任务状态机 + 幂等任务 id 表达同一思想。</li>
+          </ul></div></details>
+        <details class="qa"><summary>✅ 为什么用 informer/watch 而不是轮询？<span class="lvl">源码</span></summary>
+          <div class="ans"><ul>
+            <li>List+Watch 建立本地缓存（informer store），事件驱动更新，避免高频全量 list 压垮 apiserver 与 etcd。</li>
+            <li>配合 resourceVersion 做增量、workqueue 做去重与速率限制，才能在大集群里稳定运行。</li>
+            <li>反面：控制器里写 <code>for { list(); sleep(5) }</code> 是典型反模式——本项目排障时也遇到过“轮询放大”导致探针超时。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ 探针为什么由 kubelet 直连 Pod IP，而不走 Service？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>探针语义是“检查<b>这个容器</b>是否健康”，kubelet 直接访问 Pod IP + 容器端口，避免 Service 负载均衡把请求转给别的副本造成误判。</li>
+            <li>这也解释了 readiness 与 Endpoints 的闭环：readiness 失败 → kubelet 上报 → Endpoints 摘除，流量才不再进来。</li>
+            <li>本条为<b>机制推断、无特定来源</b>；面试时可以说“从现象看是直连 Pod IP，Service 只服务于集群内客户端流量”。</li>
+          </ul></div></details>
+        <details class="qa"><summary>⚠️ 删掉一个 Pod 后为什么又自动出现一个？<span class="lvl">⚠️无来源</span></summary>
+          <div class="ans"><ul>
+            <li>因为 Pod 有 ownerReference 指向 ReplicaSet，而 RS 控制器持续对账“期望副本数 vs 实际数”，发现缺一个就再建一个。</li>
+            <li>只删 Pod 是“治标”，要真正下线应改 Deployment 模板/副本数或删除上层对象（级联回收）。</li>
+            <li>属<b>机制推断、无特定来源</b>；这条常被用来区分“会敲命令”和“理解控制器模型”。</li>
+          </ul></div></details>
+      </div>
+
+      <div class="qgroup">
+        <h5>B. K8s 核心（自测用，答案要点）</h5>
+        <details class="qa"><summary>Pod 的生命周期阶段与常见异常状态？<span class="lvl">基础</span></summary>
+          <div class="ans"><ul>
+            <li>阶段：Pending → Running → Succeeded/Failed；Unknown 表示与 kubelet 失联。</li>
+            <li>异常：Pending（资源/亲和/污点/未绑定 PVC）、ContainerCreating（拉镜像/挂载）、CrashLoopBackOff（进程反复退出/探针失败）、ImagePullBackOff、OOMKilled（超 limit）、Evicted（节点压力）。</li>
+            <li>排查：<code>describe pod</code> 看 Events → <code>logs --previous</code> → <code>exec</code> 复查配置。</li>
+          </ul></div></details>
+        <details class="qa"><summary>liveness / readiness / startup 探针的区别与常见坑？<span class="lvl">★基础</span></summary>
+          <div class="ans"><ul>
+            <li>liveness 失败=重启容器；readiness 失败=从 Service Endpoints 摘除；startup 用于慢启动，成功后其余探针才生效。</li>
+            <li>坑：探针打业务端口被阻塞请求拖超时（本项目遇到的崩溃循环）；探针路径依赖下游服务；initialDelay 不足导致误杀。</li>
+            <li>实践：探针走轻量 endpoint 或独立管理端口，超时与 failureThreshold 留余量，用 startupProbe 保护冷启动。</li>
+          </ul></div></details>
+        <details class="qa"><summary>requests / limits 与 QoS 等级？<span class="lvl">★基础</span></summary>
+          <div class="ans"><ul>
+            <li>Guaranteed：所有容器 requests=limits；Burstable：设了 requests 但不等于 limits；BestEffort：都没设。</li>
+            <li>驱逐优先级：BestEffort → Burstable → Guaranteed；CPU 超限被限流（throttle），内存超限被 OOMKill。</li>
+            <li>调度只看 requests；节点可超卖（sum(limits) > allocatable）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>Service 类型与 kube-proxy 转发模式？<span class="lvl">基础</span></summary>
+          <div class="ans"><ul>
+            <li>ClusterIP（集群内）/ NodePort（节点端口）/ LoadBalancer / ExternalName；Headless（无 ClusterIP，直接解析到 Pod IP）。</li>
+            <li>iptables 模式：随机等概率 DNAT；IPVS 模式：支持 rr/wrr/lc 等调度算法与更好扩展性；nftables 是更新的方向。</li>
+            <li>会话保持用 sessionAffinity；跨命名空间访问用 FQDN。</li>
+          </ul></div></details>
+        <details class="qa"><summary>Deployment 滚动更新参数与回滚？<span class="lvl">★基础</span></summary>
+          <div class="ans"><ul>
+            <li>maxSurge/maxUnavailable 决定新旧副本配比；revisionHistoryLimit 保留历史 RS；<code>kubectl rollout undo</code> 回滚。</li>
+            <li>进度判定看 conditions 与 <code>rollout status</code>；progressDeadlineSeconds 控制“卡住”判定。</li>
+            <li>与反亲和/PDB 交互时要预留滚动预算（本项目死锁案例）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>节点亲和 / 污点容忍 / 拓扑分布怎么选？<span class="lvl">★调度</span></summary>
+          <div class="ans"><ul>
+            <li>nodeAffinity：硬约束（required）用于架构性限制（如 role=edge），软约束（preferred）用于偏好。</li>
+            <li>taint/toleration：把节点“推开”普通 Pod（专用节点）；GPU/控制面无调度常用。</li>
+            <li>podAntiAffinity / topologySpreadConstraints：控制副本分散；required 用于强隔离，soft 用于尽量均衡（避免死锁）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>存储：PV/PVC/StorageClass/CSI 与常见问题？<span class="lvl">基础</span></summary>
+          <div class="ans"><ul>
+            <li>PVC 声明需求 → StorageClass 动态供给 PV → CSI 驱动落地（云盘/NFS/Ceph）。</li>
+            <li>访问模式 RWO/ROX/RWX；hostPath 仅适合单节点/实验（本项目 Redis 用 hostPath 的取舍）。</li>
+            <li>常见问题：Pending 未绑定、挂载失败、容量不足、回收策略 Delete/Retain 差异。</li>
+          </ul></div></details>
+        <details class="qa"><summary>RBAC 三要素与最小权限实践？<span class="lvl">★安全</span></summary>
+          <div class="ans"><ul>
+            <li>Subject（User/Group/ServiceAccount）+ Role/ClusterRole + RoleBinding/ClusterRoleBinding。</li>
+            <li>实践：按命名空间 + 具体 resource/verb 授权；避免 cluster-admin；用 <code>kubectl auth can-i</code> 验证。</li>
+            <li>本项目给 scheduler 授权 default 命名空间的 deployments/services/jobs/pods/log，仅够集群编辑器与日常 Job 使用。</li>
+          </ul></div></details>
+        <details class="qa"><summary>网络：CNI/Flannel、DNS 解析链、常见不通怎么查？<span class="lvl">★排障</span></summary>
+          <div class="ans"><ul>
+            <li>Flannel 常见 host-gw/VXLAN；跨节点 Pod IP 由 CNI 分配，路由由 CNI/节点维护。</li>
+            <li>DNS：Pod 的 <code>/etc/resolv.conf</code> → CoreDNS Service → 上游；FQDN 形式 <span class="mono">svc.ns.svc.cluster.local</span>。</li>
+            <li>排查序：Pod 内 ping/curl Service → 看 Endpoints 是否为空 → CoreDNS 日志 → 网络策略/iptables。</li>
+          </ul></div></details>
+        <details class="qa"><summary>Job / CronJob 与一次性 Pod 的正确姿势？<span class="lvl">项目相关</span></summary>
+          <div class="ans"><ul>
+            <li>restartPolicy=Never/OnFailure、backoffLimit、activeDeadlineSeconds、ttlSecondsAfterFinished 自动清理。</li>
+            <li>并发策略（Allow/Forbid/Replace）；完成判定看 status.succeeded/failed。</li>
+            <li>本项目 routine 任务：调度器创建 Job → 轮询 → 读 pod 日志解析 JSON → 删除 Job（含失败/超时清理）。</li>
+          </ul></div></details>
+        <details class="qa"><summary>控制面组件职责与 etcd 的注意事项？<span class="lvl">基础</span></summary>
+          <div class="ans"><ul>
+            <li>apiserver（唯一入口/鉴权/校验/准入）、etcd（唯一数据源）、scheduler（绑定 Pod 到 Node）、controller-manager（副本/端点/节点控制器）。</li>
+            <li>etcd：奇数副本、低延迟磁盘（fsync 敏感）、定期快照备份、watch 事件量控制。</li>
+          </ul></div></details>
+        <details class="qa"><summary>HPA / VPA / Cluster Autoscaler 区别？<span class="lvl">★扩展</span></summary>
+          <div class="ans"><ul>
+            <li>HPA：按指标（CPU/内存/自定义如队列深度）调副本数；VPA：调 requests/limits（多为推荐模式）；CA：节点不够时加节点。</li>
+            <li>关键：自定义指标（队列长度）常比 CPU 更适合任务型负载；需注意冷启动与指标延迟导致震荡。</li>
+          </ul></div></details>
+      </div>
+    </section>
+
+    <!-- ===================== 05 SCENARIO ===================== -->
+    <section id="scenario">
+      <div class="sec-head"><span class="no">05</span><h3>故障排查场景题（标准动作）</h3><span class="en">Troubleshooting</span></div>
+      <table>
+        <thead><tr><th style="width:170px">现象</th><th>第一反应与命令</th><th>常见根因</th></tr></thead>
+        <tbody>
+          <tr><td><b>Pod Pending</b></td><td><code>describe pod</code> 看 Events：FailedScheduling</td><td>资源不足 / 亲和与污点冲突 / PVC 未绑定 / 节点 NotReady</td></tr>
+          <tr><td><b>CrashLoopBackOff</b></td><td><code>logs --previous</code>、<code>describe</code> 看 exit code 与探针</td><td>启动异常、配置缺失、探针误杀、依赖不可达</td></tr>
+          <tr><td><b>OOMKilled</b></td><td><code>describe</code> 查 lastState、<code>kubectl top pod</code></td><td>内存 limit 过小 / 大对象堆积 / 泄漏 / 缓存无上限</td></tr>
+          <tr><td><b>ImagePullBackOff</b></td><td><code>describe</code> 看 events、<code>crictl images</code>（节点）</td><td>镜像名/凭据错、registry 不可达、无外网、tag 不存在</td></tr>
+          <tr><td><b>节点 NotReady</b></td><td><code>describe node</code>、节点上 <code>systemctl status kubelet</code>、<code>journalctl -u kubelet</code></td><td>kubelet 挂/磁盘压力/网络抖动/CNI 异常/证书过期</td></tr>
+          <tr><td><b>Service 访问不通</b></td><td><code>get endpoints</code> → Pod 内 curl → <code>nslookup</code></td><td>selector 不匹配、readiness 未过、网络策略、端口/targetPort 写错</td></tr>
+          <tr><td><b>DNS 解析失败</b></td><td>Pod 内 <code>cat /etc/resolv.conf</code>、查 CoreDNS 日志</td><td>CoreDNS 副本不足/被驱逐、ndots 与搜索域问题、NetworkPolicy 拦 UDP 53</td></tr>
+          <tr><td><b>接口偶发超时</b></td><td>先分段计时（客户端/入口/下游/DB），再看线程池与连接池</td><td>阻塞调用占满线程、连接池耗尽、下游重试放大（本项目 17s 案例）</td></tr>
+          <tr><td><b>负载显示为 0</b></td><td>确认数据源（Prometheus/metrics-server）、RBAC、命名空间与 DNS</td><td>查询超时被降级为默认值、instance label 不匹配、metrics 未就绪</td></tr>
+          <tr><td><b>升级卡住不回滚</b></td><td><code>rollout status/history</code>、比较 RS 模板与预算</td><td>maxUnavailable=0 + 强制反亲和、探针不过、镜像拉不动</td></tr>
+          <tr><td><b>磁盘压力驱逐</b></td><td><code>df -h</code>、<code>crictl rmi --prune</code>、日志轮转</td><td>镜像/日志堆积、emptyDir 无上限、ephemeral-storage 未设限</td></tr>
+          <tr><td><b>调度不均</b></td><td>看各节点 requests 与 Pending 分布、descheduler 建议</td><td>硬亲和过度集中、反亲和缺失、资源碎片、无 descheduler</td></tr>
+        </tbody>
+      </table>
+      <div class="callout good"><b>答题模板：</b>现象 → 影响面 → 快速止血（重启/回滚/扩容）→ 根因定位（分层：应用/容器/节点/网络/存储）
+        → 永久修复 → 防复发（指标/告警/演练/Checklist）。</div>
+    </section>
+
+    <!-- ===================== 06 CODE ===================== -->
+    <section id="code">
+      <div class="sec-head"><span class="no">06</span><h3>手撕代码专区（MiniMax 明确考察）</h3><span class="en">Live coding</span></div>
+
+      <div class="callout"><b>MiniMax 面试结构（有来源）：</b>AI Infra 实习面试为<b>三段式</b> ——
+        <b>① 项目经历提问 → ② 理论问答 → ③ 代码题</b>；项目环节的原文要求是「着重描述你遇到的
+        <b>最大技术难题</b>以及取得的<b>优化成果</b>」，所以项目介绍必须带“问题—方案—量化收益”结构。
+        两份独立面经记录的 live-coding 题都是 <span class="mono">滑动窗口最大值（单调队列）</span>，因此它在本节的优先级最高。
+        <br>来源：<a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%BA%8C%E9%9D%A2/" target="_blank" rel="noopener">AIInfraGuide · MiniMax AI Infra 实习二面</a> ·
+        <a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%B8%80%E9%9D%A2-2/" target="_blank" rel="noopener">实习一面（2）</a> ·
+        <a href="https://caomaolufei.github.io/AIInfraGuide/" target="_blank" rel="noopener">AIInfraGuide 面经目录</a></div>
+
+      <h4 class="blk">6.0 题目清单（21 题，按类别）</h4>
+      <p class="note">清单来自本次网络检索报告：<b>✅</b> = 有来源（真实面经/题库帖，链接见 9.4）；<b>⚠️</b> = 通用高频补充，<b>无特定来源</b>。
+        建议先手写带 <b>★</b> 的 4 题（滑动窗口最大值 / LRU / 限流器 / worker pool），再补 7 道标 ⚠️ 的通用题。</p>
+      <table>
+        <thead><tr><th style="width:96px">类别</th><th style="width:220px">题名</th><th style="width:92px">难度</th><th>考察点</th><th>一句话思路</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="3"><b>数组 · 窗口 · 双指针</b></td>
+            <td>★ 滑动窗口最大值 <span class="tag v">✅有来源</span></td><td>Medium</td><td>单调队列 / 双端队列，O(n)</td><td>双端队列存下标、维持递减，队首出窗口即弹；每个元素仅进出一次。</td></tr>
+          <tr><td>两数之和 <span class="tag v">✅有来源</span></td><td>Easy</td><td>哈希表</td><td>边遍历边存 <span class="mono">值→下标</span>，查找 target-x 是否已出现。</td></tr>
+          <tr><td>IP / CIDR 处理：归属判断与排序 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>32 位整数化、前缀匹配、位运算</td><td>把 IPv4 转成 uint32，用掩码做 <span class="mono">(ip &amp; mask) == net</span> 判定归属。</td></tr>
+
+          <tr><td rowspan="4"><b>哈希 · 缓存设计</b></td>
+            <td>★ LRU 缓存 <span class="tag v">✅有来源</span></td><td>Medium</td><td>哈希 + 双向链表</td><td>map 存 key→节点，链表头部最新、尾部最旧；Get/Put 均 O(1)。</td></tr>
+          <tr><td>LFU 缓存 <span class="tag v">⚠️无来源</span></td><td>Hard</td><td>频率桶 + 双向链表</td><td>按频次分桶，桶内 LRU；记录 minFreq 以便 O(1) 淘汰。</td></tr>
+          <tr><td>并发安全 map / 单例 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>RWMutex、sync.Map、sync.Once</td><td>读多写少用 RWMutex 或分片；单例用 Once 保证只初始化一次。</td></tr>
+          <tr><td>原子计数器 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>CAS / 原子操作</td><td>用 atomic.AddInt64 或 CAS 循环，避免锁竞争与伪共享（可提 padding）。</td></tr>
+
+          <tr><td rowspan="3"><b>堆 · 排序 · 树 · DP</b></td>
+            <td>TopK（数组 / 海量日志 TOP N IP） <span class="tag v">✅有来源</span></td><td>Medium</td><td>小顶堆 O(n log k)；海量→分治+哈希</td><td>维护大小 k 的小顶堆；数据放不下时先哈希分片再各自 TopK 归并。</td></tr>
+          <tr><td>二叉树遍历（层序 / 中序迭代） <span class="tag v">✅有来源</span></td><td>Easy–Med</td><td>队列 / 显式栈</td><td>层序用队列按层出队；中序迭代一路压栈到最左再回退。</td></tr>
+          <tr><td>最长公共子序列（DP） <span class="tag v">✅有来源</span></td><td>Medium</td><td>二维 DP + 滚动数组</td><td>字符相等取左上+1，否则取上/左最大值；可压成一维。</td></tr>
+
+          <tr><td rowspan="2"><b>图 · 回溯</b></td>
+            <td>矩阵中搜索目标字符串（回溯） <span class="tag v">✅有来源</span></td><td>Medium</td><td>DFS + 回溯 + 剪枝</td><td>每个格子起 DFS，访问标记原位改字符，回溯时还原。</td></tr>
+          <tr><td>任务依赖 DAG：拓扑排序 + 并发执行 <span class="tag v">⚠️无来源</span></td><td>Med–Hard</td><td>入度表、并发调度、环检测</td><td>Kahn 算法出度数为 0 的批次；层内并发执行，结果长度不等即存在环。</td></tr>
+
+          <tr><td rowspan="3"><b>并发 · 限流</b></td>
+            <td>★ 手写限流器（计数器/滑动窗口/漏桶/令牌桶） <span class="tag v">✅有来源</span></td><td>Medium</td><td>时间戳 + 原子计数/锁；并发安全</td><td>令牌桶按时间差补令牌再判断是否够 1；分布式版用 Redis + Lua 保原子。</td></tr>
+          <tr><td>★ 生产者-消费者 / worker pool <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>channel+buffer、WaitGroup、优雅退出</td><td>N 个 goroutine 抢同一 channel；context 取消 + defer recover 防 panic 与泄漏。</td></tr>
+          <tr><td>简单调度器：按资源打分选节点 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>过滤 + 打分两阶段、多目标权衡</td><td>先过滤不可用节点，再按权重归一化打分取最大（对应 K8s Filter/Score）。</td></tr>
+
+          <tr><td rowspan="4"><b>运维脚本 · 配置交付</b></td>
+            <td>Bash：检查服务是否运行 <span class="tag v">✅有来源</span></td><td>Easy</td><td>systemctl is-active、退出码</td><td>用退出码判断并显式 <span class="mono">set -euo pipefail</span>，输出可被监控消费的状态。</td></tr>
+          <tr><td>Bash：日志文件轮转 <span class="tag v">✅有来源</span></td><td>Easy</td><td>移动 + gzip、日期命名</td><td>mv 到带日期的新名 → gzip → 删超期文件；避免原地截断造成丢日志。</td></tr>
+          <tr><td>Python：监控 CPU 使用率 <span class="tag v">✅有来源</span></td><td>Easy</td><td>psutil、采样间隔</td><td>按固定间隔采样并算增量，注意首次采样需丢弃（否则得到累计均值）。</td></tr>
+          <tr><td>Python：解析日志提取 ERROR 行 <span class="tag v">✅有来源</span></td><td>Easy</td><td>流式读取、正则、内存友好</td><td>逐行迭代 + 预编译正则，缺字段要能容错不抛异常。</td></tr>
+
+          <tr><td rowspan="2"><b>容器与 K8s 配置</b></td>
+            <td>写 Dockerfile + 镜像清理命令 <span class="tag v">✅有来源</span></td><td>Easy</td><td>多阶段构建、docker system prune -a</td><td>builder 阶段只留产物；清理用 <code>prune -a</code> 并说明为什么不能在生产节点随意清理。</td></tr>
+          <tr><td>写 K8s YAML 部署 nginx 并扩缩容 <span class="tag v">✅有来源</span></td><td>Easy</td><td>Deployment/Service、kubectl scale</td><td>requests/limits + 探针齐备；扩缩用 <code>kubectl scale --replicas</code>，并顺带说 HPA 的适用场景。</td></tr>
+        </tbody>
+      </table>
+      <p class="note">注：上表恰好 21 条，其中 14 条出自真实面经/题库帖（✅），7 条为通用高频补充（⚠️、无特定来源）。
+        报告原文明确：<b>未找到 MiniMax 使用哪个平台、ACM 模式还是核心代码模式，也没有语言强制的证据</b>——所以 ACM 与核心代码两种模式都要练。</p>
+
+      <h4 class="blk">6.1 高频题型地图</h4>
+      <table>
+        <thead><tr><th style="width:130px">类别</th><th>典型题</th><th>考察点</th></tr></thead>
+        <tbody>
+          <tr><td>哈希/设计</td><td>LRU 缓存、LFU、RandomizedSet、O(1) 插入删除</td><td>双向链表+哈希、边界、并发版本</td></tr>
+          <tr><td>并发</td><td>N 个 worker 消费队列、生产者消费者、优雅退出、限流</td><td>channel/锁、context 取消、panic 恢复、无泄漏</td></tr>
+          <tr><td>堆/排序</td><td>TopK、合并 K 个有序链表、数据流中位数</td><td>堆操作复杂度、边界、稳定性</td></tr>
+          <tr><td>数组/字符串</td><td>滑动窗口、双指针、区间合并、字符串解析（日志/KV）</td><td>边界条件、O(n) 思维、Go/Python 手感</td></tr>
+          <tr><td>图/拓扑</td><td>任务依赖拓扑排序、环检测、并查集（集群分组）</td><td>BFS/DFS、入度、连通性</td></tr>
+          <tr><td>调度/运维场景</td><td>实现一个打分函数（CPU/内存空闲加权选节点）、Round-Robin、令牌桶限流</td><td>把 K8s 概念写成代码：权重、归一化、并发安全</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">6.2 模板代码（Go）</h4>
+      <details class="qa"><summary>LRU 缓存（container/list + map）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="kw">type</span> entry <span class="kw">struct</span> { k, v <span class="kw">int</span> }
+
+<span class="kw">type</span> LRU <span class="kw">struct</span> {
+    cap  <span class="kw">int</span>
+    ll   *list.List               <span class="cm">// front = 最近使用</span>
+    m    <span class="kw">map</span>[<span class="kw">int</span>]*list.Element
+}
+
+<span class="kw">func</span> <span class="fn">NewLRU</span>(c <span class="kw">int</span>) *LRU {
+    <span class="kw">return</span> &LRU{cap: c, ll: list.<span class="fn">New</span>(), m: <span class="kw">map</span>[<span class="kw">int</span>]*list.Element{}}
+}
+
+<span class="kw">func</span> (c *LRU) <span class="fn">Get</span>(k <span class="kw">int</span>) <span class="kw">int</span> {
+    <span class="kw">if</span> e, ok := c.m[k]; ok {
+        c.ll.<span class="fn">MoveToFront</span>(e)
+        <span class="kw">return</span> e.Value.(entry).v
+    }
+    <span class="kw">return</span> -<span class="num">1</span>
+}
+
+<span class="kw">func</span> (c *LRU) <span class="fn">Put</span>(k, v <span class="kw">int</span>) {
+    <span class="kw">if</span> e, ok := c.m[k]; ok {
+        e.Value = entry{k, v}
+        c.ll.<span class="fn">MoveToFront</span>(e)
+        <span class="kw">return</span>
+    }
+    e := c.ll.<span class="fn">PushFront</span>(entry{k, v})
+    c.m[k] = e
+    <span class="kw">if</span> c.ll.<span class="fn">Len</span>() > c.cap {
+        last := c.ll.<span class="fn">Back</span>()
+        <span class="kw">delete</span>(c.m, last.Value.(entry).k)
+        c.ll.<span class="fn">Remove</span>(last)
+    }
+}</code></pre>
+        <p class="note">并发版：加 <code>sync.Mutex</code>，或分片（sharded LRU）降低锁竞争；面试可主动提“读写锁不适用（写频繁）+ 分片”。</p></div></details>
+
+      <details class="qa"><summary>并发 Worker Pool（context 取消 + 优雅退出 + panic 兜底）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="kw">func</span> <span class="fn">Run</span>(ctx context.Context, jobs &lt;-<span class="kw">chan</span> Job, workers <span class="kw">int</span>) {
+    <span class="kw">var</span> wg sync.WaitGroup
+    <span class="kw">for</span> i := <span class="num">0</span>; i &lt; workers; i++ {
+        wg.<span class="fn">Add</span>(<span class="num">1</span>)
+        <span class="kw">go</span> <span class="kw">func</span>() {
+            <span class="kw">defer</span> wg.<span class="fn">Done</span>()
+            <span class="kw">for</span> {
+                <span class="kw">select</span> {
+                <span class="kw">case</span> &lt;-ctx.<span class="fn">Done</span>():
+                    <span class="kw">return</span>
+                <span class="kw">case</span> j, ok := &lt;-jobs:
+                    <span class="kw">if</span> !ok { <span class="kw">return</span> }
+                    <span class="kw">func</span>() {
+                        <span class="kw">defer</span> <span class="kw">func</span>() { <span class="kw">if</span> r := <span class="fn">recover</span>(); r != <span class="kw">nil</span> { log.<span class="fn">Printf</span>(<span class="st">"job panic: %v"</span>, r) } }()
+                        j.<span class="fn">Do</span>(ctx)
+                    }()
+                }
+            }
+        }()
+    }
+    wg.<span class="fn">Wait</span>()
+}</code></pre>
+        <p class="note">要点：<b>谁关闭 channel</b>（发送方关闭）、ctx 取消要能打断阻塞、panic 不能杀死进程、WaitGroup 与 goroutine 泄漏要说清。</p></div></details>
+
+      <details class="qa"><summary>令牌桶限流（并发安全）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="kw">type</span> Limiter <span class="kw">struct</span> {
+    mu       sync.Mutex
+    rate     <span class="kw">float64</span> <span class="cm">// 每秒补充</span>
+    burst    <span class="kw">float64</span>
+    tokens   <span class="kw">float64</span>
+    last     time.Time
+}
+
+<span class="kw">func</span> (l *Limiter) <span class="fn">Allow</span>() <span class="kw">bool</span> {
+    l.mu.<span class="fn">Lock</span>(); <span class="kw">defer</span> l.mu.<span class="fn">Unlock</span>()
+    now := time.<span class="fn">Now</span>()
+    l.tokens = math.<span class="fn">Min</span>(l.burst, l.tokens+now.<span class="fn">Sub</span>(l.last).<span class="fn">Seconds</span>()*l.rate)
+    l.last = now
+    <span class="kw">if</span> l.tokens &gt;= <span class="num">1</span> { l.tokens--; <span class="kw">return</span> <span class="kw">true</span> }
+    <span class="kw">return</span> <span class="kw">false</span>
+}</code></pre>
+        <p class="note">延伸：分布式限流用 Redis + Lua 保证原子；也可讲滑动窗口/漏桶差异与适用场景。</p></div></details>
+
+      <details class="qa"><summary>TopK（小顶堆）/ 数据流中位数（双堆）<span class="lvl">Go/Py</span></summary>
+        <div class="ans"><pre><code><span class="cm">// Go: 用 container/heap 维护大小为 k 的小顶堆，O(n log k)</span>
+<span class="kw">type</span> IntHeap []<span class="kw">int</span>
+<span class="kw">func</span> (h IntHeap) <span class="fn">Len</span>() <span class="kw">int</span>            { <span class="kw">return</span> <span class="fn">len</span>(h) }
+<span class="kw">func</span> (h IntHeap) <span class="fn">Less</span>(i, j <span class="kw">int</span>) <span class="kw">bool</span> { <span class="kw">return</span> h[i] &lt; h[j] }
+<span class="kw">func</span> (h IntHeap) <span class="fn">Swap</span>(i, j <span class="kw">int</span>)      { h[i], h[j] = h[j], h[i] }
+<span class="kw">func</span> (h *IntHeap) <span class="fn">Push</span>(x <span class="kw">any</span>)     { *h = <span class="fn">append</span>(*h, x.(<span class="kw">int</span>)) }
+<span class="kw">func</span> (h *IntHeap) <span class="fn">Pop</span>() <span class="kw">any</span> {
+    o := *h; n := <span class="fn">len</span>(o) - <span class="num">1</span>; v := o[n]; *h = o[:n]; <span class="kw">return</span> v
+}
+
+<span class="kw">func</span> <span class="fn">TopK</span>(nums []<span class="kw">int</span>, k <span class="kw">int</span>) []<span class="kw">int</span> {
+    h := &amp;IntHeap{}
+    <span class="kw">for</span> _, v := <span class="kw">range</span> nums {
+        heap.<span class="fn">Push</span>(h, v)
+        <span class="kw">if</span> h.<span class="fn">Len</span>() &gt; k { heap.<span class="fn">Pop</span>(h) }
+    }
+    <span class="kw">return</span> *h
+}</code></pre>
+        <p class="note">双堆中位数：大顶堆存较小半、小顶堆存较大半，保持 size 差 ≤1，插入 O(log n)、取中位数 O(1)。</p></div></details>
+
+      <details class="qa"><summary>任务依赖拓扑排序（调度/流水线场景）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="kw">func</span> <span class="fn">Topo</span>(tasks []<span class="kw">string</span>, deps <span class="kw">map</span>[<span class="kw">string</span>][]<span class="kw">string</span>) ([]<span class="kw">string</span>, <span class="kw">bool</span>) {
+    indeg := <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">int</span>{}
+    <span class="kw">for</span> _, t := <span class="kw">range</span> tasks { indeg[t] = <span class="num">0</span> }
+    <span class="kw">for</span> t, ds := <span class="kw">range</span> deps {
+        <span class="kw">for</span> _, d := <span class="kw">range</span> ds { _ = t; indeg[t]++ ; _ = d }
+        <span class="cm">// 注意方向：d 是 t 的前置，则 indeg[t]++</span>
+    }
+    q := []<span class="kw">string</span>{}
+    <span class="kw">for</span> _, t := <span class="kw">range</span> tasks { <span class="kw">if</span> indeg[t] == <span class="num">0</span> { q = <span class="fn">append</span>(q, t) } }
+    out := []<span class="kw">string</span>{}
+    <span class="kw">for</span> <span class="fn">len</span>(q) &gt; <span class="num">0</span> {
+        t := q[<span class="num">0</span>]; q = q[<span class="num">1</span>:]
+        out = <span class="fn">append</span>(out, t)
+        <span class="kw">for</span> _, nxt := <span class="kw">range</span> deps[t] {
+            indeg[nxt]--
+            <span class="kw">if</span> indeg[nxt] == <span class="num">0</span> { q = <span class="fn">append</span>(q, nxt) }
+        }
+    }
+    <span class="kw">return</span> out, <span class="fn">len</span>(out) == <span class="fn">len</span>(tasks)
+}</code></pre>
+        <p class="note">面试常追问：如何检测环（结果长度不等）、如何并行执行同一层（按层 BFS，层内并发）。</p></div></details>
+
+      <details class="qa"><summary>节点打分选择（把 K8s 调度概念写成代码）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="cm">// score = 0.4*cpuFree + 0.35*gpuFree + 0.25*memFree，返回最优节点</span>
+<span class="kw">func</span> <span class="fn">BestNode</span>(nodes []Node) (Node, <span class="kw">bool</span>) {
+    <span class="kw">var</span> best Node; bestScore := -<span class="num">1.0</span>
+    <span class="kw">for</span> _, n := <span class="kw">range</span> nodes {
+        <span class="kw">if</span> !n.Ready || n.Tainted { <span class="kw">continue</span> }
+        s := <span class="num">0.4</span>*n.CPUFree + <span class="num">0.35</span>*n.GPUFree + <span class="num">0.25</span>*n.MemFree
+        <span class="kw">if</span> s &gt; bestScore { best, bestScore = n, s }
+    }
+    <span class="kw">return</span> best, bestScore &gt;= <span class="num">0</span>
+}</code></pre>
+        <p class="note">加分点：归一化不同量纲、相似度打分（LeastAllocated/MostAllocated/BalancedAllocation）、权重可配置、
+          再加“数据本地性/亲和性”作为过滤（Filter）阶段的补充。</p></div></details>
+
+      <details class="qa" open><summary>★ 单调队列 · 滑动窗口最大值（Go + Python）——MiniMax 面经原题<span class="lvl">★Go/Py</span></summary>
+        <div class="ans"><pre><code><span class="cm">// 返回每个长度为 k 的窗口的最大值；单调队列，时间 O(n)、空间 O(k)</span>
+<span class="kw">func</span> <span class="fn">MaxSlidingWindow</span>(nums []<span class="kw">int</span>, k <span class="kw">int</span>) []<span class="kw">int</span> {
+    <span class="kw">if</span> <span class="fn">len</span>(nums) == <span class="num">0</span> || k &lt;= <span class="num">0</span> { <span class="kw">return</span> <span class="kw">nil</span> }
+    dq := <span class="fn">make</span>([]<span class="kw">int</span>, <span class="num">0</span>, k)          <span class="cm">// 存下标，nums[dq] 从队首到队尾单调递减</span>
+    res := <span class="fn">make</span>([]<span class="kw">int</span>, <span class="num">0</span>, <span class="fn">len</span>(nums)-k+<span class="num">1</span>)
+    <span class="kw">for</span> i, v := <span class="kw">range</span> nums {
+        <span class="kw">for</span> <span class="fn">len</span>(dq) &gt; <span class="num">0</span> &amp;&amp; nums[dq[<span class="fn">len</span>(dq)-<span class="num">1</span>]] &lt;= v { <span class="cm">// 队尾比新元素小 → 永远不可能成为最大值</span>
+            dq = dq[:<span class="fn">len</span>(dq)-<span class="num">1</span>]
+        }
+        dq = <span class="fn">append</span>(dq, i)
+        <span class="kw">if</span> dq[<span class="num">0</span>] &lt;= i-k { dq = dq[<span class="num">1</span>:] }     <span class="cm">// 队首已滑出窗口</span>
+        <span class="kw">if</span> i &gt;= k-<span class="num">1</span> { res = <span class="fn">append</span>(res, nums[dq[<span class="num">0</span>]]) }
+    }
+    <span class="kw">return</span> res
+}
+
+<span class="cm"># Python：collections.deque 写同一个逻辑，面试更快</span>
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+<span class="kw">def</span> <span class="fn">max_sliding_window</span>(nums, k):
+    dq, out = <span class="fn">deque</span>(), []                  <span class="cm"># dq 存下标，值单调递减</span>
+    <span class="kw">for</span> i, v <span class="kw">in</span> <span class="fn">enumerate</span>(nums):
+        <span class="kw">while</span> dq <span class="kw">and</span> nums[dq[-<span class="num">1</span>]] &lt;= v: dq.<span class="fn">pop</span>()
+        dq.<span class="fn">append</span>(i)
+        <span class="kw">if</span> dq[<span class="num">0</span>] &lt;= i - k: dq.<span class="fn">popleft</span>()
+        <span class="kw">if</span> i &gt;= k - <span class="num">1</span>: out.<span class="fn">append</span>(nums[dq[<span class="num">0</span>]])
+    <span class="kw">return</span> out</code></pre>
+        <p class="note"><b>要点与追问：</b>① 队列里存<b>下标</b>而不是值（否则无法判断是否滑出窗口）；② 每个元素最多进出队一次，所以是 O(n) 而非 O(nk)；
+          ③ 边界：<code>k&gt;len(nums)</code>、<code>k==1</code>、<code>k&lt;=0</code>、空数组；④ 同族变形：窗口最小值（改为递增队列）、
+          窗口内第一个更大元素、队列的最大值（LeetCode 剑指 offer 59）。</p></div></details>
+
+      <details class="qa"><summary>二分查找边界模板（lower_bound / upper_bound）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="cm">// 第一个 &gt;= target 的下标；全小于 target 时返回 len(a)</span>
+<span class="kw">func</span> <span class="fn">LowerBound</span>(a []<span class="kw">int</span>, target <span class="kw">int</span>) <span class="kw">int</span> {
+    lo, hi := <span class="num">0</span>, <span class="fn">len</span>(a)               <span class="cm">// 循环不变量：答案一定在 [lo, hi] 内</span>
+    <span class="kw">for</span> lo &lt; hi {
+        mid := lo + (hi-lo)/<span class="num">2</span>          <span class="cm">// 防 (lo+hi) 溢出</span>
+        <span class="kw">if</span> a[mid] &lt; target { lo = mid + <span class="num">1</span> } <span class="kw">else</span> { hi = mid }
+    }
+    <span class="kw">return</span> lo
+}
+
+<span class="cm">// 第一个 &gt; target 的下标（upper_bound）</span>
+<span class="kw">func</span> <span class="fn">UpperBound</span>(a []<span class="kw">int</span>, target <span class="kw">int</span>) <span class="kw">int</span> {
+    lo, hi := <span class="num">0</span>, <span class="fn">len</span>(a)
+    <span class="kw">for</span> lo &lt; hi {
+        mid := lo + (hi-lo)/<span class="num">2</span>
+        <span class="kw">if</span> a[mid] &lt;= target { lo = mid + <span class="num">1</span> } <span class="kw">else</span> { hi = mid }
+    }
+    <span class="kw">return</span> lo
+}</code></pre>
+        <p class="note"><b>要点：</b>① 统一成“左闭右开 + 返回插入位置”，比写 <code>while lo&lt;=hi</code> 的三种变体更不容易错；
+          ② 出现次数 = <code>UpperBound - LowerBound</code>；③ 变形：搜索旋转排序数组、找峰值、二分答案（求最小可行值，如“最小容量”类题）；
+          ④ 先问清“有序是否含重复、找不到返回什么”。</p></div></details>
+
+      <details class="qa"><summary>并查集（Union-Find：路径压缩 + 按秩合并）<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="kw">type</span> DSU <span class="kw">struct</span>{ p, rank []<span class="kw">int</span> }
+
+<span class="kw">func</span> <span class="fn">NewDSU</span>(n <span class="kw">int</span>) *DSU {
+    d := &amp;DSU{p: <span class="fn">make</span>([]<span class="kw">int</span>, n), rank: <span class="fn">make</span>([]<span class="kw">int</span>, n)}
+    <span class="kw">for</span> i := <span class="kw">range</span> d.p { d.p[i] = i }
+    <span class="kw">return</span> d
+}
+
+<span class="kw">func</span> (d *DSU) <span class="fn">Find</span>(x <span class="kw">int</span>) <span class="kw">int</span> {
+    <span class="kw">for</span> d.p[x] != x {
+        d.p[x] = d.p[d.p[x]]     <span class="cm">// 路径压缩：隔代指向祖父</span>
+        x = d.p[x]
+    }
+    <span class="kw">return</span> x
+}
+
+<span class="kw">func</span> (d *DSU) <span class="fn">Union</span>(a, b <span class="kw">int</span>) <span class="kw">bool</span> {
+    ra, rb := d.<span class="fn">Find</span>(a), d.<span class="fn">Find</span>(b)
+    <span class="kw">if</span> ra == rb { <span class="kw">return</span> <span class="kw">false</span> }      <span class="cm">// 已连通 → 这条边构成环</span>
+    <span class="kw">if</span> d.rank[ra] &lt; d.rank[rb] { ra, rb = rb, ra }
+    d.p[rb] = ra
+    <span class="kw">if</span> d.rank[ra] == d.rank[rb] { d.rank[ra]++ }
+    <span class="kw">return</span> <span class="kw">true</span>
+}</code></pre>
+        <p class="note"><b>要点：</b>① 均摊复杂度近似 O(α(n))，几乎常数；② 统计连通分量数 = 所有满足 <code>Find(i)==i</code> 的个数；
+          ③ 场景落到 K8s 语境：判断节点/集群分组、检测依赖成环、Kruskal 最小生成树；④ 需按维度分组时用 <code>map[string]int</code> 做名字到编号的映射。</p></div></details>
+
+      <details class="qa"><summary>合并区间 / 排序扫描模板<span class="lvl">Go</span></summary>
+        <div class="ans"><pre><code><span class="kw">import</span> <span class="st">"sort"</span>
+
+<span class="kw">func</span> <span class="fn">Merge</span>(intervals [][]<span class="kw">int</span>) [][]<span class="kw">int</span> {
+    <span class="kw">if</span> <span class="fn">len</span>(intervals) == <span class="num">0</span> { <span class="kw">return</span> <span class="kw">nil</span> }
+    sort.<span class="fn">Slice</span>(intervals, <span class="kw">func</span>(i, j <span class="kw">int</span>) <span class="kw">bool</span> { <span class="kw">return</span> intervals[i][<span class="num">0</span>] &lt; intervals[j][<span class="num">0</span>] })
+    res := [][]<span class="kw">int</span>{intervals[<span class="num">0</span>]}
+    <span class="kw">for</span> _, cur := <span class="kw">range</span> intervals[<span class="num">1</span>:] {
+        last := res[<span class="fn">len</span>(res)-<span class="num">1</span>]
+        <span class="kw">if</span> cur[<span class="num">0</span>] &lt;= last[<span class="num">1</span>] {              <span class="cm">// 相接也算重叠，按题意确认用 &lt;= 还是 &lt;</span>
+            <span class="kw">if</span> cur[<span class="num">1</span>] &gt; last[<span class="num">1</span>] { res[<span class="fn">len</span>(res)-<span class="num">1</span>][<span class="num">1</span>] = cur[<span class="num">1</span>] }
+        } <span class="kw">else</span> {
+            res = <span class="fn">append</span>(res, cur)
+        }
+    }
+    <span class="kw">return</span> res
+}</code></pre>
+        <p class="note"><b>要点：</b>① 排序后只需和“结果集最后一个区间”比较，O(n log n) 由排序决定；② 边界：空输入、单区间、完全包含、逆序输入；
+          ③ 变形：插入区间（先二分定位再合并）、会议室数量/最大重叠数（最小堆或差分数组）、区间调度（按右端点贪心）。
+          ④ 工程映射：合并任务的时间窗、任务批次合并下发。</p></div></details>
+
+      <h4 class="blk">6.3 模板代码（Python，常被要求更快写）</h4>
+      <details class="qa"><summary>LRU（OrderedDict）/ 并发线程池 / 解析日志<span class="lvl">Py</span></summary>
+        <div class="ans"><pre><code><span class="cm"># LRU：OrderedDict 一步到位</span>
+<span class="kw">from</span> collections <span class="kw">import</span> OrderedDict
+<span class="kw">class</span> <span class="fn">LRU</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, cap): self.cap, self.d = cap, <span class="fn">OrderedDict</span>()
+    <span class="kw">def</span> <span class="fn">get</span>(self, k):
+        <span class="kw">if</span> k <span class="kw">not in</span> self.d: <span class="kw">return</span> -<span class="num">1</span>
+        self.d.<span class="fn">move_to_end</span>(k); <span class="kw">return</span> self.d[k]
+    <span class="kw">def</span> <span class="fn">put</span>(self, k, v):
+        self.d[k] = v; self.d.<span class="fn">move_to_end</span>(k)
+        <span class="kw">if</span> <span class="fn">len</span>(self.d) &gt; self.cap: self.d.<span class="fn">popitem</span>(last=<span class="kw">False</span>)
+
+<span class="cm"># 有界并发：慢任务并发 + 结果保序</span>
+<span class="kw">from</span> concurrent.futures <span class="kw">import</span> ThreadPoolExecutor, as_completed
+<span class="kw">def</span> <span class="fn">run_all</span>(items, fn, workers=<span class="num">8</span>):
+    <span class="kw">with</span> <span class="fn">ThreadPoolExecutor</span>(max_workers=workers) <span class="kw">as</span> ex:
+        futs = {ex.<span class="fn">submit</span>(fn, x): i <span class="kw">for</span> i, x <span class="kw">in</span> <span class="fn">enumerate</span>(items)}
+        out = [<span class="kw">None</span>] * <span class="fn">len</span>(items)
+        <span class="kw">for</span> f <span class="kw">in</span> <span class="fn">as_completed</span>(futs):
+            out[futs[f]] = f.<span class="fn">result</span>()   <span class="cm"># 异常在此抛出，按需捕获</span>
+        <span class="kw">return</span> out
+
+<span class="cm"># 日志/KV 解析：稳健处理缺字段</span>
+<span class="kw">import</span> re
+PAT = re.<span class="fn">compile</span>(r<span class="st">r'task=(\S+)\s+stage=(\w+)\s+ms=([\d.]+)'</span>)
+<span class="kw">def</span> <span class="fn">parse</span>(line):
+    m = PAT.<span class="fn">search</span>(line)
+    <span class="kw">return</span> {<span class="st">'task'</span>: m.<span class="fn">group</span>(<span class="num">1</span>), <span class="st">'stage'</span>: m.<span class="fn">group</span>(<span class="num">2</span>), <span class="st">'ms'</span>: <span class="fn">float</span>(m.<span class="fn">group</span>(<span class="num">3</span>))} <span class="kw">if</span> m <span class="kw">else</span> <span class="kw">None</span></code></pre></div></details>
+
+      <h4 class="blk">6.4 手撕现场通用策略（面试官很吃这套）</h4>
+      <div class="grid c2">
+        <div class="card tight"><b>开场 30 秒</b><ul class="clean">
+          <li>复述题目 + 确认输入输出/边界（空、超大、重复、溢出）。</li>
+          <li>给 1-2 个例子走一遍，再给暴力解与目标复杂度。</li>
+        </ul></div>
+        <div class="card tight"><b>写码中</b><ul class="clean">
+          <li>先说结构再写（数据、主循环、边界处理），命名清晰。</li>
+          <li>并发题主动说：锁粒度、channel 关闭方、取消传播、泄漏风险。</li>
+        </ul></div>
+        <div class="card tight"><b>收尾</b><ul class="clean">
+          <li>用例子手跑一遍；口述复杂度与空间。</li>
+          <li>指出可优化点与在 K8s/分布式场景下的变形。</li>
+        </ul></div>
+        <div class="card tight"><b>常见扣分点</b><ul class="clean">
+          <li>边界不判、并发不加锁/死锁、select 缺 default 或退出条件、goroutine 泄漏、无限循环。</li>
+          <li>只写不说、遇错慌——先把思路讲清再实现。</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <!-- ===================== 07 DESIGN ===================== -->
+    <section id="design">
+      <div class="sec-head"><span class="no">07</span><h3>系统设计题（K8s 方向）</h3><span class="en">System design</span></div>
+      <details class="qa" open><summary>设计：多集群的边缘推理任务调度系统<span class="lvl">设计</span></summary>
+        <div class="ans"><ul>
+          <li><b>需求澄清：</b>任务类型/优先级/时延 SLA、数据合规（不出域）、集群数量与异构（ARM/GPU）、故障域。</li>
+          <li><b>控制面：</b>全局调度服务（无状态多副本 + 选主）+ 每集群 Agent（上报容量/拉取任务）+ 任务队列（分区，按集群/租户）。</li>
+          <li><b>数据面：</b>任务下发为 CRD，由各集群控制器 reconcile（幂等、最终一致）；重活交给 K8s Job/Deployment。</li>
+          <li><b>调度策略：</b>Filter（合规/容量/标签）→ Score（资源、数据本地性、成本、SLA）→ 绑定；支持抢占与重试，指标闭环（排队时长/成功率）。</li>
+          <li><b>可靠性：</b>幂等任务 id、租约防脑裂、断连 Agent 任务回退、PDB 与滚动预算、金丝雀发布。</li>
+          <li><b>可观测：</b>每集群指标 + 全局聚合；SLO：任务 P95 时延、失败率、队列积压；告警按 burn rate。</li>
+        </ul></div></details>
+      <details class="qa"><summary>设计：集群事件采集与自愈（类似 Operator）<span class="lvl">设计</span></summary>
+        <div class="ans"><ul>
+          <li>采集：informer/watch（避免轮询）→ 事件队列 → 去重与聚合 → 规则引擎。</li>
+          <li>动作：基于状态机做修复（如 NotReady 驱逐、Bad Pod 重建、磁盘压力清理），每步可审计、可 dry-run。</li>
+          <li>安全：限速与熔断（防止修复风暴）、分级（建议/自动）、黑名单与人工确认。</li>
+        </ul></div></details>
+      <details class="qa"><summary>Prometheus 指标怎么设计才“可运维”？<span class="lvl">观测</span></summary>
+        <div class="ans"><ul>
+          <li>四类黄金指标：时延（直方图）、流量、错误、饱和度；标签基数是最大成本，避免高基数标签（如 task_id）。</li>
+          <li>任务型系统额外需要：队列长度/排队时长、阶段耗时、重试与失败计数、Pod 就绪数与重启数。</li>
+          <li>告警：基于 SLO 的多窗口 burn rate，避免抖动；仪表盘按“入口→队列→执行→资源”分层。</li>
+        </ul></div></details>
+    </section>
+
+    <!-- ===================== 08 BEHAVIOR ===================== -->
+    <section id="behavior">
+      <div class="sec-head"><span class="no">08</span><h3>行为面与反问</h3><span class="en">Behavior &amp; questions</span></div>
+      <h4 class="blk">8.1 行为面常见题（用 STAR，配项目例子）</h4>
+      <table>
+        <thead><tr><th style="width:220px">问题</th><th>用哪个项目故事</th></tr></thead>
+        <tbody>
+          <tr><td>讲一次你排查过的最难的问题</td><td>故事 1（17s/崩溃循环）或故事 3（负载 0%）</td></tr>
+          <tr><td>你和别人意见不一致怎么办</td><td>架构取舍：是否保留 AlexNet、是否把调度迁到数据中心——用数据与目标对齐</td></tr>
+          <tr><td>项目延期/范围失控</td><td>v3.0 移除 AlexNet：主动砍需求聚焦主线</td></tr>
+          <tr><td>你如何保证质量</td><td>版本记录 + 综合测试 6/6 + 分阶段指标 + 一键 reset 回滚</td></tr>
+          <tr><td>最有成就感的事</td><td>把“看起来在工作其实没生效”的调度改成真正生效（故事 2）</td></tr>
+        </tbody>
+      </table>
+      <h4 class="blk">8.2 反问面试官（挑 3 个）</h4>
+      <div class="card"><ul class="clean">
+        <li>团队目前管理多少个集群？规模（节点/Pod）与主要痛点是什么？</li>
+        <li>实习生会参与到哪些具体方向：调度优化、可观测、自动化运维、还是平台工具开发？</li>
+        <li>团队的技术栈与演进方向：自建 vs 托管 K8s？多集群方案（Karmada/Cluster API）？</li>
+        <li>对新人的期望：第一个月通常交付什么？有没有 mentor 与 code review 文化？</li>
+        <li>上线流程与故障响应：是否有 on-call、变更灰度与回滚机制？</li>
+        <li>如果我有幸加入，建议我提前补哪块知识（内核网络/etcd/Operator/Go）？</li>
+      </ul></div>
+      <div class="callout warn"><b>注意：</b>不要一上来问薪资/加班；先问团队与成长，最后再问转正与待遇。</div>
+    </section>
+
+    <!-- ===================== 09 CHEAT ===================== -->
+    <section id="cheat">
+      <div class="sec-head"><span class="no">09</span><h3>速查与资料</h3><span class="en">Cheat sheet</span></div>
+      <h4 class="blk">9.1 kubectl 排障速查</h4>
+      <pre><code><span class="cm"># 概览</span>
+kubectl get pods -A -o wide                  <span class="cm"># 全局分布/节点</span>
+kubectl get events -A --sort-by=.lastTimestamp | tail -30
+kubectl describe pod &lt;pod&gt;                   <span class="cm"># Events 是根因入口</span>
+
+<span class="cm"># 资源与用量</span>
+kubectl top node / kubectl top pod -A --containers
+kubectl describe node &lt;node&gt; | sed -n '/Allocated resources/,$p'
+
+<span class="cm"># 日志与调试</span>
+kubectl logs &lt;pod&gt; --previous --tail=200
+kubectl exec -it &lt;pod&gt; -- sh
+kubectl debug node/&lt;node&gt; -it --image=busybox
+
+<span class="cm"># 发布与回滚</span>
+kubectl rollout status/history/undo deployment/&lt;name&gt;
+kubectl set image deploy/&lt;name&gt; c=&lt;img&gt;:&lt;tag&gt;
+
+<span class="cm"># 权限与调度</span>
+kubectl auth can-i get deployments -n default
+kubectl explain pod.spec.affinity --recursive | head -40</code></pre>
+
+      <h4 class="blk">9.2 名词与指标速记</h4>
+      <table>
+        <thead><tr><th style="width:210px">名词</th><th>一句话解释</th></tr></thead>
+        <tbody>
+          <tr><td>QoS / requests / limits</td><td>调度看 requests，运行看 limits；QoS 决定驱逐顺序</td></tr>
+          <tr><td>PDB</td><td>PodDisruptionBudget：自愿中断时的可用下限</td></tr>
+          <tr><td>topologySpreadConstraints</td><td>按拓扑域均衡副本，比硬反亲和更灵活</td></tr>
+          <tr><td>CNI / CSI / CRI</td><td>网络/存储/容器运行时三套插件接口</td></tr>
+          <tr><td>Leader Election / Lease</td><td>控制器选主与续租，防多副本脑裂</td></tr>
+          <tr><td>Golden Signals</td><td>Latency/Traffic/Errors/Saturation</td></tr>
+          <tr><td>Burn Rate</td><td>错误预算消耗速率，用于多窗口告警</td></tr>
+          <tr><td>RTO / RPO</td><td>恢复时间目标 / 数据丢失容忍点（备份设计核心指标）</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">9.3 项目可量化亮点（背 6 条）</h4>
+      <div class="grid c2">
+        <div class="card tight"><b>1.</b> 镜像 3GB → 550MB 级别（CPU-only + 多阶段构建）。</div>
+        <div class="card tight"><b>2.</b> /tasks/stats 17s → 0.55s（终态剥离大 input + 接口瘦身 + 降频）。</div>
+        <div class="card tight"><b>3.</b> 四类任务综合测试 <b>6/6 通过</b>（含 clinic 转诊、P2P 同步、一次性 Job）。</div>
+        <div class="card tight"><b>4.</b> scheduler 崩溃循环定位并修复，长期 <b>0 重启</b>。</div>
+        <div class="card tight"><b>5.</b> 调度语义修正：从“元数据假调度”到按实体 Pod 路由，任务真正落到目标医院/诊所。</div>
+        <div class="card tight"><b>6.</b> 完整交付 v3.0 正式版：逻辑架构视图 + 执行轨迹地图 + 集群编辑器 + 一键重置。</div>
+      </div>
+
+      <h4 class="blk">9.4 复习资料清单（19 组 / 36 条链接，均已实测）</h4>
+      <p class="note">按“优先级从高到低”排列：先吃透官方文档与真实面经，再用题库与源码仓库查漏。</p>
+
+      <ul class="clean">
+        <li><a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/" target="_blank" rel="noopener">Pod 生命周期（官方）</a>
+          —— 阶段、容器状态与重启策略的权威定义，讲探针/终止流程前先过一遍术语。</li>
+        <li><a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/" target="_blank" rel="noopener">配置 liveness / readiness / startup 探针（官方）</a>
+          —— 本项目 scheduler 崩溃循环（探针打业务端口）的根因就在这份文档的语义里。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/" target="_blank" rel="noopener">调度框架 Scheduling Framework（官方）</a>
+          —— Filter/Score/Reserve/Bind 与全部扩展点，回答“怎么扩展调度器”的底稿。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/" target="_blank" rel="noopener">亲和与反亲和、拓扑分布（官方）</a>
+          —— nodeAffinity / podAntiAffinity / topologySpreadConstraints 的取舍依据。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener">Deployment 与滚动更新（官方）</a>
+          —— maxSurge/maxUnavailable 与回滚机制，配合本项目“反亲和 + 滚动更新死锁”故事使用。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/services-networking/service/" target="_blank" rel="noopener">Service 与 kube-proxy（官方）</a>
+          —— ClusterIP/NodePort/Headless 与转发模式，回答“请求到底打到哪个 Pod”。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/" target="_blank" rel="noopener">PV / PVC（官方）</a>
+          —— 绑定、访问模式与回收策略，PVC Pending 排查的知识底座。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/" target="_blank" rel="noopener">requests / limits 与 QoS（官方）</a>
+          —— 调度看 requests、运行看 limits，以及三种 QoS 的判定规则。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/architecture/nodes/" target="_blank" rel="noopener">节点管理（官方）</a>
+          —— 节点状态、心跳与驱逐条件，回答“NotReady 之后 Pod 会怎样”。</li>
+        <li><a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/" target="_blank" rel="noopener">RBAC 参考（官方）</a>
+          —— Role/ClusterRole/Binding 三要素与“只增不减”的规则语义。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/security/rbac-good-practices/" target="_blank" rel="noopener">RBAC 最佳实践（官方）</a>
+          —— 最小权限落地清单，回答 default SA 风险时的加分材料。</li>
+        <li><a href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/" target="_blank" rel="noopener">容器运行时 containerd（官方）</a>
+          —— kubelet → CRI → containerd → runc 的调用链与 dockershim 移除背景。</li>
+        <li><a href="https://kubernetes.io/docs/concepts/extend-kubernetes/operator/" target="_blank" rel="noopener">Operator 模式（官方）</a>
+          —— CRD + 控制器 + reconcile 的官方定义，用于回答“如果重做会怎么设计”。</li>
+        <li><a href="https://kubernetes.io/docs/tasks/debug/" target="_blank" rel="noopener">排障总入口（官方）</a> ／
+          <a href="https://kubernetes.io/docs/reference/kubectl/quick-reference/" target="_blank" rel="noopener">kubectl 速查表（官方）</a>
+          —— 面试前 10 分钟只看这两页，比背零散命令更划算。</li>
+        <li><a href="https://github.com/bregman-arie/devops-sre-interviews/blob/main/interviews/kubernetes/advanced/mock_1_questions.md" target="_blank" rel="noopener">devops-sre-interviews · K8s advanced mock</a>
+          —— 带答案的模拟面试题（etcd 备份/CSI/WaitForFirstConsumer 等来源就在此），适合自测打分。</li>
+        <li><a href="https://github.com/bregman-arie/devops-exercises" target="_blank" rel="noopener">devops-exercises</a> ／
+          <a href="https://github.com/dgkanatsios/CKAD-exercises" target="_blank" rel="noopener">CKAD-exercises</a> ／
+          <a href="https://github.com/kubernetes-sigs/scheduler-plugins" target="_blank" rel="noopener">scheduler-plugins</a> ／
+          <a href="https://github.com/ramitsurana/awesome-kubernetes" target="_blank" rel="noopener">awesome-kubernetes</a>
+          —— 题量最大 / 动手练 kubectl / 调度插件源码 / 资料索引，按需取用。</li>
+        <li><a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%BA%8C%E9%9D%A2/" target="_blank" rel="noopener">MiniMax AI Infra 实习二面面经</a> ／
+          <a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%B8%80%E9%9D%A2-2/" target="_blank" rel="noopener">实习一面（2）</a> ／
+          <a href="https://caomaolufei.github.io/AIInfraGuide/" target="_blank" rel="noopener">AIInfraGuide 面经目录</a>
+          —— 三段式流程与“滑动窗口最大值”代码题的唯一直接来源，面试前必看原文。</li>
+        <li><a href="https://www.nowcoder.com/discuss/353157519931547648" target="_blank" rel="noopener">阿里云云原生实习三轮面经（牛客）</a> ／
+          <a href="https://www.nowcoder.com/discuss/353159323293523968" target="_blank" rel="noopener">K8s 面试 40 题（牛客）</a> ／
+          <a href="https://developer.aliyun.com/article/1321832" target="_blank" rel="noopener">21 道题帮你拿捏 Kubernetes 面试（阿里云）</a> ／
+          <a href="https://cloud.tencent.cn/developer/article/2503899" target="_blank" rel="noopener">K8s 高频面试题（腾讯云）</a> ／
+          <a href="https://cloud.tencent.cn/developer/article/2571263" target="_blank" rel="noopener">SRE 面试对照表（腾讯云）</a>
+          —— 真实面试官问法与题型风格参照（含“kubectl 更新时内部发生了什么”这类源码级追问）。</li>
+        <li><a href="https://dbaplus.cn/news-134-7164-1.html" target="_blank" rel="noopener">这条排查路径能解决 99% 的 K8s 故障</a> ／
+          <a href="https://www.cnblogs.com/wgwyanfs/p/19963600" target="_blank" rel="noopener">2026 云计算面试核心指南</a> ／
+          <a href="https://cloud.tencent.cn/developer/article/2499890" target="_blank" rel="noopener">Flannel vs Calico</a> ／
+          <a href="https://www.cnblogs.com/beatle-go/p/17926772.html" target="_blank" rel="noopener">Go 常见限流算法代码</a> ／
+          <a href="https://prometheus.io/docs/introduction/overview/" target="_blank" rel="noopener">Prometheus 官方文档</a> ／
+          <a href="https://etcd.io/docs/v3.5/op-guide/monitoring/" target="_blank" rel="noopener">etcd 监控文档</a> ／
+          <a href="https://leetcode.com/discuss/post/6321735/coding-related-questions-commonly-asked-2irkg/" target="_blank" rel="noopener">DevOps 编程题合集（LeetCode discuss）</a>
+          —— 排障路径、面试指南、网络选型、限流代码、监控与 etcd 指标、运维手撕题（Bash/Dockerfile/YAML）的各一条主线来源。</li>
+      </ul>
+
+      <div class="callout"><b>资料可信度说明（照抄报告原文结论）：</b>
+        <ul class="clean">
+          <li>报告内 <b>42 个链接全部实测</b>：其中 <b>41 个返回 HTTP 200</b>；
+            唯一例外是 LeetCode discuss 的 DevOps 编程题帖（对 curl 返回 <span class="mono">403</span> 反爬，正文已通过 r.jina.ai 提取核实，<b>浏览器可正常打开</b>）。</li>
+          <li>检索中出现但<b>无法访问</b>的 SEO 站点 <span class="mono">datasea.cn</span> <b>已剔除</b>，本手册不再引用。</li>
+          <li>官方招聘入口 <a href="https://vrfi1sk8a0.jobs.feishu.cn/275376/position/" target="_blank" rel="noopener">加入 MiniMax</a> 为 JS 渲染页面，<b>未能抓取 JD 正文</b>；
+            报告明确<b>未找到</b>「K8s 集群管理实习生」岗位的面经——本手册因此以“通用 K8s 题库 + MiniMax AI Infra 三段式流程”为主干。</li>
+          <li>牛客/知乎正文多为 JS 空壳（部分经 r.jina.ai 提取成功）；neituya.com 本次不可达。凡标 <b>⚠️</b> 的条目都是<b>通用经验或推断、无特定来源</b>，请勿当作事实引用。</li>
+        </ul>
+      </div>
+
+      <footer>
+        面试准备手册 · 基于仓库真实版本记录与重构过程整理 ·
+        项目路径：PengchengMedicalModel-DistributedInference（v3.0.9 正式版）
+      </footer>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ---------- TOC 高亮 ---------- */
+const links = [...document.querySelectorAll('#toc a')];
+const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+const io = new IntersectionObserver((es) => {
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
+    }
+  });
+}, { rootMargin: '-15% 0px -75% 0px' });
+secs.forEach(s => io.observe(s));
+
+/* ---------- 展开 / 收起 ---------- */
+document.getElementById('expandAll').onclick = () =>
+  document.querySelectorAll('details.qa').forEach(d => d.open = true);
+document.getElementById('collapseAll').onclick = () =>
+  document.querySelectorAll('details.qa').forEach(d => d.open = false);
+
+/* ---------- 搜索过滤（按题目文本） ---------- */
+const input = document.getElementById('q');
+const counter = document.getElementById('counter');
+const allQA = [...document.querySelectorAll('details.qa')];
+function apply() {
+  const kw = input.value.trim().toLowerCase();
+  let hits = 0;
+  allQA.forEach(d => {
+    const txt = d.textContent.toLowerCase();
+    const ok = !kw || txt.includes(kw);
+    d.classList.toggle('hide', !ok);
+    if (ok) hits++;
+    if (kw && ok) d.open = true;
+  });
+  document.querySelectorAll('.qgroup').forEach(g => {
+    const any = [...g.querySelectorAll('details.qa')].some(d => !d.classList.contains('hide'));
+    g.classList.toggle('hide', !any);
+  });
+  counter.textContent = kw ? `匹配 ${hits} / ${allQA.length} 题` : `共 ${allQA.length} 题`;
+}
+input.addEventListener('input', apply);
+apply();
+
+/* ---------- 打印时展开全部 ---------- */
+window.addEventListener('beforeprint', () => allQA.forEach(d => d.open = true));
+</script>
+</body>
+</html>
