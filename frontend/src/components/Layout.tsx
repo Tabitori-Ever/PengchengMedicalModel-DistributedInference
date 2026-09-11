@@ -13,12 +13,12 @@ function Monogram() {
 }
 
 const NAV = [
-  { to: '/', no: '01', label: '总览', en: 'OVERVIEW' },
-  { to: '/architecture', no: '02', label: '实时架构', en: 'ARCHITECTURE' },
-  { to: '/submit', no: '03', label: '任务提交', en: 'SUBMIT' },
-  { to: '/history', no: '04', label: '任务记录', en: 'RECORDS' },
-  { to: '/test', no: '05', label: '综合测试', en: 'TEST SUITE' },
-  { to: '/cluster', no: '06', label: '集群编排', en: 'CLUSTER' },
+  { to: '/', no: '01', label: '总览' },
+  { to: '/architecture', no: '02', label: '实时架构' },
+  { to: '/submit', no: '03', label: '任务提交' },
+  { to: '/history', no: '04', label: '任务记录' },
+  { to: '/test', no: '05', label: '综合测试' },
+  { to: '/cluster', no: '06', label: '集群编排' },
 ];
 
 export default function Layout() {
@@ -30,12 +30,12 @@ export default function Layout() {
           <Monogram />
           <div className="brand-text">
             <div className="brand-name">云边端协同推理</div>
-            <div className="brand-caption">EDGE · CLOUD INFERENCE</div>
+            <div className="brand-caption">云边端协同推理平台</div>
           </div>
         </div>
 
         <div className="nav-rule">
-          <span className="eyebrow">控制台 · CONSOLE</span>
+          <span className="eyebrow">控制台</span>
         </div>
 
         <nav className="nav">
@@ -47,7 +47,6 @@ export default function Layout() {
             >
               <span className="nav-no mono">{n.no}</span>
               <span className="nav-label">{n.label}</span>
-              <span className="nav-en mono">{n.en}</span>
             </NavLink>
           ))}
         </nav>
@@ -58,7 +57,7 @@ export default function Layout() {
             数据不出院 · 算力云端化
           </div>
           <div className="foot-ver mono">v3.0 · 四类任务编排</div>
-          <div className="foot-meta mono">K8S · 4 NODES · 2 EDGE / 1 DC / 1 CONTROL</div>
+          <div className="foot-meta mono">K8S 集群 · 2 边 / 1 云 / 1 控制面</div>
         </div>
       </aside>
       <main className="content">

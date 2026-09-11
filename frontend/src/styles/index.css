@@ -2789,3 +2789,36 @@ h4.sub-title { color: var(--ink); }
 
 /* 面板编号已移除：该规则仅为兼容旧标记保留，不再被渲染 */
 .lm-panel-no { display: none; }
+
+/* ==========================================================================
+   导航与轨迹图 · 中文文案与字号调整（append-only）
+   侧栏移除英文注记并放大文字；轨迹图区块标题、层标签、图例与模式标签全部中文；
+   层标签与云数据中心标题的中文不再使用英文式大字距。
+   ========================================================================== */
+.sidebar { width: 252px; }
+.brand-name { font-size: 18.5px; letter-spacing: 0.05em; }
+.brand-caption { font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.16em; color: var(--brass-2); margin-top: 3px; }
+.nav-item { grid-template-columns: 28px 1fr; padding: 9px 18px; }
+.nav-no { font-size: 10.5px; }
+.nav-label { font-size: 16px; letter-spacing: 0.06em; }
+.sidebar-foot { font-size: 13px; line-height: 1.7; }
+.foot-ver { font-size: 12px; }
+.foot-meta { font-size: 11.5px; letter-spacing: 0.08em; }
+.nav-rule .eyebrow { font-size: 11px; }
+
+/* 层标签 / 面板标题改为中文后收紧字距（原为英文大字距） */
+.tm-tier { font-size: 11px; letter-spacing: 0.14em; }
+.tm-dc-title { font-size: 10.5px; letter-spacing: 0.14em; }
+.tm-node-cap { font-size: 8.5px; letter-spacing: 0.02em; }
+.tm-loop { font-size: 9.5px; letter-spacing: 0.1em; }
+.tm-tl-mode { font-size: 9.5px; letter-spacing: 0.08em; }
+
+/* 节点资源小框（ClusterOverviewMap 右侧栏） */
+.lm-panel.resource .lm-panel-bg { fill: rgba(8, 10, 8, 0.022); stroke: rgba(8, 10, 8, 0.16); }
+.lm-panel.resource .lm-panel-bar { fill: var(--grey-3); }
+.lm-res-name { font-family: var(--mono); font-size: 11px; font-weight: 500; fill: var(--ink); }
+.lm-res-role { font-size: 8.5px; fill: var(--grey-2); letter-spacing: 0.06em; }
+
+/* 日常任务 Job 伪节点：图标与两行文字重新排布，避免互相压字 */
+.tm-node.job .tm-node-name { font-size: 11px; }
+.tm-node.job .tm-node-cap { font-size: 8px; }

@@ -2,11 +2,11 @@ import { useMemo } from 'react';
 import type {
   ClusterStatus, ClusterSummary, EntityLive, HealthMap, NodeInfo, PodInfo,
 } from '../types';
-import { fmtPct, healthDetail, healthState, loadColor } from '../utils';
+import { fmtPct, healthDetail, healthState, loadColor, nodeRoleLabel } from '../utils';
 import { iconShapes, type IconKind } from './TaskTrajectoryMap';
 
 /* ===========================================================================
-   当前集群架构总览 · LIVE CLUSTER OVERVIEW —— 逻辑架构视图
+   当前集群架构总览 —— 逻辑架构视图
 
    Bottom-to-top logical groups (Chinese-only vocabulary):
 
@@ -41,6 +41,9 @@ const LANE_UP = 28;
 const LANE_DOWN = 52;
 const MEDAL_R = 18;
 const TEXT_X = 46;
+/** 节点资源 小框（右侧栏，运维面板下方） */
+const RES_ROW_H = 42;
+const RES_ORDER = ['desktop-jm5iec6', 'node1', 'node2', 'node3'];
 
 interface Box { x1: number; y1: number; x2: number; y2: number }
 interface Rect { x: number; y: number; w: number; h: number }
@@ -61,15 +64,30 @@ interface Tile {
   caption: string;
   node?: string | null;
   state: TileState;
-  load?: { cpu: number; mem: number } | null;
   rect: Rect;
+}
+
+/** one line of the 节点资源 box */
+interface ResRow {
+  name: string;
+  role: string;
+  cpu: number;
+  mem: number;
+  known: boolean;
+  y: number;
+}
+
+interface ResBox {
+  rect: Rect;
+  title: string;
+  summary: string;
+  rows: ResRow[];
 }
 
 interface Panel {
   key: 'cloud' | 'edge' | 'terminal' | 'ops';
   title: string;
   summary: string;
-  load?: { cpu: number; mem: number } | null;
   rect: Rect;
   tiles: Tile[];
 }
@@ -87,6 +105,7 @@ interface Link {
 
 interface Layout {
   panels: Panel[];
+  resources: ResBox;
   links: Link[];
   height: number;
 }
@@ -303,7 +322,6 @@ function buildLayout(
     caption: spec.caption,
     node: 'node3',
     state: healthTone(lookupHealth(health, spec.keys)),
-    load: null,
     rect: {
       x: PANEL_X + PAD + i * (cloudW + COL_GAP),
       y: cloudRowY,
@@ -316,7 +334,6 @@ function buildLayout(
     key: 'cloud',
     title: '云数据中心',
     summary: `${cloudTiles.length} 个组件 · 就绪 ${cloudOk}`,
-    load: loadOf(nodeOf('node3', nodes)),
     rect: cloudRect,
     tiles: cloudTiles,
   });
@@ -371,7 +388,6 @@ function buildLayout(
     state: it.pods.length
       ? podTone(it.pods)
       : { tone: 'unknown', text: '可选', detail: '可选部署，未上报' },
-    load: null,
     rect: {
       x: opsRect.x + PAD,
       y: opsRect.y + HEADER_H + i * (TILE_H_SM + 8),
@@ -383,8 +399,7 @@ function buildLayout(
   panels.push({
     key: 'ops',
     title: '运维',
-    summary: `${opsTiles.length} 个组件 · 就绪 ${opsOk} · desktop`,
-    load: null,
+    summary: `${opsTiles.length} 个组件 · 就绪 ${opsOk}`,
     rect: opsRect,
     tiles: opsTiles,
   });
@@ -418,7 +433,6 @@ function buildLayout(
       caption: it.caption,
       node: it.node,
       state: podTone(it.pods),
-      load: loadOf(nodeOf(it.node, nodes)),
       rect: {
         x: rect.x + PAD + (i % 2) * (colW + COL_GAP),
         y: top + HEADER_H + Math.floor(i / 2) * (TILE_H + ROW_GAP),
@@ -433,7 +447,6 @@ function buildLayout(
         key,
         title,
         summary: `${items.length} 个实体 · 就绪 ${ready}/${total}`,
-        load: null,
         rect,
         tiles,
       },
@@ -441,11 +454,45 @@ function buildLayout(
     };
   };
 
+  // ---- 节点资源（集中展示，避免在每个实体上重复） -------------------------
+  const nodeByName: Record<string, NodeInfo> = {};
+  nodes.forEach((n) => { if (n?.name) nodeByName[n.name] = n; });
+  const resNames = [
+    ...RES_ORDER.filter((n) => !!nodeByName[n]),
+    ...nodes.map((n) => n.name).filter((n) => !RES_ORDER.includes(n)),
+  ];
+  const shownNames = resNames.length ? resNames : RES_ORDER;
+  const resRect: Rect = {
+    x: OPS_X,
+    y: opsRect.y + opsRect.h + 18,
+    w: OPS_W,
+    h: HEADER_H + shownNames.length * RES_ROW_H + PAD,
+  };
+  const resRows: ResRow[] = shownNames.map((name, i) => {
+    const n = nodeByName[name];
+    const role = nodeRoleLabel(n?.role, name).zh;
+    const load = loadOf(n);
+    return {
+      name,
+      role,
+      cpu: load ? load.cpu : 0,
+      mem: load ? load.mem : 0,
+      known: !!load,
+      y: resRect.y + HEADER_H + i * RES_ROW_H,
+    };
+  });
+  const resources: ResBox = {
+    rect: resRect,
+    title: '节点资源',
+    summary: `${shownNames.length} 个节点 · 就绪 ${resRows.filter((r) => nodeByName[r.name]?.ready).length}`,
+    rows: resRows,
+  };
+
   const edge = placeGroup('edge', '医院 · 边', entitiesOf(status, 'hospital'), cloudBottom + GUTTER);
   panels.push(edge.panel);
   const term = placeGroup('terminal', '诊所 · 端', entitiesOf(status, 'clinic'), edge.bottom + GUTTER);
   panels.push(term.panel);
-  const height = term.bottom + BOTTOM_PAD;
+  const height = Math.max(term.bottom, resRect.y + resRect.h) + BOTTOM_PAD;
 
   // ---- group relations (all routed through box-free gutters) --------------
   const edgeTopY = edge.panel.rect.y;
@@ -493,60 +540,27 @@ function buildLayout(
     arrow: true,
   });
 
-  // 转诊: 诊所 → 医院 (same host node preferred), dotted
-  const hospitals = edge.panel.tiles;
-  const used = new Set<string>();
-  const pairs: { from: Tile; to: Tile; row: number }[] = [];
-  term.panel.tiles.forEach((c) => {
-    const sameNode = hospitals.find((t) => t.node && c.node && t.node === c.node && !used.has(t.id));
-    const byIndex = hospitals[pairs.length % Math.max(1, hospitals.length)];
-    const to = sameNode || byIndex;
-    if (to) used.add(to.id);
-    if (to) pairs.push({ from: c, to, row: pairs.length });
-  });
-  const colW2 = (PANEL_W - 2 * PAD - COL_GAP) / 2;
-  const gutter2Mid = (edge.bottom + termTopY) / 2;
-  let channelled = 0;
-  pairs.forEach((p) => {
-    const fromX = p.from.rect.x + p.from.rect.w / 2;
-    const fromMid = p.from.rect.y + p.from.rect.h / 2;
-    const toMid = p.to.rect.y + p.to.rect.h / 2;
-    const fromRow = Math.round((p.from.rect.y - (termTopY + HEADER_H)) / (TILE_H + ROW_GAP));
-    const toCol = Math.round((p.to.rect.x - (PANEL_X + PAD)) / (colW2 + COL_GAP));
-    const direct = Math.abs(fromX - (p.to.rect.x + p.to.rect.w / 2)) < 1 && fromRow === 0;
-    let pts: Pt[];
-    let hint: Link['labelHint'];
-    if (direct) {
-      pts = [{ x: fromX, y: p.from.rect.y }, { x: fromX, y: p.to.rect.y + p.to.rect.h }];
-    } else {
-      const chanX = toCol === 0
-        ? PANEL_X + 10 - (p.row % 2) * 4
-        : PANEL_X + PANEL_W - 10 - (p.row % 2) * 4;
-      const startX = chanX > fromX ? p.from.rect.x + p.from.rect.w : p.from.rect.x;
-      const endX = chanX > p.to.rect.x + p.to.rect.w / 2 ? p.to.rect.x + p.to.rect.w : p.to.rect.x;
-      pts = [
-        { x: startX, y: fromMid },
-        { x: chanX, y: fromMid },
-        { x: chanX, y: toMid },
-        { x: endX, y: toMid },
-      ];
-      hint = { x: 84 + channelled * 70, y: gutter2Mid - 10 + (channelled % 2) * 15, anchor: 'start' };
-      channelled += 1;
-    }
+  // 转诊: one group-level dotted indicator between 诊所 · 端 and 医院 · 边
+  // (added clinic-N entities never add another line)
+  {
+    const refX = PANEL_X + PANEL_W / 2;
     links.push({
-      id: `referral-${p.from.id}`,
-      d: polyline(pts),
+      id: 'referral',
+      d: polyline([{ x: refX, y: termTopY }, { x: refX, y: edge.bottom }]),
       dotted: true,
       arrow: true,
       label: '转诊',
-      labelHint: hint,
     });
-  });
+  }
 
   // ---- labels last, against panels + tiles + already placed labels -------
   panels.forEach((p) => {
     avoid.push({ x1: p.rect.x - 2, y1: p.rect.y - 2, x2: p.rect.x + p.rect.w + 2, y2: p.rect.y + p.rect.h + 2 });
     p.tiles.forEach((t) => avoid.push(tileBox(t.rect)));
+  });
+  avoid.push({
+    x1: resources.rect.x - 2, y1: resources.rect.y - 2,
+    x2: resources.rect.x + resources.rect.w + 2, y2: resources.rect.y + resources.rect.h + 2,
   });
   links.forEach((l) => {
     if (!l.label) return;
@@ -570,7 +584,7 @@ function buildLayout(
     avoid.push(placed.box);
   });
 
-  return { panels, links, height };
+  return { panels, resources, links, height };
 }
 
 /* ---------------------------------------------------------------- component */
@@ -594,7 +608,7 @@ export default function ClusterOverviewMap({
   return (
     <section className="card lmap">
       <div className="card-headrow">
-        <h3 className="card-title">当前集群架构总览 · LIVE CLUSTER OVERVIEW</h3>
+        <h3 className="card-title">当前集群架构总览</h3>
         <span className="muted xs mono">
           {status?.version ? `v${status.version}` : '—'}
           <i className="arch-meta-sep">·</i>
@@ -660,41 +674,6 @@ export default function ClusterOverviewMap({
                 <rect className="lm-panel-bar" x={p.rect.x} y={p.rect.y} width="3" height={p.rect.h} />
                 <text className="lm-panel-title" x={p.rect.x + 16} y={p.rect.y + 23}>{p.title}</text>
                 <text className="lm-panel-sum mono" x={p.rect.x + 16} y={p.rect.y + 41}>{p.summary}</text>
-                {p.load && (() => {
-                  const lx = headerLoadX(p.rect);
-                  const ly = p.rect.y + 41;
-                  return (
-                    <g className="lm-panel-load">
-                      <text className="lm-load-k" x={lx} y={ly}>node3</text>
-                      <text className="lm-load-k" x={lx + 34} y={ly}>CPU</text>
-                      <text className="lm-load-v mono" x={lx + 82} y={ly} textAnchor="end">
-                        {fmtPct(p.load.cpu)}
-                      </text>
-                      <rect className="lm-bar-bg" x={lx + 92} y={ly - 5} width="70" height="3" />
-                      <rect
-                        className="lm-bar-fill"
-                        x={lx + 92}
-                        y={ly - 5}
-                        width={70 * p.load.cpu}
-                        height="3"
-                        fill={loadColor(p.load.cpu)}
-                      />
-                      <text className="lm-load-k" x={lx + 172} y={ly}>内存</text>
-                      <text className="lm-load-v mono" x={lx + 232} y={ly} textAnchor="end">
-                        {fmtPct(p.load.mem)}
-                      </text>
-                      <rect className="lm-bar-bg" x={lx + 242} y={ly - 5} width="70" height="3" />
-                      <rect
-                        className="lm-bar-fill"
-                        x={lx + 242}
-                        y={ly - 5}
-                        width={70 * p.load.mem}
-                        height="3"
-                        fill={loadColor(p.load.mem)}
-                      />
-                    </g>
-                  );
-                })()}
                 <line
                   className="lm-panel-rule"
                   x1={p.rect.x + 14}
@@ -704,6 +683,87 @@ export default function ClusterOverviewMap({
                 />
               </g>
             ))}
+          </g>
+
+          <g className="lm-panel resource">
+            <rect
+              className="lm-panel-bg"
+              x={layout.resources.rect.x}
+              y={layout.resources.rect.y}
+              width={layout.resources.rect.w}
+              height={layout.resources.rect.h}
+              rx="3"
+            />
+            <rect
+              className="lm-panel-bar"
+              x={layout.resources.rect.x}
+              y={layout.resources.rect.y}
+              width="3"
+              height={layout.resources.rect.h}
+            />
+            <text
+              className="lm-panel-title"
+              x={layout.resources.rect.x + 16}
+              y={layout.resources.rect.y + 23}
+            >
+              {layout.resources.title}
+            </text>
+            <text
+              className="lm-panel-sum mono"
+              x={layout.resources.rect.x + 16}
+              y={layout.resources.rect.y + 41}
+            >
+              {layout.resources.summary}
+            </text>
+            <line
+              className="lm-panel-rule"
+              x1={layout.resources.rect.x + 14}
+              y1={layout.resources.rect.y + HEADER_H - 3}
+              x2={layout.resources.rect.x + layout.resources.rect.w - 14}
+              y2={layout.resources.rect.y + HEADER_H - 3}
+            />
+            {layout.resources.rows.map((row) => {
+              const x0 = layout.resources.rect.x + 16;
+              return (
+                <g className="lm-res-row" key={row.name}>
+                  <text className="lm-res-name" x={x0} y={row.y + 15}>{row.name}</text>
+                  <text
+                    className="lm-res-role"
+                    x={layout.resources.rect.x + layout.resources.rect.w - 16}
+                    y={row.y + 15}
+                    textAnchor="end"
+                  >
+                    {row.role}
+                  </text>
+                  <text className="lm-load-k" x={x0} y={row.y + 32}>CPU</text>
+                  <text className="lm-load-v mono" x={x0 + 58} y={row.y + 32} textAnchor="end">
+                    {row.known ? fmtPct(row.cpu) : '—'}
+                  </text>
+                  <rect className="lm-bar-bg" x={x0 + 64} y={row.y + 27} width="30" height="3" />
+                  <rect
+                    className="lm-bar-fill"
+                    x={x0 + 64}
+                    y={row.y + 27}
+                    width={30 * row.cpu}
+                    height="3"
+                    fill={loadColor(row.cpu)}
+                  />
+                  <text className="lm-load-k" x={x0 + 104} y={row.y + 32}>内存</text>
+                  <text className="lm-load-v mono" x={x0 + 164} y={row.y + 32} textAnchor="end">
+                    {row.known ? fmtPct(row.mem) : '—'}
+                  </text>
+                  <rect className="lm-bar-bg" x={x0 + 170} y={row.y + 27} width="28" height="3" />
+                  <rect
+                    className="lm-bar-fill"
+                    x={x0 + 170}
+                    y={row.y + 27}
+                    width={28 * row.mem}
+                    height="3"
+                    fill={loadColor(row.mem)}
+                  />
+                </g>
+              );
+            })}
           </g>
 
           <g className="lm-links">
@@ -747,36 +807,6 @@ export default function ClusterOverviewMap({
                   </text>
                   <circle className={`lm-dot ${t.state.tone}`} cx={tx + 3} cy={stateY - 4} r="3.2" />
                   <text className="lm-state" x={tx + 12} y={stateY}>{t.state.text}</text>
-                  {t.load && !compact && (
-                    <g className="lm-load">
-                      <text className="lm-load-k" x={right - 190} y={stateY} textAnchor="end">CPU</text>
-                      <text className="lm-load-v mono" x={right - 158} y={stateY} textAnchor="end">
-                        {fmtPct(t.load.cpu)}
-                      </text>
-                      <rect className="lm-bar-bg" x={right - 150} y={stateY - 5} width="34" height="3" />
-                      <rect
-                        className="lm-bar-fill"
-                        x={right - 150}
-                        y={stateY - 5}
-                        width={34 * t.load.cpu}
-                        height="3"
-                        fill={loadColor(t.load.cpu)}
-                      />
-                      <text className="lm-load-k" x={right - 92} y={stateY} textAnchor="end">内存</text>
-                      <text className="lm-load-v mono" x={right - 60} y={stateY} textAnchor="end">
-                        {fmtPct(t.load.mem)}
-                      </text>
-                      <rect className="lm-bar-bg" x={right - 52} y={stateY - 5} width="34" height="3" />
-                      <rect
-                        className="lm-bar-fill"
-                        x={right - 52}
-                        y={stateY - 5}
-                        width={34 * t.load.mem}
-                        height="3"
-                        fill={loadColor(t.load.mem)}
-                      />
-                    </g>
-                  )}
                 </g>
               );
             }))}

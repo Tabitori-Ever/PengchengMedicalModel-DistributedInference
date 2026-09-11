@@ -1,30 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ModelKind, TaskItem } from '../types';
 import {
-  MODEL_COLOR, MODEL_EN, MODEL_LABEL, MODELS, SOURCE_ROLE, STATUS_LABEL, fmtMs,
+  MODEL_COLOR, MODEL_LABEL, MODELS, SOURCE_ROLE, STATUS_LABEL, fmtMs,
 } from '../utils';
 
 /* ===========================================================================
-   任务执行轨迹 · TASK TRAJECTORY MAP
+   任务执行轨迹（逻辑架构视图的配套地图）
 
-   A three-tier schematic (云 CLOUD / 边 EDGE / 端 TERMINAL) that draws the
-   canonical execution flow of the selected task kind as faint "unrelated"
-   lines and then walks the concrete execution path of one real task **in time
-   order**: an ordered step timeline (built from the task payload) drives a
-   cursor, and every node / edge is painted with one of four sequential states
+   云数据中心 / 医院 · 边 / 诊所 · 端 三层示意图：先以极淡的“无关”线画出同类任务的
+   标准执行路径，再按时间顺序走一遍某个真实任务的具体执行链路 —— 由任务数据推导出的
+   有序步骤时间轴驱动游标，每个节点/连线只处于四种状态之一：
 
-     已执行 past       – solid brass, animated dash flow
-     当前   current    – orange, pulsing ring, travelling dot
-     待执行 pending    – very faint grey dashed
-     无关   unrelated  – faintest grey (not part of this task at all)
+     已执行 – 中性灰实线
+     当前   – 橙色高亮（脉冲光圈 + 流动光点）
+     待执行 – 更淡的灰色虚线
+     无关   – 最淡灰，与本任务无关
 
-   The cursor either follows the live `stage` of a running task, stops on the
-   failing step of a failed task, or auto-plays once through a finished task
-   (~900 ms per step, ~1.2 s dwell on the last one).
+   游标跟随运行中任务的实时阶段，停在失败任务的出错步骤上，或对已完成任务自动循环播放
+   （每步 2.5 s，末步停留 3 s 后回到第一步）。
 
-   Everything is plain inline SVG + CSS (dash-offset keyframes, SMIL
-   animateMotion for the travelling dot). No data is fetched here: tasks are
-   handed down by ArchitecturePage, which polls api.listTasks() on its ticker.
+   全部为内联 SVG + CSS（虚线偏移关键帧、SMIL animateMotion 流动光点）；组件内部不取数，
+   任务由 ArchitecturePage 轮询 api.listTasks() 后以 props 传入。
    =========================================================================== */
 
 // ---------------------------------------------------------------------------
@@ -54,8 +50,8 @@ const NODE_BOX: Record<string, Box> = {
 };
 
 /**
- * Routine-only pseudo nodes: one dashed "Job pod" circle per edge node that
- * actually ran a一次性 Job (the scheduler only ever picks node1 / node2).
+ * 日常任务专用伪节点：每个真正跑过一次性 Job 的边缘节点一个虚线圆
+ * （调度器只会在 node1 / node2 上创建 Job）。
  * The circle slot is keyed by the Kubernetes node name, so several Jobs on the
  * same node collapse onto one pseudo node — and unknown nodes get no highlight.
  */
@@ -81,14 +77,14 @@ const TERM_LANES: Record<string, { up: number[]; down: number[] }> = {
 const OFFSETS = [0, -18, 18, -36, 36, -54, 54, -70, 70, -14, 14, -26, 26, -44, 44, -8, 8];
 
 const NODE_META: Record<string, { name: string; caption: string; tier: Tier }> = {
-  'scheduler': { name: 'scheduler', caption: '调度器 SCHEDULER', tier: 'cloud' },
-  'medical-server': { name: 'medical-server', caption: '医学推理 SERVER', tier: 'cloud' },
-  'dc-services': { name: 'dc-services', caption: '数据中心 / 患者库', tier: 'cloud' },
-  'redis': { name: 'redis', caption: '状态库 REDIS', tier: 'cloud' },
-  'hospital-a': { name: 'hospital-a', caption: '医院 Pod · EDGE', tier: 'edge' },
-  'hospital-b': { name: 'hospital-b', caption: '医院 Pod · EDGE', tier: 'edge' },
-  'clinic-1': { name: 'clinic-1', caption: '诊所 Pod · 端', tier: 'terminal' },
-  'clinic-2': { name: 'clinic-2', caption: '诊所 Pod · 端', tier: 'terminal' },
+  'scheduler': { name: 'scheduler', caption: '调度', tier: 'cloud' },
+  'medical-server': { name: 'medical-server', caption: '医疗推理', tier: 'cloud' },
+  'dc-services': { name: 'dc-services', caption: '患者库 · 协同计算', tier: 'cloud' },
+  'redis': { name: 'redis', caption: '队列 · 记录', tier: 'cloud' },
+  'hospital-a': { name: 'hospital-a', caption: '诊断 · 计算 · 通信 · 日常', tier: 'edge' },
+  'hospital-b': { name: 'hospital-b', caption: '诊断 · 计算 · 通信 · 日常', tier: 'edge' },
+  'clinic-1': { name: 'clinic-1', caption: '转诊 · 计算 · 通信 · 日常', tier: 'terminal' },
+  'clinic-2': { name: 'clinic-2', caption: '转诊 · 计算 · 通信 · 日常', tier: 'terminal' },
 };
 
 /** inline 24×24 icon per node — no icon library, no external assets */
@@ -213,10 +209,10 @@ export function iconShapes(kind: IconKind) {
   }
 }
 
-const TIER_LABEL: { no: string; text: string; y: number }[] = [
-  { no: '01', text: '云 · CLOUD', y: 106 },
-  { no: '02', text: '边 · EDGE', y: 316 },
-  { no: '03', text: '端 · TERMINAL', y: 536 },
+const TIER_LABEL: { text: string; y: number }[] = [
+  { text: '云数据中心', y: 106 },
+  { text: '医院 · 边', y: 316 },
+  { text: '诊所 · 端', y: 536 },
 ];
 
 function isJob(id: string): boolean {
@@ -514,7 +510,7 @@ function buildEdges(kind: ModelKind, ctx: Ctx): SemEdge[] {
     if (hospital && hospital !== src && isClinicNode(src)) {
       out.push(semEdge(src, hospital, '转诊'));
     }
-    if (hospital) out.push(semEdge(hospital, 'medical-server', 'worker'));
+    if (hospital) out.push(semEdge(hospital, 'medical-server', '推理'));
     out.push(semEdge('medical-server', src, '结果'));
   } else if (kind === 'compute') {
     const actors = Array.from(new Set([...(ctx.actors || []), 'dc-services'])).filter(Boolean);
@@ -557,10 +553,10 @@ const CANON: Record<ModelKind, Ctx> = {
 const STAGE_TEXT: Record<string, string> = {
   scheduler: '排队 / 调度',
   queued: '排队 / 调度',
-  worker: '医院 worker 前端',
-  server: '云端 server 融合',
+  worker: '医院推理前端',
+  server: '云端融合推理',
   compute: '分区协同计算',
-  sync: 'P2P 拉取 / 云端备份',
+  sync: '并行拉取 / 云端备份',
   routine: '一次性 Job 执行',
   finished: '已完成',
   completed: '已完成',
@@ -749,16 +745,16 @@ function stepsDiagnosis(task: TaskItem | null, ctx: Ctx): Step[] {
   });
   if (hospital) {
     steps.push({
-      label: 'worker 前端',
-      detail: `${hospital} 医院 Pod 提特征`,
+      label: '医院推理',
+      detail: `${hospital} 医院前端提特征`,
       nodes: [hospital],
-      edges: [edgeKey(hospital, 'medical-server', 'worker')],
+      edges: [edgeKey(hospital, 'medical-server', '推理')],
       durationMs: stageMs('worker') ?? num(detail.worker_latency_ms),
       ref: 'worker',
     });
   }
   steps.push({
-    label: 'server 融合',
+    label: '云端融合',
     detail: 'medical-server 双塔融合推理',
     nodes: ['medical-server'],
     edges: [],
@@ -906,14 +902,14 @@ function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
       };
     })
     : [{
-      label: 'peer 拉取',
-      detail: '等待 peer 回报分块',
+      label: '并行拉取',
+      detail: '等待对端回报分块',
       nodes: [],
       edges: [],
       ref: 'peer:none',
     }];
-  steps.push(parallelStep('P2P 拉取', 'parallel', peerItems,
-    `${peerItems.length} 个 peer 并行拉取，取最慢 peer 耗时`));
+  steps.push(parallelStep('并行拉取', 'parallel', peerItems,
+    `${peerItems.length} 个对端并行拉取，取最慢耗时`));
 
   steps.push({
     label: '云端上传',
@@ -993,15 +989,15 @@ function stepsRoutine(task: TaskItem | null, ctx: Ctx): Step[] {
   steps.push({
     label: '读取日志',
     detail: rawJobs.length
-      ? `scheduler 读取 ${rawJobs.length} 个 Job pod 日志 · 成功 ${detail?.succeeded ?? '—'}`
-      : 'scheduler 读取 Job pod 日志并解析 JSON',
+      ? `scheduler 读取 ${rawJobs.length} 个 Job 日志 · 成功 ${detail?.succeeded ?? '—'}`
+      : 'scheduler 读取 Job 日志并解析 JSON',
     nodes: jobIds,
     edges: jobIds.map((id) => edgeKey(id, 'scheduler', '日志')),
     ref: 'logs',
   });
   steps.push({
     label: '删除 Job',
-    detail: '回收一次性 Job pod',
+    detail: '回收一次性 Job',
     nodes: jobIds,
     edges: jobIds.map((id) => edgeKey('scheduler', id, '删除')),
     ref: 'delete',
@@ -1243,7 +1239,7 @@ function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
     const p = detail?.bpCR_probability;
     out.push({ k: 'bpCR 概率', v: typeof p === 'number' ? p.toFixed(4) : '—' });
     out.push({ k: '转诊', v: forwarded ? `→ ${forwarded}` : isClinicNode(src) ? '未转诊' : '本院执行' });
-    out.push({ k: 'worker / server', v: `${fmtMs(detail?.worker_latency_ms)} / ${fmtMs(detail?.server_latency_ms)}` });
+    out.push({ k: '推理 / 融合', v: `${fmtMs(detail?.worker_latency_ms)} / ${fmtMs(detail?.server_latency_ms)}` });
   } else if (kind === 'compute') {
     const parts: any[] = Array.isArray(res?.partitions) ? res.partitions : [];
     const actors = Array.from(new Set(
@@ -1257,7 +1253,7 @@ function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
     const backup = detail?.backup;
     out.push({ k: '已拉取 / 缺失', v: `${detail?.pulled ?? '—'} / ${detail?.missing ?? '—'}` });
     out.push({ k: '云端备份', v: backup?.backup_id ? String(backup.backup_id) : '—' });
-    out.push({ k: 'peer', v: peers.length ? peers.join(' · ') : '—' });
+    out.push({ k: '对端', v: peers.length ? peers.join(' · ') : '—' });
   } else {
     const jobs: any[] = Array.isArray(detail?.jobs) ? detail.jobs : [];
     const nodes = Array.from(new Set(jobs.map((j) => String(j?.node || '—'))));
@@ -1371,11 +1367,11 @@ function usePrefersReducedMotion(): boolean {
 const TONES: Tone[] = ['ghost', 'past', 'current', 'pending', 'unrelated', 'failed'];
 
 const LEGEND: { state: Tone; text: string }[] = [
-  { state: 'past', text: '已执行 · 灰 PASSED' },
-  { state: 'current', text: '当前 · 橙 CURRENT' },
-  { state: 'pending', text: '待执行 · 淡灰虚 PENDING' },
-  { state: 'unrelated', text: '无关 · 最淡 UNRELATED' },
-  { state: 'failed', text: '失败 FAILED' },
+  { state: 'past', text: '已执行' },
+  { state: 'current', text: '当前' },
+  { state: 'pending', text: '待执行' },
+  { state: 'unrelated', text: '无关' },
+  { state: 'failed', text: '失败' },
   { state: 'ghost', text: '无任务 · 标准路径' },
 ];
 
@@ -1541,7 +1537,7 @@ export default function TaskTrajectoryMap({
       const node = jobNodeOf(id);
       const job = view.jobs.find((j) => j.id === id);
       const extra = job && (job.count || 1) > 1 ? ` ×${job.count}` : '';
-      return { name: job?.name ? `…${job.name}` : 'Job pod', caption: `${node}${extra}` };
+      return { name: job?.name ? `…${job.name}` : 'Job', caption: `${node}${extra}` };
     }
     return NODE_META[id] || { name: id, caption: '' };
   };
@@ -1580,17 +1576,17 @@ export default function TaskTrajectoryMap({
   return (
     <section className="card tmap">
       <div className="card-headrow">
-        <h3 className="card-title">任务执行轨迹 · TASK TRAJECTORY MAP</h3>
+        <h3 className="card-title">任务执行轨迹</h3>
         <span className="muted xs mono">
           {traced
-            ? `${MODEL_EN[kind]} · ${shortId(traced.id)} · ${statusLabel(traced.status)}`
-            : `${MODEL_EN[kind]} · 标准路径`}
+            ? `${MODEL_LABEL[kind]} · ${shortId(traced.id)} · ${statusLabel(traced.status)}`
+            : `${MODEL_LABEL[kind]} · 标准路径`}
         </span>
       </div>
 
       <p className="eyebrow tmap-caption">
-        云 / 边 / 端 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，或「▶ 自动」循环演示；
-        只有当前步骤为橙色高亮（脉冲 + 流动光点），已执行为中性灰、待执行为淡灰虚线、无关链路最淡
+        云数据中心 / 医院 · 边 / 诊所 · 端 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，
+        或「▶ 自动」循环演示；只有当前步骤为橙色高亮，已执行为灰色、待执行为淡灰虚线、无关链路最淡
       </p>
 
       <div className="tmap-controls">
@@ -1611,7 +1607,7 @@ export default function TaskTrajectoryMap({
         </div>
 
         <div className="tmap-pickrow">
-          <span className="eyebrow">任务选择 · TRACE TARGET</span>
+          <span className="eyebrow">任务选择</span>
           <button
             type="button"
             className={`mini ${autoFollow ? 'on' : ''}`}
@@ -1678,7 +1674,6 @@ export default function TaskTrajectoryMap({
           <div className="tmap-none">
             <b>暂无任务</b>
             <span>· 显示标准执行路径</span>
-            <i className="tmap-none-en mono">NO TASK · CANONICAL FLOW ONLY</i>
           </div>
         )}
       </div>
@@ -1725,7 +1720,7 @@ export default function TaskTrajectoryMap({
               />
               <rect className="tm-dc-bar" x={DC_PANEL.x} y={DC_PANEL.y} width="3" height={DC_PANEL.h} />
               <text className="tm-dc-title" x={DC_PANEL.x + 16} y={DC_PANEL.y + 21}>
-                DATA CENTER · 云数据中心
+                云数据中心
               </text>
               <text
                 className="tm-dc-meta mono"
@@ -1748,14 +1743,14 @@ export default function TaskTrajectoryMap({
             <line className="tm-sep" x1="72" y1="424" x2={VB_W - 12} y2="424" />
             {TIER_LABEL.map((t) => (
               <text
-                key={t.no}
+                key={t.text}
                 className="tm-tier mono"
                 x="44"
                 y={t.y}
                 textAnchor="middle"
                 transform={`rotate(-90 44 ${t.y})`}
               >
-                {`${t.no} ${t.text}`}
+                {t.text}
               </text>
             ))}
           </g>
@@ -1818,14 +1813,14 @@ export default function TaskTrajectoryMap({
                 const r = b.w / 2;
                 return (
                   <g key={id} className={['tm-node', 'job', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
-                    <title>{`${meta.name} · Job pod on ${meta.caption}`}</title>
+                    <title>{`日常任务 Job · ${meta.name}（${meta.caption}）`}</title>
                     {ringed && <circle className="tm-ring" cx={b.x} cy={b.y} r={r + 5} />}
                     <circle className="tm-box job-box" cx={b.x} cy={b.y} r={r} />
-                    <g className="tm-icon tm-icon-sm" transform={`translate(${b.x - 7} ${b.y - 16}) scale(0.5833)`}>
+                    <g className="tm-icon tm-icon-sm" transform={`translate(${b.x - 6} ${b.y - 17}) scale(0.5)`}>
                       {iconShapes('job')}
                     </g>
-                    <text className="tm-node-name" x={b.x} y={b.y + 9} textAnchor="middle">{meta.name}</text>
-                    <text className="tm-node-cap" x={b.x} y={b.y + 19} textAnchor="middle">{meta.caption}</text>
+                    <text className="tm-node-name" x={b.x} y={b.y + 8} textAnchor="middle">{meta.name}</text>
+                    <text className="tm-node-cap" x={b.x} y={b.y + 20} textAnchor="middle">{meta.caption}</text>
                   </g>
                 );
               }
@@ -1859,9 +1854,9 @@ export default function TaskTrajectoryMap({
       <div className="tmap-timeline">
         <div className="tm-tl-head">
           <span className="tm-tl-title">
-            <span className="eyebrow">执行时序 · STEP TIMELINE</span>
+            <span className="eyebrow">执行时序</span>
             {active.mode === 'auto' && !reduced && (
-              <i className="tm-loop mono">循环演示 · LOOP</i>
+              <i className="tm-loop mono">循环演示</i>
             )}
           </span>
           <span className="tm-tl-ctl">
@@ -1909,7 +1904,7 @@ export default function TaskTrajectoryMap({
               {!stepsLen ? '0/0' : cursor < 0 ? `—/${stepsLen}` : `${cursor + 1}/${stepsLen}`}
             </i>
             <i className={`tm-tl-mode ${active.mode}`}>
-              {active.mode === 'auto' ? 'AUTO' : active.mode === 'manual' ? 'MANUAL' : 'LIVE'}
+              {active.mode === 'auto' ? '自动' : active.mode === 'manual' ? '手动' : '实时'}
             </i>
           </span>
         </div>
