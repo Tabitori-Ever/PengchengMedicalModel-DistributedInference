@@ -276,6 +276,55 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       <p class="note">本节把 JD 原文与项目事实逐条对齐：<b>有证据的用文件/指标直接举证，没有证据的明确承认并给出补齐计划</b>。
         面试官最怕的不是“不会”，而是“讲了项目里没有的东西”——诚实标注缺口反而更容易被当成靠谱的实习生。</p>
 
+      <h4 class="blk">1.0 MiniMax 速览（公司与产品线 · 面试闲聊/反问可用）</h4>
+      <div class="callout"><b>一句话：</b>MiniMax（上海稀宇科技）是国内<b>全模态（文本 / 语音 / 视频 / 音乐）大模型</b>公司，
+        以“<b>原生应用 + 开放平台</b>双轮驱动”，2026 年 1 月在港交所上市（股票代码 <span class="mono">0100.HK</span> / MINIMAX-W），
+        公开发售超额认购约 <b>1837 倍</b>、上市首日开盘涨约 42%（开盘市值约 719 亿港元）。
+        <span class="muted xs">（来源见文末链接；媒体口径，面试前可再核对一次）</span></div>
+
+      <div class="grid c2">
+        <div class="card tight"><b>公司关键事实</b>
+          <ul class="clean">
+            <li><b>全称/品牌：</b>上海稀宇科技有限公司 · MiniMax；创始人闫俊杰（前商汤科技，通用知识与公开报道，建议面试前再确认）。</li>
+            <li><b>成立：</b>2021 年 12 月（公开资料）。</li>
+            <li><b>上市：</b>2026-01-09 港交所主板，代码 <span class="mono">0100.HK</span>（MINIMAX-W），中金公司牵头保荐；公开发售认购约 1837 倍，首日开盘 +42%。</li>
+            <li><b>投资方：</b>媒体概括为“红高腾阿爱”（红杉、高瓴、腾讯、阿里等）联手押注；具体名单以招股书/公告为准。</li>
+            <li><b>商业化：</b>有券商与媒体分析提到其 <b>API 业务毛利率约 69.4%</b>，显著高于同期部分海外同行——<span class="hl">对基础设施岗是极佳话题：高毛利背后是推理效率与集群利用率</span>。</li>
+          </ul>
+        </div>
+        <div class="card tight"><b>产品线速览</b>
+          <ul class="clean">
+            <li><b>海螺 AI（Hailuo AI）：</b>面向创作者与 C 端的全模态创作产品，以<b>视频生成</b>最出圈（另有图像/音频等能力）。</li>
+            <li><b>星野（国内）/ Talkie（海外）：</b>AI 角色与陪伴类产品，长于语音与多轮对话体验。</li>
+            <li><b>MiniMax 开放平台：</b>文本/语音/视频等 <b>API</b> 与 <b>MCP</b> 工具生态（开发者向，文档中心 platform.minimaxi.com）。</li>
+            <li><b>MiniMax Agent：</b>面向 Agent 工作流的产品化形态；官方在与 <b>M2</b> 模型一起强调“高效编码与 Agent 工作流”。</li>
+            <li><b>模型家族：</b>abab 系列 → MiniMax-Text-01 → <b>M1</b> → <b>M2</b>（约 <b>10B 激活参数</b>的 MoE 路线，主打开源与高效推理/编码）。</li>
+            <li><b>语音 / 音乐 / 视频模型：</b>Speech、Music、Hailuo 视频系列等，构成“全模态”矩阵。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <b>与「K8s 集群管理实习生」的强关联（面试时用来“接话”的三条）</b>
+        <ul class="clean">
+          <li><b>推理成本 ≈ 集群效率：</b>视频生成/语音/Agent 都是重推理负载，高毛利直接依赖 GPU 利用率、调度密度与弹性伸缩——正是该岗位的“资源管理 + 稳定性”职责。</li>
+          <li><b>多产品线共池与隔离：</b>海螺 AI、星野/Talkie、开放平台 API 的负载特征差异大（长请求/短请求、GPU/CPU 混部），天然需要命名空间/优先级/配额与发布自动化——对应 JD 的“配置一致性 + 平台工具”。</li>
+          <li><b>模型迭代快 → 交付自动化：</b>M1→M2 这类快速迭代要求集群创建、升级、巡检可控且可回滚——对应 JD 的“集群创建/升级/巡检自动化”。</li>
+        </ul>
+        <p class="note">可以主动抛的 2 个问题：① 训练与推理是否共用同一集群（还是物理隔离/分时复用）？
+          ② GPU 调度是 K8s 原生（Device Plugin + 拓扑感知）还是 Volcano/自研调度器？——问得具体，能立刻显示你懂这个岗位在干什么。</p>
+      </div>
+
+      <p class="note xs"><b>来源（均为公开信息，媒体口径需自行复核）：</b>
+        <a href="https://stcn.com/article/detail/3582934.html" target="_blank" rel="noopener">证券时报：MiniMax 登陆港交所，开盘涨 42%、市值达 719 亿港元</a> ·
+        <a href="https://www.21jingji.com/article/20260109/herald/4e451f29f3245964dd15b3ca750ae439.html" target="_blank" rel="noopener">21 世纪经济报道：MiniMax 登陆港交所 获 1837 倍超额认购</a> ·
+        <a href="https://www.cnstock.com/commonDetail/616462" target="_blank" rel="noopener">中国证券网：中金公司牵头保荐 MiniMax 完成港股 IPO</a> ·
+        <a href="https://gmg.9fzt.com/report/HKSE/00100/832466717380.html" target="_blank" rel="noopener">券商研报：全模态 AGI 先行者，原生应用与开放平台双轮驱动</a> ·
+        <a href="https://developer.aliyun.com/article/1686484" target="_blank" rel="noopener">阿里云开发者社区：MiniMax-M2 发布，10B 激活，面向高效编码与 Agent 工作流</a> ·
+        <a href="https://platform.minimaxi.com/docs/api-reference/api-overview" target="_blank" rel="noopener">MiniMax 开放平台文档：接口概览</a> ·
+        <a href="https://platform.minimaxi.com/docs/guides/mcp-guide" target="_blank" rel="noopener">MiniMax 开放平台文档：MCP 指南</a> ·
+        <a href="https://www.163.com/dy/article/KQRUPOIK05568W0A.html" target="_blank" rel="noopener">行业分析：API 业务毛利率约 69.4%（引述券商/财报分析）</a></p>
+
       <h4 class="blk">1.1 JD 原文要点速览</h4>
       <div class="grid c3">
         <div class="card"><b>【职位描述】职责</b>
