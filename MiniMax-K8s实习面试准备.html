@@ -120,6 +120,28 @@ details.qa .ans .hl{background:rgba(148,107,60,.12);padding:0 3px;border-radius:
 .qgroup{border-left:2px solid var(--brass-soft);padding-left:14px;margin:16px 0}
 .qgroup h5{font-size:14.5px;color:var(--ink);margin-bottom:6px}
 
+/* ---------- 07 节 题目卡片（题目描述 + 解题思路） ---------- */
+.prob{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px 16px 12px;margin:14px 0;scroll-margin-top:16px}
+.prob-head{display:flex;flex-wrap:wrap;gap:9px;align-items:baseline}
+.prob-head .idx{font-family:var(--mono);font-size:11px;font-weight:700;color:#f6f4f1;background:var(--ink);border-radius:5px;padding:2px 7px;flex:none;align-self:center}
+.prob-head h5{font-size:15.5px;color:var(--ink);margin:0;line-height:1.45}
+.prob-head .meta{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.prob details.qa{margin-top:10px}
+.prob .btn.reveal{margin:6px 0 0}
+.reveal-body{border-left:3px solid var(--brass);background:#fbfaf8;border-radius:0 8px 8px 0;padding:12px 16px 10px;margin:8px 0 2px;font-size:14.2px;color:var(--ink-2)}
+.reveal-body[hidden]{display:none}
+.reveal-body h6{font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--glass,var(--ink));margin:10px 0 4px}
+.reveal-body h6:first-child{margin-top:0}
+.reveal-body p{margin:4px 0}
+.reveal-body ol,.reveal-body ul{margin:4px 0 4px 20px}
+.reveal-body li{margin:3px 0}
+.prob-index{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px;margin:12px 0 14px;padding:12px 16px;border:1px solid var(--line-soft);border-radius:8px;background:#fbfaf8}
+.prob-index a{display:flex;gap:9px;align-items:baseline;padding:4px 0;font-size:13.5px;color:var(--ink-3);border-bottom:1px dotted var(--line-soft)}
+.prob-index a:hover{color:var(--brass);text-decoration:none}
+.prob-index a b{font-family:var(--mono);font-size:11px;color:var(--grey-2);font-weight:600;min-width:18px;flex:none}
+@media(max-width:900px){.prob-index{grid-template-columns:1fr}}
+@media print{.prob{break-inside:avoid}.prob-index{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 /* ---------- toolbar ---------- */
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 18px}
 .toolbar input[type=search]{
@@ -1514,50 +1536,713 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         <a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%B8%80%E9%9D%A2-2/" target="_blank" rel="noopener">实习一面（2）</a> ·
         <a href="https://caomaolufei.github.io/AIInfraGuide/" target="_blank" rel="noopener">AIInfraGuide 面经目录</a></div>
 
-      <h4 class="blk">7.0 题目清单（21 题，按类别）</h4>
-      <p class="note">清单来自本次网络检索报告：<b>✅</b> = 有来源（真实面经/题库帖，链接见 10.4）；<b>⚠️</b> = 通用高频补充，<b>无特定来源</b>。
-        建议先手写带 <b>★</b> 的 4 题（滑动窗口最大值 / LRU / 限流器 / worker pool），再补 7 道标 ⚠️ 的通用题。</p>
-      <table>
-        <thead><tr><th style="width:96px">类别</th><th style="width:220px">题名</th><th style="width:92px">难度</th><th>考察点</th><th>一句话思路</th></tr></thead>
-        <tbody>
-          <tr><td rowspan="3"><b>数组 · 窗口 · 双指针</b></td>
-            <td>★ 滑动窗口最大值 <span class="tag v">✅有来源</span></td><td>Medium</td><td>单调队列 / 双端队列，O(n)</td><td>双端队列存下标、维持递减，队首出窗口即弹；每个元素仅进出一次。</td></tr>
-          <tr><td>两数之和 <span class="tag v">✅有来源</span></td><td>Easy</td><td>哈希表</td><td>边遍历边存 <span class="mono">值→下标</span>，查找 target-x 是否已出现。</td></tr>
-          <tr><td>IP / CIDR 处理：归属判断与排序 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>32 位整数化、前缀匹配、位运算</td><td>把 IPv4 转成 uint32，用掩码做 <span class="mono">(ip &amp; mask) == net</span> 判定归属。</td></tr>
+      <h4 class="blk">7.0 题目清单与题目描述（21 题，来自研究资料）</h4>
+      <p class="note">题名 / 难度 / 考察点 <b>严格照搬研究资料</b>（<span class="mono">MiniMax-K8s实习面试准备-资料研究.md</span> 2.1 节，共 21 条），未新增题目。
+        每题提供：<b>折叠的题目描述</b>（LeetCode 风格：题目描述 / 签名 / 示例 / 约束 / 来源）与 <b>「查看解题思路」按钮</b>。
+        标 <span class="tag warn">面经真题</span> 的 3 题与 ★ 高频题<b>默认展开描述</b>，其余默认折叠；研究资料标 ⚠️ 的题目在描述里写明“同类高频题参考”。</p>
+      <div class="prob-index">
+        <a href="#p01"><b>01</b>滑动窗口最大值 · 中等 · 数组/单调队列</a>
+        <a href="#p02"><b>02</b>两数之和 · 简单 · 哈希表</a>
+        <a href="#p03"><b>03</b>矩阵中搜索目标字符串 · 中等 · 回溯</a>
+        <a href="#p04"><b>04</b>LRU 缓存 · 中等 · 哈希+双向链表</a>
+        <a href="#p05"><b>05</b>二叉树遍历（层序/中序迭代） · 简单–中等 · 树</a>
+        <a href="#p06"><b>06</b>最长公共子序列 · 中等 · 动态规划</a>
+        <a href="#p07"><b>07</b>TopK（数组 / 海量日志 TOP N IP） · 中等 · 堆/分治</a>
+        <a href="#p08"><b>08</b>手写限流器 · 中等 · 并发/限流</a>
+        <a href="#p09"><b>09</b>原子计数器 · 中等 · 无锁并发</a>
+        <a href="#p10"><b>10</b>Bash：检查服务是否运行 · 简单 · 运维脚本</a>
+        <a href="#p11"><b>11</b>Bash：日志文件轮转 · 简单 · 运维脚本</a>
+        <a href="#p12"><b>12</b>Python：监控 CPU 使用率 · 简单 · 可观测脚本</a>
+        <a href="#p13"><b>13</b>Python：解析日志提取 ERROR 行 · 简单 · 文本处理</a>
+        <a href="#p14"><b>14</b>写 Dockerfile + 清理命令 · 简单 · 容器交付</a>
+        <a href="#p15"><b>15</b>K8s YAML 部署 nginx + 扩缩容 · 简单 · K8s 配置</a>
+        <a href="#p16"><b>16</b>LFU 缓存 · 困难 · 哈希+频率桶</a>
+        <a href="#p17"><b>17</b>生产者-消费者 / worker pool · 中等 · Go 并发</a>
+        <a href="#p18"><b>18</b>并发安全 map / 单例 · 中等 · 并发原语</a>
+        <a href="#p19"><b>19</b>任务依赖 DAG：拓扑排序 + 并发执行 · 中等–困难 · 图</a>
+        <a href="#p20"><b>20</b>IP/CIDR 处理：判断归属、IP 排序 · 中等 · 位运算</a>
+        <a href="#p21"><b>21</b>简单调度器：按资源打分选节点 · 中等 · 调度/打分</a>
+      </div>
+      <p class="note">点击索引可跳到对应题目；每题下方按钮可展开「解题思路」（核心思路 / 步骤 / 复杂度 / 易错点 / 相关模板）。</p>
 
-          <tr><td rowspan="4"><b>哈希 · 缓存设计</b></td>
-            <td>★ LRU 缓存 <span class="tag v">✅有来源</span></td><td>Medium</td><td>哈希 + 双向链表</td><td>map 存 key→节点，链表头部最新、尾部最旧；Get/Put 均 O(1)。</td></tr>
-          <tr><td>LFU 缓存 <span class="tag v">⚠️无来源</span></td><td>Hard</td><td>频率桶 + 双向链表</td><td>按频次分桶，桶内 LRU；记录 minFreq 以便 O(1) 淘汰。</td></tr>
-          <tr><td>并发安全 map / 单例 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>RWMutex、sync.Map、sync.Once</td><td>读多写少用 RWMutex 或分片；单例用 Once 保证只初始化一次。</td></tr>
-          <tr><td>原子计数器 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>CAS / 原子操作</td><td>用 atomic.AddInt64 或 CAS 循环，避免锁竞争与伪共享（可提 padding）。</td></tr>
+      <article class="prob" id="p01">
+        <div class="prob-head"><span class="idx">01</span><h5>滑动窗口最大值 (Sliding Window Maximum)</h5>
+          <span class="meta"><span class="tag warn">面经真题</span><span class="tag info">中等</span><span class="tag v">数组 · 单调队列</span></span></div>
+        <details class="qa" open><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>给定整数数组 <code>nums</code> 和窗口大小 <code>k</code>，窗口从数组最左端开始、每次向右移动一位，直到右端到达数组末尾。返回<b>每个窗口内的最大值</b>组成的数组。</p>
+            <p><b>函数签名：</b><code>func MaxSlidingWindow(nums []int, k int) []int</code>（Python：<code>def max_sliding_window(nums: list[int], k: int) -&gt; list[int]</code>）</p>
+            <p><b>示例 1：</b>输入 <span class="mono">nums = [1,3,-1,-3,5,3,6,7], k = 3</span> → 输出 <span class="mono">[3,3,5,5,6,7]</span>。窗口依次为 [1,3,-1]→3、[3,-1,-3]→3、[-1,-3,5]→5、[-3,5,3]→5、[5,3,6]→6、[3,6,7]→7。<br>
+              <b>示例 2：</b>输入 <span class="mono">nums = [1], k = 1</span> → 输出 <span class="mono">[1]</span>。</p>
+            <p><b>约束：</b><code>1 ≤ k ≤ nums.length ≤ 10^5</code>；<code>-10^4 ≤ nums[i] ≤ 10^4</code>。要求整体复杂度优于 O(n·k)（暴力在每个窗口扫一遍会超时）。</p>
+            <p class="note"><b>来源：</b>MiniMax AI Infra 实习面经<b>两次</b>记录均为本题（实习二面、实习一面(2)），研究资料第 1 条标 ✅ ——<b>面经真题，优先级最高</b>。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol01" aria-expanded="false" aria-controls="sol01">查看解题思路</button>
+        <div class="reveal-body" id="sol01" hidden>
+          <h6>核心思路</h6><p>用<b>单调队列</b>（双端队列）保存“可能成为最大值”的下标，队列里的值从队首到队尾单调递减；队首永远是当前窗口最大值。</p>
+          <h6>步骤</h6><ol>
+            <li>遍历 <code>i</code>：把队尾所有 <code>nums[队尾] ≤ nums[i]</code> 的下标弹出（它们不可能再成为最大值）。</li>
+            <li>把 <code>i</code> 入队；若队首下标 <code>≤ i-k</code>（已滑出窗口）则弹出队首。</li>
+            <li>当 <code>i ≥ k-1</code> 时，把 <code>nums[队首]</code> 写入结果。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(n)</b>（每个下标最多进出队一次）；空间 <b>O(k)</b>。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>队列里必须存<b>下标</b>而不是值，否则无法判断是否滑出窗口。</li>
+            <li>弹队尾用 <code>while</code> 而不是 <code>if</code>（可能连续弹出多个）。</li>
+            <li>边界：<code>k = 1</code>、<code>k = len(nums)</code>、空数组、<code>k ≤ 0</code> 的防御。</li>
+            <li>比较用 <code>≤</code> 还是 <code>&lt;</code> 影响队内是否保留重复值，但不影响结果，说明清楚即可。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「★ 单调队列 · 滑动窗口最大值（Go + Python）」，可直接对照。</p>
+        </div>
+      </article>
 
-          <tr><td rowspan="3"><b>堆 · 排序 · 树 · DP</b></td>
-            <td>TopK（数组 / 海量日志 TOP N IP） <span class="tag v">✅有来源</span></td><td>Medium</td><td>小顶堆 O(n log k)；海量→分治+哈希</td><td>维护大小 k 的小顶堆；数据放不下时先哈希分片再各自 TopK 归并。</td></tr>
-          <tr><td>二叉树遍历（层序 / 中序迭代） <span class="tag v">✅有来源</span></td><td>Easy–Med</td><td>队列 / 显式栈</td><td>层序用队列按层出队；中序迭代一路压栈到最左再回退。</td></tr>
-          <tr><td>最长公共子序列（DP） <span class="tag v">✅有来源</span></td><td>Medium</td><td>二维 DP + 滚动数组</td><td>字符相等取左上+1，否则取上/左最大值；可压成一维。</td></tr>
+      <article class="prob" id="p02">
+        <div class="prob-head"><span class="idx">02</span><h5>两数之和 (Two Sum)</h5>
+          <span class="meta"><span class="tag warn">面经真题</span><span class="tag good">简单</span><span class="tag v">数组 · 哈希表</span></span></div>
+        <details class="qa" open><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>给定整数数组 <code>nums</code> 与目标值 <code>target</code>，找出数组中和为 <code>target</code> 的<b>两个数</b>，返回它们的下标；同一个元素不能使用两次，返回顺序任意。</p>
+            <p><b>函数签名：</b><code>func TwoSum(nums []int, target int) []int</code></p>
+            <p><b>示例 1：</b>输入 <span class="mono">nums = [2,7,11,15], target = 9</span> → 输出 <span class="mono">[0,1]</span>（2 + 7 = 9）。<br>
+              <b>示例 2：</b>输入 <span class="mono">nums = [3,2,4], target = 6</span> → 输出 <span class="mono">[1,2]</span>（不能返回 [0,0]）。</p>
+            <p><b>约束：</b><code>2 ≤ nums.length ≤ 10^4</code>；<code>-10^9 ≤ nums[i], target ≤ 10^9</code>；<b>保证恰好存在一个有效答案</b>（因此不需要处理多解或无解）。</p>
+            <p class="note"><b>来源：</b>阿里云云原生实习一面算法题为「两数之和」，研究资料第 2 条标 ✅ 有来源 —— 面经真题。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol02" aria-expanded="false" aria-controls="sol02">查看解题思路</button>
+        <div class="reveal-body" id="sol02" hidden>
+          <h6>核心思路</h6><p>一遍遍历 + 哈希表：遍历到 <code>nums[i]</code> 时，先查表里有没有 <code>target - nums[i]</code>，有就直接返回两个下标；没有就把 <code>nums[i] → i</code> 存进表。</p>
+          <h6>步骤</h6><ol>
+            <li>建 <code>map[int]int</code>（值 → 下标）。</li>
+            <li>对每个 <code>i</code>：若 <code>target-nums[i]</code> 在表中，返回 <code>{表[补数], i}</code>。</li>
+            <li>否则写入 <code>表[nums[i]] = i</code>，继续。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(n)</b>；空间 <b>O(n)</b>（哈希表）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li><b>必须先查后存</b>，否则重复元素（如 [3,3], target=6）会返回 [0,0]。</li>
+            <li>整数范围到 ±10^9，Go 的 <code>int</code> 在 64 位平台足够；若在 32 位平台需注意溢出。</li>
+            <li>返回顺序不唯一，测试要按集合比较而不是固定顺序。</li>
+            <li>若面试官追问“不存在答案 / 存在多组解怎么办”，答：返回空/记录全部解（此时不能提前 return）。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节的 07 模板中没有专用模板，可手写，参考同节模板风格（先讲边界与复杂度再写码）。</p>
+        </div>
+      </article>
 
-          <tr><td rowspan="2"><b>图 · 回溯</b></td>
-            <td>矩阵中搜索目标字符串（回溯） <span class="tag v">✅有来源</span></td><td>Medium</td><td>DFS + 回溯 + 剪枝</td><td>每个格子起 DFS，访问标记原位改字符，回溯时还原。</td></tr>
-          <tr><td>任务依赖 DAG：拓扑排序 + 并发执行 <span class="tag v">⚠️无来源</span></td><td>Med–Hard</td><td>入度表、并发调度、环检测</td><td>Kahn 算法出度数为 0 的批次；层内并发执行，结果长度不等即存在环。</td></tr>
+      <article class="prob" id="p03">
+        <div class="prob-head"><span class="idx">03</span><h5>矩阵中搜索目标字符串（回溯） (Word Search)</h5>
+          <span class="meta"><span class="tag warn">面经真题</span><span class="tag info">中等</span><span class="tag v">图 · 回溯</span></span></div>
+        <details class="qa" open><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>给定 <code>m × n</code> 的字符矩阵 <code>board</code> 与字符串 <code>word</code>，判断 <code>word</code> 是否存在于矩阵中：单词由<b>相邻格子（上下左右）</b>的字母按顺序连接而成，<b>同一个格子不能重复使用</b>。返回 <code>true</code> / <code>false</code>。</p>
+            <p><b>函数签名：</b><code>func Exist(board [][]byte, word string) bool</code></p>
+            <p><b>示例 1：</b>board = <span class="mono">[["A","B","C","E"],["S","F","C","S"],["A","D","E","E"]]</span>，word = <span class="mono">"ABCCED"</span> → <span class="mono">true</span>（路径 (0,0)→(0,1)→(0,2)→(1,2)→(2,2)→(2,1)）。<br>
+              <b>示例 2：</b>同一 board，word = <span class="mono">"SEE"</span> → <span class="mono">true</span>；word = <span class="mono">"ABCB"</span> → <span class="mono">false</span>（需要重复使用 (0,1) 的 B，违反“同一格子不重复使用”）。</p>
+            <p><b>约束：</b><code>1 ≤ m, n ≤ 6</code>；<code>1 ≤ word.length ≤ 15</code>；<code>board</code> 与 <code>word</code> 仅包含大小写英文字母（原题规模较小，可用回溯）。</p>
+            <p class="note"><b>来源：</b>阿里云云原生实习二面算法题为「矩阵中搜索目标字符串返回 bool」（DFS + 回溯），研究资料第 3 条标 ✅ 有来源 —— 面经真题。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol03" aria-expanded="false" aria-controls="sol03">查看解题思路</button>
+        <div class="reveal-body" id="sol03" hidden>
+          <h6>核心思路</h6><p>以每个格子为起点做 DFS，边走边匹配 <code>word</code> 的下一个字符；用访问标记避免重复使用格子，回溯时还原标记。</p>
+          <h6>步骤</h6><ol>
+            <li>双层循环枚举起点 <code>(r,c)</code>，若 <code>board[r][c] == word[0]</code> 才进入 DFS（剪枝）。</li>
+            <li>DFS(r, c, k)：越界 / 字符不等 / 格子已访问 → 返回 false；若 <code>k == len(word)-1</code> → 返回 true。</li>
+            <li>标记当前格子已访问（原地改成特殊字符或另开 visited）→ 向四个方向递归 <code>k+1</code> → 无论成败都还原标记。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(m·n·3^(L-1))</b>（L 为 word 长度，除第一步外每步最多 3 个新方向）；空间 <b>O(L)</b> 递归栈（原地标记时为 O(1) 额外空间）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>忘记在四方向递归后<b>还原访问标记</b>（导致后续分支被误判不可用）。</li>
+            <li>先判越界再取 <code>board[r][c]</code>，顺序写反会 panic。</li>
+            <li>返回的是 <b>bool</b>，不是路径；找到即短路返回，不要继续搜索。</li>
+            <li>起始字符不匹配就不要进 DFS（剪枝），能显著减少递归量。</li>
+            <li>坐标顺序 (r, c) 与 (x, y) 要全文一致，矩阵题最常见的错就是转置。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节模板无专用回溯模板，可手写；<b>并查集/拓扑排序</b>模板可作为“图类题”的写法风格参考。</p>
+        </div>
+      </article>
 
-          <tr><td rowspan="3"><b>并发 · 限流</b></td>
-            <td>★ 手写限流器（计数器/滑动窗口/漏桶/令牌桶） <span class="tag v">✅有来源</span></td><td>Medium</td><td>时间戳 + 原子计数/锁；并发安全</td><td>令牌桶按时间差补令牌再判断是否够 1；分布式版用 Redis + Lua 保原子。</td></tr>
-          <tr><td>★ 生产者-消费者 / worker pool <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>channel+buffer、WaitGroup、优雅退出</td><td>N 个 goroutine 抢同一 channel；context 取消 + defer recover 防 panic 与泄漏。</td></tr>
-          <tr><td>简单调度器：按资源打分选节点 <span class="tag v">⚠️无来源</span></td><td>Medium</td><td>过滤 + 打分两阶段、多目标权衡</td><td>先过滤不可用节点，再按权重归一化打分取最大（对应 K8s Filter/Score）。</td></tr>
+      <article class="prob" id="p04">
+        <div class="prob-head"><span class="idx">04</span><h5>LRU 缓存 (LRU Cache)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag info">中等</span><span class="tag v">哈希 · 缓存设计</span></span></div>
+        <details class="qa" open><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>设计并实现一个 <b>LRU（最近最少使用）缓存</b>：<code>get(key)</code> 返回键对应的值，不存在返回 <code>-1</code>；<code>put(key, value)</code> 写入或更新，当容量达到上限时<b>淘汰最久未使用的键</b>。两个操作都要求 <b>O(1) 平均</b>复杂度。</p>
+            <p><b>函数签名：</b><code>NewLRU(capacity int) *LRU</code> / <code>Get(key int) int</code> / <code>Put(key, value int)</code></p>
+            <p><b>示例：</b>capacity = 2：<span class="mono">put(1,1) → put(2,2) → get(1)=1 → put(3,3)</span>（淘汰 key 2）<span class="mono">→ get(2)=-1 → put(4,4)</span>（淘汰 key 1）<span class="mono">→ get(1)=-1 → get(3)=3 → get(4)=4</span>。</p>
+            <p><b>约束：</b><code>1 ≤ capacity ≤ 3000</code>；<code>0 ≤ key ≤ 10^4</code>；<code>0 ≤ value ≤ 10^5</code>；最多 <code>2×10^5</code> 次 get/put 调用。</p>
+            <p class="note"><b>来源：</b>「2026 云计算面试核心指南」收录（研究资料第 4 条，✅ 有来源）—— 研究资料 2.3 节把 LRU 列为面试官关注的高频手撕方向。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol04" aria-expanded="false" aria-controls="sol04">查看解题思路</button>
+        <div class="reveal-body" id="sol04" hidden>
+          <h6>核心思路</h6><p><b>哈希表 + 双向链表</b>：哈希表提供 O(1) 定位节点，双向链表维护使用顺序（头部最新、尾部最旧），淘汰即删尾部。</p>
+          <h6>步骤</h6><ol>
+            <li><code>Get</code>：命中 → <code>MoveToFront</code> 并返回值；未命中 → 返回 -1（不要改动链表）。</li>
+            <li><code>Put</code>：key 已存在 → 更新值 + <code>MoveToFront</code>；不存在 → <code>PushFront</code> 并写入 map。</li>
+            <li>超容量时删链表尾部节点，<b>同时</b>从 map 中删除对应 key。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(1)</b>（平均，get/put）；空间 <b>O(capacity)</b>。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li><code>Put</code> 已存在的 key <b>不能</b>新建节点（否则链表与 map 数量不一致）。</li>
+            <li>淘汰时 map 与链表必须同步删除，漏一个就会内存泄漏/取值错误。</li>
+            <li>容量为 1 时，put 新 key 会立刻淘汰刚写入的旧 key。</li>
+            <li>并发场景要加锁或分片（sharded LRU）；注意“读写锁不适用（写频繁）”这个可主动提的点。</li>
+            <li>哨兵头尾节点能省掉大量 nil 判断（面试可选，但要说清）。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「LRU 缓存（container/list + map）」—— 直接照抄骨架即可。</p>
+        </div>
+      </article>
 
-          <tr><td rowspan="4"><b>运维脚本 · 配置交付</b></td>
-            <td>Bash：检查服务是否运行 <span class="tag v">✅有来源</span></td><td>Easy</td><td>systemctl is-active、退出码</td><td>用退出码判断并显式 <span class="mono">set -euo pipefail</span>，输出可被监控消费的状态。</td></tr>
-          <tr><td>Bash：日志文件轮转 <span class="tag v">✅有来源</span></td><td>Easy</td><td>移动 + gzip、日期命名</td><td>mv 到带日期的新名 → gzip → 删超期文件；避免原地截断造成丢日志。</td></tr>
-          <tr><td>Python：监控 CPU 使用率 <span class="tag v">✅有来源</span></td><td>Easy</td><td>psutil、采样间隔</td><td>按固定间隔采样并算增量，注意首次采样需丢弃（否则得到累计均值）。</td></tr>
-          <tr><td>Python：解析日志提取 ERROR 行 <span class="tag v">✅有来源</span></td><td>Easy</td><td>流式读取、正则、内存友好</td><td>逐行迭代 + 预编译正则，缺字段要能容错不抛异常。</td></tr>
+      <article class="prob" id="p05">
+        <div class="prob-head"><span class="idx">05</span><h5>二叉树遍历（层序/中序迭代） (Binary Tree Level Order &amp; Inorder Traversal)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag info">简单–中等</span><span class="tag v">树 · 遍历</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>给定二叉树根节点，实现两个遍历：① <b>层序遍历</b>：按层返回节点值的二维数组；② <b>中序遍历（迭代版，不使用递归）</b>：返回节点值的一维数组。</p>
+            <p><b>函数签名：</b><code>func LevelOrder(root *TreeNode) [][]int</code> / <code>func InorderTraversal(root *TreeNode) []int</code>（输入用层序数组表示，<code>null</code> 表示空节点）</p>
+            <p><b>示例 1：</b>输入 <span class="mono">[3,9,20,null,null,15,7]</span> → 层序 <span class="mono">[[3],[9,20],[15,7]]</span>；中序 <span class="mono">[9,3,15,20,7]</span>。<br>
+              <b>示例 2：</b>输入 <span class="mono">[1,null,2,3]</span> → 层序 <span class="mono">[[1],[2],[3]]</span>；中序 <span class="mono">[1,3,2]</span>；输入 <span class="mono">[]</span>（空树）→ <span class="mono">[]</span>。</p>
+            <p><b>约束：</b>节点数 <code>0 ≤ n ≤ 100</code>（两题原题上限不同，此处取<b>保守公共值</b>）；<code>-100 ≤ Node.val ≤ 100</code>。中序要求<b>显式栈</b>实现，不许用递归（面试常见限制）。</p>
+            <p class="note"><b>来源：</b>「2026 云计算面试核心指南」收录（研究资料第 5 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol05" aria-expanded="false" aria-controls="sol05">查看解题思路</button>
+        <div class="reveal-body" id="sol05" hidden>
+          <h6>核心思路</h6><p>层序用<b>队列 BFS</b>（每轮先记录当前层节点数，只出队这一层）；中序用<b>显式栈模拟递归</b>（一路向左压栈，弹栈访问后转向右子树）。</p>
+          <h6>步骤</h6><ol>
+            <li>层序：root 入队 → 循环 while 队列非空：先取 <code>size = len(queue)</code>，循环 size 次出队、收集值、把非空左右子节点入队 → 本层结果入答案。</li>
+            <li>中序：<code>cur = root</code>；while <code>cur != nil || len(stack) &gt; 0</code>：一路把 cur 压栈并 <code>cur = cur.Left</code>；否则弹栈、收集值、<code>cur = 弹出节点的 Right</code>。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(n)</b>；空间 <b>O(n)</b>（队列最宽一层的宽度 / 栈最深高度）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>层序必须<b>先取 size 再内层循环</b>，否则分不出层（会变成一维 BFS）。</li>
+            <li>中序迭代的循环条件是 <code>cur != nil || 栈非空</code>，写成只判断栈会漏掉右子树。</li>
+            <li>空树返回空切片；Go 里 <code>nil</code> 与 <code>[]int{}</code> 在 JSON 序列化时表现不同，视题目要求处理。</li>
+            <li>值为负数不影响遍历；不要用“等于 0 就是空节点”来判空。</li>
+            <li>压栈的是节点指针，不是值，否则无法访问子树。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无树的专用模板，可手写；写法风格参考 <b>7.2 Worker Pool</b>（循环 + 显式容器的结构）。</p>
+        </div>
+      </article>
 
-          <tr><td rowspan="2"><b>容器与 K8s 配置</b></td>
-            <td>写 Dockerfile + 镜像清理命令 <span class="tag v">✅有来源</span></td><td>Easy</td><td>多阶段构建、docker system prune -a</td><td>builder 阶段只留产物；清理用 <code>prune -a</code> 并说明为什么不能在生产节点随意清理。</td></tr>
-          <tr><td>写 K8s YAML 部署 nginx 并扩缩容 <span class="tag v">✅有来源</span></td><td>Easy</td><td>Deployment/Service、kubectl scale</td><td>requests/limits + 探针齐备；扩缩用 <code>kubectl scale --replicas</code>，并顺带说 HPA 的适用场景。</td></tr>
-        </tbody>
-      </table>
-      <p class="note">注：上表恰好 21 条，其中 14 条出自真实面经/题库帖（✅），7 条为通用高频补充（⚠️、无特定来源）。
-        报告原文明确：<b>未找到 MiniMax 使用哪个平台、ACM 模式还是核心代码模式，也没有语言强制的证据</b>——所以 ACM 与核心代码两种模式都要练。</p>
+      <article class="prob" id="p06">
+        <div class="prob-head"><span class="idx">06</span><h5>最长公共子序列（DP） (Longest Common Subsequence)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag info">中等</span><span class="tag v">动态规划</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>给定两个字符串 <code>text1</code>、<code>text2</code>，返回它们的<b>最长公共子序列</b>的长度。子序列只要求字符相对顺序一致，<b>不要求连续</b>；若不存在公共子序列则返回 0。</p>
+            <p><b>函数签名：</b><code>func LongestCommonSubsequence(text1, text2 string) int</code></p>
+            <p><b>示例 1：</b><span class="mono">text1 = "abcde", text2 = "ace"</span> → <span class="mono">3</span>（公共子序列 "ace"）。<br>
+              <b>示例 2：</b><span class="mono">text1 = "abc", text2 = "abc"</span> → <span class="mono">3</span>；<span class="mono">text1 = "abc", text2 = "def"</span> → <span class="mono">0</span>。</p>
+            <p><b>约束：</b><code>1 ≤ text1.length, text2.length ≤ 1000</code>；两个字符串只包含小写英文字母。</p>
+            <p class="note"><b>来源：</b>「2026 云计算面试核心指南」收录（研究资料第 6 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol06" aria-expanded="false" aria-controls="sol06">查看解题思路</button>
+        <div class="reveal-body" id="sol06" hidden>
+          <h6>核心思路</h6><p>二维 DP：<code>dp[i][j]</code> 表示 <code>text1</code> 前 i 个字符与 <code>text2</code> 前 j 个字符的 LCS 长度；字符相等则 <code>dp[i-1][j-1]+1</code>，否则取 <code>max(dp[i-1][j], dp[i][j-1])</code>。</p>
+          <h6>步骤</h6><ol>
+            <li>开 <code>(m+1) × (n+1)</code> 的 DP 表，第 0 行/列全为 0（表示空前缀）。</li>
+            <li>双重循环 i=1..m、j=1..n，按状态转移填表。</li>
+            <li>答案取 <code>dp[m][n]</code>；若面试官追问空间优化，用一维数组 + 暂存左上角旧值（内层<b>倒序</b>或保存 prev）。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(m·n)</b>；空间 <b>O(m·n)</b>（滚动数组优化后 <b>O(min(m,n))</b>）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>DP 表要开 <code>(m+1)×(n+1)</code>，循环下标从 1 开始（否则要写一堆边界判断）。</li>
+            <li>一维压缩时最容易错：<code>dp[j-1]</code> 必须还是“上一行的值”，需用变量暂存旧值。</li>
+            <li>“子序列”≠“子串”：子串要求连续，本题不要求；说清楚能加分。</li>
+            <li>返回 <code>dp[m][n]</code>，不要写成 <code>dp[m-1][n-1]</code>。</li>
+            <li>追问“输出具体子序列”时，需要额外回溯 DP 表或记录选择。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无 DP 专用模板，可手写；可对照 <b>7.2 拓扑排序</b> 体会“先定义状态、再写转移”的表述方式。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p07">
+        <div class="prob-head"><span class="idx">07</span><h5>TopK（数组/海量日志 TOP N IP）</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag info">中等</span><span class="tag v">堆 · 分治</span></span></div>
+        <details class="qa" open><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>两问。① <b>数组版</b>：给定整数数组 <code>nums</code> 与 <code>k</code>，返回其中最大的 k 个元素（或第 k 大的元素）。② <b>海量版</b>：日志文件约 <code>10^9</code> 行、单机内存放不下全部内容，统计出现次数最多的 <code>N</code> 个 IP。</p>
+            <p><b>函数签名：</b><code>func TopK(nums []int, k int) []int</code>；海量版：<code>func TopNIP(path string, n int) []string</code></p>
+            <p><b>示例 1（数组版）：</b><span class="mono">nums = [3,2,1,5,6,4], k = 2</span> → 最大的 2 个是 <span class="mono">[6,5]</span>（第 2 大元素是 5）。<br>
+              <b>示例 2（海量版思路）：</b>可用内存 4GB、日志 10^9 行 → 先按 <code>hash(ip) % M</code> 把行分到 M 个小文件（每片可装入内存），每片用大小为 N 的小顶堆取 TopN，最后对 M 个局部 TopN 再取一次全局 TopN。</p>
+            <p><b>约束：</b>数组版 <code>1 ≤ k ≤ nums.length ≤ 10^5</code>，<code>-10^4 ≤ nums[i] ≤ 10^4</code>；海量版无固定规模，按“单机内存装不下全量数据”设定，要求单遍扫描 + 有界内存。</p>
+            <p class="note"><b>来源：</b>「2026 云计算面试核心指南」收录 TopK / 海量数据处理（研究资料第 7 条，✅ 有来源；海量 IP 版本为同题的常见变形）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol07" aria-expanded="false" aria-controls="sol07">查看解题思路</button>
+        <div class="reveal-body" id="sol07" hidden>
+          <h6>核心思路</h6><p>数组版用<b>大小为 k 的小顶堆</b>（堆顶是当前第 k 大，比堆顶小就丢弃）；海量版用<b>哈希分片 + 堆</b>的两级 TopK。</p>
+          <h6>步骤</h6><ol>
+            <li>数组版：遍历元素入堆 → 堆大小超过 k 就弹出堆顶 → 结束时堆内即最大 k 个。</li>
+            <li>海量版第一步：单遍读日志，按 <code>hash(ip)%M</code> 分片写出 M 个临时文件（同一 IP 必落同一片）。</li>
+            <li>海量版第二步：逐片读入内存统计词频，用大小为 N 的小顶堆取该片 TopN。</li>
+            <li>海量版第三步：合并 M 个局部 TopN，再取一次全局 TopN。</li>
+          </ol>
+          <h6>复杂度</h6><p>数组版时间 <b>O(n log k)</b>、空间 <b>O(k)</b>；海量版时间约为 <b>O(总行数 + M·分片规模 log N)</b>，空间 <b>O(单片规模 + N)</b>（有界）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>用大顶堆把所有元素入堆会退化成 <b>O(n log n)</b>，不是最优解。</li>
+            <li>分片函数必须保证同一 IP 落在同一片，否则统计会错。</li>
+            <li>堆里若存 <code>(count, ip)</code>，<code>Less</code> 要按 count 比较（小顶堆），并列时再按 ip 保证结果稳定。</li>
+            <li><code>k &gt; len(nums)</code> 或 <code>k ≤ 0</code> 的边界；海量版的临时文件要记得清理。</li>
+            <li>面试官常追问“内存再小一半怎么办”→ 增大 M（更多分片）或换 Count-Min Sketch 近似。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「TopK（小顶堆）/ 数据流中位数（双堆）」—— 堆接口与 <code>container/heap</code> 用法可直接复用。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p08">
+        <div class="prob-head"><span class="idx">08</span><h5>手写限流器（计数器/滑动窗口/漏桶/令牌桶） (Rate Limiter)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag info">中等</span><span class="tag v">并发 · 限流</span></span></div>
+        <details class="qa" open><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>实现一个<b>并发安全</b>的限流器，支持四种常见算法之一（固定窗口计数器 / 滑动窗口 / 漏桶 / 令牌桶）。以令牌桶为例：<code>Allow()</code> 在令牌足够时消耗 1 个令牌并返回 <code>true</code>，否则返回 <code>false</code>；令牌按固定速率补充，桶容量为 <code>burst</code>（允许一定突发）。</p>
+            <p><b>函数签名：</b><code>NewLimiter(ratePerSec float64, burst int) *Limiter</code> / <code>Allow() bool</code>（内部状态：当前令牌数 + 上次补充时间）</p>
+            <p><b>示例：</b>设 <code>rate = 1</code> 令牌/秒、<code>burst = 2</code>：<code>t=0</code> 连续调用 3 次 <code>Allow()</code> → <span class="mono">true, true, false</span>；<code>t=1s</code> 再调用一次 → <span class="mono">true</span>（已补充 1 个令牌）。<br>
+              <b>示例 2（并发）：</b>100 个 goroutine 同时调用，统计返回 true 的次数不应超过 <code>burst + rate × 经过秒数</code>。</p>
+            <p><b>约束：</b>无固定的数据规模；要求<b>并发安全</b>（多 goroutine 同时调用不超发）、时间精度容忍毫秒级误差、<b>不得用 sleep 阻塞调用方</b>、单次调用 O(1)。</p>
+            <p class="note"><b>来源：</b>「Go 常见限流算法代码」帖收录（研究资料第 8 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol08" aria-expanded="false" aria-controls="sol08">查看解题思路</button>
+        <div class="reveal-body" id="sol08" hidden>
+          <h6>核心思路</h6><p>令牌桶用<b>惰性补充</b>：不启动后台 ticker，每次调用时按“距上次调用的时间差 × 速率”补令牌（上限 burst），再判断是否够 1 个。</p>
+          <h6>步骤</h6><ol>
+            <li>加锁 → 取当前时间 <code>now</code>。</li>
+            <li><code>tokens = min(burst, tokens + (now-last)·rate)</code>，并更新 <code>last = now</code>。</li>
+            <li>若 <code>tokens ≥ 1</code>：<code>tokens--</code>，返回 true；否则返回 false。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(1)</b>；空间 <b>O(1)</b>（固定窗口/滑动窗口版为 O(窗口内请求数)）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>忘记给补充加上限 <code>burst</code>，会导致长期空闲后“攒出”巨大令牌数而瞬间放行。</li>
+            <li>用 <code>time.Sleep</code> 实现会让调用方阻塞，不符合 <code>Allow()</code> 语义（需要阻塞式应另给 <code>Wait()</code>）。</li>
+            <li>锁的粒度：要么全程持锁，要么用 CAS；<code>tokens</code> 用浮点会有累积误差，可改成整数 + 纳秒计算。</li>
+            <li>四种算法要能说出差异：固定窗口有临界突刺、滑动窗口更平滑、漏桶恒定流出、令牌桶允许突发。</li>
+            <li>分布式场景单机限流失效，需要 Redis + Lua 保证判断与扣减的原子性。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「令牌桶限流（并发安全）」—— 代码骨架完全对应本题。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p09">
+        <div class="prob-head"><span class="idx">09</span><h5>原子计数器 (Atomic Counter)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag info">中等</span><span class="tag v">无锁并发</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>实现一个并发安全的计数器：支持自增 <code>Inc()</code>、累加 <code>Add(delta)</code> 与读取 <code>Get()</code>；要求使用<b>原子操作</b>（atomic / CAS）而不是互斥锁，并能解释为什么无锁更快。</p>
+            <p><b>函数签名：</b><code>type Counter struct{...}</code> / <code>Inc()</code> / <code>Add(delta int64)</code> / <code>Get() int64</code></p>
+            <p><b>示例：</b>启动 1000 个 goroutine，每个调用一次 <code>Inc()</code>，最后 <code>Get()</code> 必须等于 <span class="mono">1000</span>；用 <code>go test -race</code> 运行不得报数据竞争。<br>
+              <b>示例 2：</b>1000 个 goroutine 各 <code>Add(2)</code> → <code>Get() = 2000</code>。</p>
+            <p><b>约束：</b>并发度可达 <code>10^4</code> 个 goroutine；计数值在 <code>int64</code> 范围内；<b>不允许使用 <code>sync.Mutex</code></b>（可用 <code>sync/atomic</code>）。</p>
+            <p class="note"><b>来源：</b>研究资料第 9 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（该题考察点“CAS/原子操作、无锁”来自资料原文）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol09" aria-expanded="false" aria-controls="sol09">查看解题思路</button>
+        <div class="reveal-body" id="sol09" hidden>
+          <h6>核心思路</h6><p>把计数器存在一个 <code>int64</code> 字段里，用 <code>atomic.AddInt64</code> / <code>atomic.LoadInt64</code>（或 CAS 循环）做无锁读写；读也要原子，否则 <code>-race</code> 会报竞争。</p>
+          <h6>步骤</h6><ol>
+            <li>定义 <code>type Counter struct{ v int64 }</code>（或直接用 <code>atomic.Int64</code>）。</li>
+            <li><code>Inc()</code>：<code>atomic.AddInt64(&amp;c.v, 1)</code>；<code>Add(d)</code>：<code>atomic.AddInt64(&amp;c.v, d)</code>。</li>
+            <li><code>Get()</code>：<code>atomic.LoadInt64(&amp;c.v)</code>（不要直接读字段）。</li>
+            <li>若要求 CAS 版本：<code>for { old := Load(); if CAS(old, old+d) { break } }</code>。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(1)</b>（无锁，高并发下竞争时 CAS 会重试）；空间 <b>O(1)</b>。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>32 位平台上 64 位变量的原子访问有对齐要求 —— 用 <code>atomic.Int64</code> 类型或把字段放在结构体首位规避（写注释说明）。</li>
+            <li>先 <code>Load</code> 再 <code>Store</code> 会丢更新，必须用 <code>Add</code> 或 CAS 循环。</li>
+            <li>CAS 失败要重试，不能直接放弃；重试次数暴增时说明竞争激烈，可考虑分片计数（per-CPU/分片数组求和）。</li>
+            <li>“为什么比 Mutex 快”：原子操作是 CPU 级指令、不引起 goroutine 挂起与调度，但竞争激烈时自旋也会浪费 CPU —— 能说出这个取舍很加分。</li>
+            <li>伪共享（false sharing）：多个计数器放同一 cache line 会互相拖慢，可用 padding 对齐。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无原子操作专用模板，可手写；并发安全写法参考 7.2「并发 Worker Pool」。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p10">
+        <div class="prob-head"><span class="idx">10</span><h5>Bash：检查服务是否运行 (Service Health Check)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag good">简单</span><span class="tag v">运维脚本</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>写一个 shell 脚本 <code>check_service.sh</code>：接收服务名参数，判断服务是否正在运行。运行中 → 输出 <code>running</code> 并以退出码 <b>0</b> 结束；未运行 → 输出 <code>not running</code> 并以非 0（例如 <b>3</b>）结束；缺少参数 → 输出用法并以 <b>2</b> 结束。</p>
+            <p><b>函数签名（脚本调用方式）：</b><code>./check_service.sh &lt;service-name&gt;</code></p>
+            <p><b>示例 1：</b><code>./check_service.sh nginx</code> → <span class="mono">running</span>，<code>echo $?</code> → <span class="mono">0</span>。<br>
+              <b>示例 2：</b><code>./check_service.sh nosuchsvc</code> → <span class="mono">not running</span>，<code>echo $?</code> → <span class="mono">3</span>；<code>./check_service.sh</code> → <span class="mono">usage: check_service.sh &lt;service-name&gt;</span>，退出码 <span class="mono">2</span>。</p>
+            <p><b>约束：</b>必须能在<b>无交互</b>环境（cron/CI）运行；判断依据是<b>退出码</b>而不是输出文本；不得吞掉错误；优先用 <code>systemctl is-active</code>，容器内无 systemd 时可退化为 <code>pgrep</code> 进程名匹配；脚本可重复执行（幂等）。</p>
+            <p class="note"><b>来源：</b>LeetCode DevOps 编程题合集中的「检查服务是否运行」（研究资料第 10 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol10" aria-expanded="false" aria-controls="sol10">查看解题思路</button>
+        <div class="reveal-body" id="sol10" hidden>
+          <h6>核心思路</h6><p>把判断交给 <code>systemctl is-active --quiet</code>，用它的<b>退出码</b>决定脚本的退出码；参数与用法校验放最前面。</p>
+          <h6>步骤</h6><ol>
+            <li>脚本头：<code>#!/usr/bin/env bash</code> + <code>set -uo pipefail</code>（慎用 <code>-e</code>，见易错点）。</li>
+            <li>校验参数个数：<code>[ $# -lt 1 ]</code> → 打印用法并 <code>exit 2</code>。</li>
+            <li>判断：<code>if systemctl is-active --quiet "$1"; then echo running; exit 0; else echo not running; exit 3; fi</code>。</li>
+            <li>退化分支：若 <code>command -v systemctl</code> 不存在，用 <code>pgrep -x "$1" &gt;/dev/null</code> 判断。</li>
+          </ol>
+          <h6>复杂度</h6><p>O(1)（一次进程/系统调用查询）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>用 <code>grep</code> 输出文本判断会被本地化/格式变化坑，必须看退出码。</li>
+            <li><code>set -e</code> 与 <code>局部失败</code> 组合容易让脚本提前退出，判断分支建议写成 <code>if</code> 结构。</li>
+            <li>服务名要用引号包裹（防止空格/特殊字符），并校验它不像选项（不以 <code>-</code> 开头）。</li>
+            <li>退出码要有语义：0 正常、2 用法错误、3 服务未运行 —— 便于被监控系统区分。</li>
+            <li>容器内没有 systemd 时不能直接报错退出，要给退化策略。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无 Bash 专用模板；脚本的“幂等 + 明确的退出码 + 不吞异常”与 7.3 Python 日志解析模板的工程要求一致。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p11">
+        <div class="prob-head"><span class="idx">11</span><h5>Bash：日志文件轮转 (Log Rotation)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag good">简单</span><span class="tag v">运维脚本</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>写脚本 <code>rotate_logs.sh</code>：把指定日志文件轮转为<b>带日期的归档</b>（压缩保存），并删除超过保留份数的旧归档；要求可被 cron 周期调用且幂等。</p>
+            <p><b>函数签名（脚本调用方式）：</b><code>./rotate_logs.sh &lt;logfile&gt; [keep=7]</code></p>
+            <p><b>示例 1：</b><code>/var/log/app.log</code>（当前 2MB）→ 生成 <code>/var/log/app.log.2025-01-31.gz</code>（gzip 后约 200KB），原 <code>app.log</code> 变为空文件继续写入；保留 7 份时，第 8 份最旧的会被删除。<br>
+              <b>示例 2：</b>文件不存在 → 输出 <span class="mono">skip: no such file</span> 并以退出码 <span class="mono">0</span> 结束（cron 任务不应因为“今天没日志”而报警）。</p>
+            <p><b>约束：</b>不得用原地截断的方式轮转（会丢日志，必须先 <code>mv</code> 再压缩）；GB 级文件也要能完成；磁盘占用不超过“保留份数 × 单份大小”；并发执行要加锁避免重复轮转。</p>
+            <p class="note"><b>来源：</b>LeetCode DevOps 编程题合集中的「日志文件轮转」（研究资料第 11 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol11" aria-expanded="false" aria-controls="sol11">查看解题思路</button>
+        <div class="reveal-body" id="sol11" hidden>
+          <h6>核心思路</h6><p>“<b>先 mv 再压缩</b>”是核心：写日志的进程继续写新文件（inode 不变），归档在后台压缩，不会丢日志。</p>
+          <h6>步骤</h6><ol>
+            <li>校验参数与 <code>keep</code> 为正整数；文件不存在 → 输出 skip 并 <code>exit 0</code>。</li>
+            <li><code>flock</code>（或锁文件）加锁，避免并发重复轮转。</li>
+            <li><code>mv "$LOG" "$LOG.$(date +%F-%H%M%S)"</code>，然后 <code>gzip -f</code> 归档文件。</li>
+            <li>列出同前缀归档按时间排序，保留最新 <code>keep</code> 个，其余 <code>rm -f</code>。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 O(文件大小)（压缩是主要开销）+ O(归档数量)；空间等于归档总大小。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>用 <code>&gt; app.log</code> 直接截断会丢掉未落盘的缓冲日志。</li>
+            <li>同一天轮转多次会重名 —— 文件名要带时分秒，或先判断存在则加序号。</li>
+            <li><code>find -mtime +N</code> 的语义容易理解错（按 24 小时整数倍），更直观的是按文件名排序取尾部。</li>
+            <li>压缩大文件耗时长，cron 里要设置合理超时；必要时 <code>nice/ionice</code> 降低影响。</li>
+            <li>写日志的进程若持有旧 fd，需要支持 <code>SIGHUP</code> 或在轮转后重启；<code>copytruncate</code> 是另一种折中（有丢日志窗口）。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无 bash 模板，可手写；工程要求（幂等、超时、错误处理）与 7.3 的模板一致。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p12">
+        <div class="prob-head"><span class="idx">12</span><h5>Python：监控 CPU 使用率 (CPU Usage Monitor)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag good">简单</span><span class="tag v">可观测脚本</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>用 Python 实现 CPU 使用率采样：以固定间隔采样并返回整体 CPU 使用率（百分比，保留一位小数），支持指定采样次数；<b>首次采样必须丢弃</b>（<code>psutil.cpu_percent()</code> 第一次调用返回的是自开机以来的累计均值，不是瞬时值）。</p>
+            <p><b>函数签名：</b><code>def sample_cpu(interval: float = 1.0, times: int = 5) -&gt; list[float]</code></p>
+            <p><b>示例：</b><code>sample_cpu(interval=1, times=3)</code> → <span class="mono">[42.3, 38.9, 45.1]</span>（单位 %，每次间隔 1 秒；返回长度等于 <code>times</code> 而非 times+1）。</p>
+            <p><b>约束：</b>采样间隔可配置（默认 1 秒）；单次调用耗时不超过 <code>1.5 × interval</code>；不需要 root 权限；<code>psutil</code> 不可用时要抛出/返回明确错误而不是静默返回 0。</p>
+            <p class="note"><b>来源：</b>LeetCode DevOps 编程题合集中的「Python 监控 CPU 使用率」（研究资料第 12 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol12" aria-expanded="false" aria-controls="sol12">查看解题思路</button>
+        <div class="reveal-body" id="sol12" hidden>
+          <h6>核心思路</h6><p>先调用一次 <code>cpu_percent(interval=None)</code> 做<b>预热并丢弃</b>，之后每次 <code>sleep(interval)</code> 再取非阻塞值。</p>
+          <h6>步骤</h6><ol>
+            <li><code>import psutil, time</code>；<code>psutil.cpu_percent(interval=None)</code> 预热一次并丢弃。</li>
+            <li>循环 <code>times</code> 次：<code>time.sleep(interval)</code> → <code>v = psutil.cpu_percent(interval=None)</code> → <code>round(v, 1)</code> 加入结果。</li>
+            <li>返回列表；异常（psutil 缺失/权限）向上抛出或在调用处显式处理。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 O(times × interval)（主要是等待）；空间 O(times)。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>忘记丢弃首次采样 → 第一个数值明显偏离（累计均值）。</li>
+            <li><code>cpu_percent(interval=1)</code> 是阻塞式，内部已经 sleep；再手动 sleep 会变成 2 秒间隔。</li>
+            <li>整体使用率与每核使用率不同：<code>percpu=True</code> 才返回每个核的列表，注意返回类型要一致。</li>
+            <li>长时间运行建议用 <code>time.monotonic()</code> 计算间隔，避免系统时间跳变导致漂移。</li>
+            <li>失败要显式报错：返回 0 会被误认为“CPU 空闲”，正是本项目“负载恒 0%”那类事故的诱因。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.3「LRU（OrderedDict）/ 并发线程池 / 解析日志」中的工程写法（异常处理、结构化输出）可对照。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p13">
+        <div class="prob-head"><span class="idx">13</span><h5>Python：解析日志提取 ERROR 行 (Parse ERROR Log Lines)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag good">简单</span><span class="tag v">文本处理</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>写函数从可能很大的日志文件中提取 <code>ERROR</code> 级别的行，并解析出时间与关键字段（如 <code>task</code> / <code>stage</code> / <code>ms</code>），返回结构化列表；要求<b>流式读取</b>、内存友好、字段缺失不抛异常。</p>
+            <p><b>函数签名：</b><code>def parse_errors(path: str) -&gt; list[dict]</code></p>
+            <p><b>示例：</b>输入行 <span class="mono">2025-01-31 12:00:01 ERROR task=abc stage=worker ms=12.5</span> → 输出 <span class="mono">{"time": "2025-01-31 12:00:01", "level": "ERROR", "task": "abc", "stage": "worker", "ms": 12.5}</span>；<code>INFO</code> 行（如 <span class="mono">2025-01-31 12:00:02 INFO task=abc stage=done ms=120</span>）被跳过。<br>
+              <b>示例 2：</b>行 <span class="mono">2025-01-31 12:00:03 ERROR task=abc</span>（缺 stage/ms）→ 仍应返回记录，缺失字段置 <code>None</code> 或不出现，<b>不得抛异常</b>。</p>
+            <p><b>约束：</b>文件可达 <b>1GB+</b>（禁止 <code>readlines()</code> / <code>.read()</code> 全量读入）；正则需<b>预编译</b>；单行异常不得中断整体解析；编码异常要能容错处理。</p>
+            <p class="note"><b>来源：</b>LeetCode DevOps 编程题合集中的「Python 解析日志提取 ERROR 行」（研究资料第 13 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol13" aria-expanded="false" aria-controls="sol13">查看解题思路</button>
+        <div class="reveal-body" id="sol13" hidden>
+          <h6>核心思路</h6><p>把日志文件当<b>迭代器</b>逐行处理（<code>for line in f</code>），用预编译正则匹配并 <code>groupdict()</code> 组装字典；数值转换单独 try。</p>
+          <h6>步骤</h6><ol>
+            <li>模块级 <code>PAT = re.compile(r"...")</code> 预编译（带命名分组）。</li>
+            <li><code>with open(path, encoding='utf-8', errors='replace') as f:</code> 逐行遍历。</li>
+            <li><code>m = PAT.search(line)</code>；不匹配则 <code>continue</code>（自然跳过 INFO 等行）。</li>
+            <li><code>d = m.groupdict()</code>；<code>ms</code> 用 try/except 转 float，失败置 None。</li>
+            <li>返回列表；若调用方要求更省内存，改成生成器 <code>yield</code>。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(文件大小)</b>（单遍扫描）；空间 <b>O(命中行数)</b>（用生成器则 O(1)）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>在循环里 <code>re.compile</code> 会重复编译，性能差几个数量级。</li>
+            <li><code>float("")</code> / <code>float(None)</code> 会抛异常 —— 必须单独捕获，不能让它中断整个解析。</li>
+            <li>正则要锚定行首时间戳（<code>^\d{4}-\d{2}-\d{2}</code>），否则 <code>ERROR</code> 出现在消息体里也会被误判。</li>
+            <li>大文件不要返回超大列表：先问面试官“要不要生成器/要不要写回文件”。</li>
+            <li>日志行有 <code>\r\n</code> 与乱码时用 <code>errors='replace'</code> 且 <code>strip()</code> 处理行尾。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.3「解析日志」模板（<code>PAT = re.compile(...)</code> + 容错返回 <code>None</code>）—— 本题可直接复用。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p14">
+        <div class="prob-head"><span class="idx">14</span><h5>写 Dockerfile + 清理命令 (Dockerfile &amp; Cleanup)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag good">简单</span><span class="tag v">容器交付</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>为一个 Python 服务写<b>多阶段构建</b>的 Dockerfile，使运行镜像尽量小、不依赖外网、可复现；并给出构建后清理无用镜像/构建缓存的命令。</p>
+            <p><b>函数签名（构建命令）：</b><code>docker build -t myapp:1.0 .</code>；清理：<code>docker system prune -a</code>（谨慎）或 <code>docker image prune -a</code> / <code>docker builder prune</code>。</p>
+            <p><b>示例：</b>单阶段镜像（含编译工具链 + 测试依赖）约 3GB+ → 多阶段构建（builder 装依赖、runtime 只拷 <code>site-packages</code> 与代码）实测降到约 <b>550MB</b>（本项目 AlexNet-K8s v2 的真实数据，约 -82%）；关键片段：<code>COPY requirements.txt</code> → <code>pip install --no-cache-dir</code> → <code>COPY --from=builder /usr/local/lib/python3.*/site-packages ...</code>。</p>
+            <p><b>约束：</b>基础镜像与依赖必须<b>固定版本</b>（禁止 <code>latest</code>）；runtime 阶段不得包含编译工具链与测试依赖；镜像 tag 必须显式版本化（本项目每个补丁一个 tag，便于回退）；构建过程中不得依赖外网（离线环境要能构建）。</p>
+            <p class="note"><b>来源：</b>LeetCode DevOps 编程题合集中的「写 Dockerfile + 清理命令」（研究资料第 14 条，✅ 有来源）；镜身数据来自仓库版本记录 v2。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol14" aria-expanded="false" aria-controls="sol14">查看解题思路</button>
+        <div class="reveal-body" id="sol14" hidden>
+          <h6>核心思路</h6><p>把“安装依赖”和“运行产物”分成两个 stage：builder 负责编译/安装，runtime 只 <code>COPY --from=builder</code> 结果，工具链不进入最终镜像。</p>
+          <h6>步骤</h6><ol>
+            <li>选 <code>python:3.11-slim</code> 之类精简基础镜像并固定小版本。</li>
+            <li>builder 阶段：先 COPY <code>requirements.txt</code> 再 <code>pip install --no-cache-dir</code>（充分利用层缓存）。</li>
+            <li>runtime 阶段：<code>COPY --from=builder</code> 拷 site-packages 与应用代码；写 <code>ENV PYTHONUNBUFFERED=1</code>、<code>EXPOSE</code>、<code>CMD ["python","-m","uvicorn",...]</code>。</li>
+            <li>配 <code>.dockerignore</code> 排除 <code>.git</code>/测试数据/缓存；构建后 <code>docker system prune -a</code> 清理悬空层与构建缓存。</li>
+          </ol>
+          <h6>复杂度</h6><p>不适用（工程题）；关注点是镜像体积、构建时间与可复现性。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>忘记 <code>--no-cache-dir</code>，pip 缓存会把镜像撑大。</li>
+            <li>多阶段构建忘了拷入口程序（本项目踩过：容器启动报“找不到 uvicorn”→ 统一用 <code>python -m uvicorn</code> 并拷 bin）。</li>
+            <li>把 <code>.git</code>、测试数据集、模型权重打进镜像（用 <code>.dockerignore</code> 排除）。</li>
+            <li><code>docker system prune -a</code> 在生产节点会删掉其它镜像，要先确认；更稳的是 <code>docker image prune -a --filter until=168h</code>。</li>
+            <li>运行时需要联网下载权重 → 镜像要内置权重或用 <code>weights=None</code> + 本地文件（本项目 v2 的做法）。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节没有 Dockerfile 模板，属于“可手写”类；相关速查见 10.5 集群运维速查中的巡检/清理思路。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p15">
+        <div class="prob-head"><span class="idx">15</span><h5>写 K8s YAML 部署 nginx + 扩缩容 (nginx Deployment &amp; Scale)</h5>
+          <span class="meta"><span class="tag">题库收录</span><span class="tag good">简单</span><span class="tag v">K8s 配置</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>写 YAML 把 nginx 部署到 Kubernetes（Deployment + Service），要求副本数可调、容器有资源请求与限制、有就绪探针；再给出把副本从 3 扩到 5 以及回滚的命令。</p>
+            <p><b>函数签名（关键 YAML 字段 + 命令）：</b><code>kubectl apply -f nginx.yaml</code> → <code>kubectl scale deployment/nginx --replicas=5</code> → 验证 <code>kubectl get deploy nginx</code>；回滚 <code>kubectl rollout undo deployment/nginx</code>。</p>
+            <p><b>示例（关键字段）：</b>Deployment <code>replicas: 3</code>；容器 <code>image: nginx:1.27-alpine</code>、<code>resources.requests: cpu 100m / memory 128Mi</code>、<code>resources.limits: cpu 500m / memory 256Mi</code>、<code>readinessProbe.httpGet: path / port 80</code>（initialDelaySeconds 5、periodSeconds 10）；Service <code>type: ClusterIP</code>、<code>port: 80 → targetPort: 80</code>、<code>selector: app: nginx</code>。扩展后 <code>READY</code> 应变为 <span class="mono">5/5</span>。</p>
+            <p><b>约束：</b>镜像必须带显式 tag；requests 必填（否则调度不可预测）；探针路径与端口必须与容器实际监听一致（本项目曾因探针打错端口导致反复重启）；Service 的 selector 必须与 Pod labels 完全匹配。</p>
+            <p class="note"><b>来源：</b>LeetCode DevOps 编程题合集中的「写 K8s YAML 部署 nginx + 扩缩容」（研究资料第 15 条，✅ 有来源）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol15" aria-expanded="false" aria-controls="sol15">查看解题思路</button>
+        <div class="reveal-body" id="sol15" hidden>
+          <h6>核心思路</h6><p>标准两段式：先写 Deployment（模板 + 副本 + 探针 + 资源），再写 Service（selector 指向 Pod labels）；扩缩容用 <code>kubectl scale</code>，回滚用 <code>rollout undo</code>。</p>
+          <h6>步骤</h6><ol>
+            <li>Deployment：<code>spec.selector.matchLabels</code> 与 <code>template.metadata.labels</code> 保持一致（不一致会创建失败或被拒绝）。</li>
+            <li>容器：固定镜像 tag、声明 <code>containerPort</code>、写 requests/limits、配 readinessProbe（必要时 livenessProbe + startupProbe）。</li>
+            <li>Service：<code>selector</code> 匹配 Pod labels，<code>port</code>/<code>targetPort</code> 对齐容器监听端口。</li>
+            <li><code>kubectl apply</code> → <code>kubectl rollout status</code> → <code>scale</code> → 再 <code>rollout status</code> 确认。</li>
+          </ol>
+          <h6>复杂度</h6><p>不适用（配置题）；关注正确性与可运维性。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>selector 与 labels 不匹配 → Deployment 报 <code>selector does not match template labels</code>；Service 的 selector 写错 → Endpoints 为空、访问不通。</li>
+            <li><code>targetPort</code> 与容器实际监听端口不一致（nginx 是 80），或探针用了不存在的路径。</li>
+            <li>没写 requests 会让调度结果不可预测，也可能导致节点过载；limits 太小则会 CPU 限流/OOMKilled。</li>
+            <li>扩缩容后立刻断言成功 —— 应等 <code>rollout status</code> 或看 <code>READY</code> 列。</li>
+            <li>生产里别用 <code>latest</code>，并建议配 PDB 与滚动策略（<code>maxUnavailable</code>）。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无 YAML 模板；排障命令见 10.1 kubectl 排障速查，升级/滚动见 03 节故事 4。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p16">
+        <div class="prob-head"><span class="idx">16</span><h5>LFU 缓存 (LFU Cache)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag bad">困难</span><span class="tag v">哈希 · 缓存设计</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>设计 <b>LFU（最不经常使用）缓存</b>：<code>get(key)</code> / <code>put(key,value)</code> 接口同 LRU；淘汰时优先淘汰<b>访问频次最低</b>的键，频次相同时淘汰<b>最久未使用</b>的那一个（用 LRU 作为平局规则）。要求两个操作都是 <b>O(1) 平均</b>。</p>
+            <p><b>函数签名：</b><code>NewLFUCache(capacity int) *LFUCache</code> / <code>Get(key int) int</code> / <code>Put(key, value int)</code></p>
+            <p><b>示例：</b>capacity = 2：<span class="mono">put(1,1) → put(2,2) → get(1)=1</span>（key1 频次升到 2）<span class="mono">→ put(3,3)</span>（淘汰频次最低的 key2）<span class="mono">→ get(2)=-1 → get(3)=3 → put(4,4)</span>（key1 与 key3 频次同为 2，按 LRU 淘汰更早使用的 key1）<span class="mono">→ get(1)=-1、get(3)=3、get(4)=4</span>。</p>
+            <p><b>约束：</b><code>1 ≤ capacity ≤ 10^4</code>；<code>0 ≤ key ≤ 10^5</code>；<code>0 ≤ value ≤ 10^9</code>；最多 <code>2×10^5</code> 次调用；要求 O(1) 平均复杂度（不能每次淘汰都扫描全部键）。</p>
+            <p class="note"><b>来源：</b>研究资料第 16 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（考察点“频率桶 + 双向链表 O(1)”来自资料原文）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol16" aria-expanded="false" aria-controls="sol16">查看解题思路</button>
+        <div class="reveal-body" id="sol16" hidden>
+          <h6>核心思路</h6><p>两个哈希表 + 一组<b>频次桶</b>：<code>key → node(value, freq)</code>、<code>freq → 该频次的 LRU 双向链表</code>，再用 <code>minFreq</code> 记录当前最低频次以便 O(1) 淘汰。</p>
+          <h6>步骤</h6><ol>
+            <li><code>Get</code>：不存在返回 -1；存在 → 从旧频次桶摘除，freq++，插入新频次桶尾部（最新），并维护 <code>minFreq</code>。</li>
+            <li><code>Put</code>：key 已存在 → 更新值并按“一次访问”提升频次；不存在 → 若容量满，淘汰 <code>minFreq</code> 桶的<b>头部/尾部（最旧）</b>，再插入新节点，频次 = 1，<code>minFreq = 1</code>。</li>
+            <li>桶为空时要及时清理，避免 <code>minFreq</code> 指向空桶。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(1)</b>（平均）；空间 <b>O(capacity)</b>。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li><code>minFreq</code> 的更新规则最容易错：当旧频次桶空了 <b>且</b> <code>minFreq == 旧频次</code> 时才 +1（因为新桶是旧频次+1）。</li>
+            <li>平局规则是“同频次按 LRU”，所以每个频次桶内部必须是<b>有序</b>的（双向链表 + 头插）。</li>
+            <li><code>Put</code> 已存在的 key 也算一次访问（freq+1），不要只更新 value。</li>
+            <li>插入新 key 后 <code>minFreq</code> 必须重置为 1，否则会淘汰错对象。</li>
+            <li><code>capacity = 0</code> 的边界；链表与两张 map 的删除必须同步。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「LRU 缓存（container/list + map）」—— 在它的基础上加一层“频次桶 map”即可。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p17">
+        <div class="prob-head"><span class="idx">17</span><h5>生产者-消费者 / worker pool (Producer-Consumer / Worker Pool)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag info">中等</span><span class="tag v">Go 并发</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>实现生产者-消费者模型：N 个 producer 生成任务放入<b>有界队列</b>，M 个 worker 从队列取任务处理；要求支持 <code>context</code> 取消、优雅退出（停止接收新任务后把在途任务处理完）、worker 内 panic 不导致进程崩溃，且不泄漏 goroutine。</p>
+            <p><b>函数签名：</b><code>func Run(ctx context.Context, jobs &lt;-chan Job, workers int)</code>；生产端：<code>func Produce(ctx context.Context, out chan&lt;- Job, n int)</code></p>
+            <p><b>示例：</b><code>workers = 4</code>、队列容量 100、任务总数 1000（每个任务耗时 10ms~1s）→ 全部处理完成，计数为 <span class="mono">1000</span>，无丢失/重复；调用 <code>cancel()</code> 后所有 worker 在约 1 秒内退出，<code>wg.Wait()</code> 能正常返回。<br>
+              <b>示例 2：</b>某个任务内部 panic → 该任务被记录为失败，其余任务继续执行，进程不退出。</p>
+            <p><b>约束：</b>队列必须有界（防止内存无界增长）；worker 数 <code>≤ 1000</code>；生产者不得因为队列满而死锁（要能感知 ctx 取消）；不允许用无缓冲 channel 无限阻塞生产者。</p>
+            <p class="note"><b>来源：</b>研究资料第 17 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（考察点“channel+buffer、WaitGroup、优雅退出”来自资料原文）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol17" aria-expanded="false" aria-controls="sol17">查看解题思路</button>
+        <div class="reveal-body" id="sol17" hidden>
+          <h6>核心思路</h6><p>M 个 goroutine 抢同一个有界 channel；<code>WaitGroup</code> 管生命周期，<code>context</code> 管取消，每个任务外面套一层 <code>defer recover()</code> 兜 panic。</p>
+          <h6>步骤</h6><ol>
+            <li>生产者：<code>select { case &lt;-ctx.Done(): return; case jobs &lt;- task: }</code> 保证队列满时也能响应取消。</li>
+            <li>生产者结束后<b>由发送方</b>关闭 channel（<code>close(jobs)</code>）。</li>
+            <li>worker 循环：<code>select { case &lt;-ctx.Done(): return; case j, ok := &lt;-jobs: if !ok { return }; run(j) }</code>。</li>
+            <li><code>run(j)</code> 内部 <code>defer func(){ if r := recover(); r != nil { log... } }()</code>。</li>
+            <li>主协程 <code>wg.Wait()</code>；需要收集结果时用带缓冲 channel 或加锁切片，避免阻塞 worker。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(总任务量 / workers)</b>（理想并行）；空间 <b>O(队列容量 + workers)</b>。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>channel 必须由<b>发送方关闭</b>；向已关闭 channel 发送会 panic，重复 close 也会 panic。</li>
+            <li>worker 里若直接 <code>&lt;-jobs</code>（不 select）就无法响应取消 → 表现为“取消后进程不退出”。</li>
+            <li>goroutine 泄漏：忘了 <code>wg.Wait()</code>、忘记 <code>cancel()</code>、结果 channel 没人读。</li>
+            <li>panic 不 recover 会直接杀掉整个进程（本项目 scheduler 崩溃循环就是“单进程 + 阻塞”的教训）。</li>
+            <li>要能主动说清：锁粒度、数据竞争（<code>-race</code>）、队列满时的背压策略（阻塞 / 丢弃 / 拒绝）。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「并发 Worker Pool（context 取消 + 优雅退出 + panic 兜底）」—— 直接对应本题。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p18">
+        <div class="prob-head"><span class="idx">18</span><h5>并发安全 map / 单例 (Concurrent Map &amp; Singleton)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag info">中等</span><span class="tag v">并发原语</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>实现两个东西：① 并发安全的字符串计数器（外部不加锁即可多处读写）；② <b>惰性单例</b>，保证构造函数只执行一次，且并发调用也安全。</p>
+            <p><b>函数签名：</b><code>type SafeCounter struct{...}</code> / <code>Inc(key string)</code> / <code>Get(key string) int</code>；<code>func GetInstance() *Config</code></p>
+            <p><b>示例 1：</b>1000 个 goroutine 各对 <code>"a"</code> 调用一次 <code>Inc</code> → <code>Get("a") == 1000</code>，<code>go test -race</code> 无告警。<br>
+              <b>示例 2：</b>100 个 goroutine 并发调用 <code>GetInstance()</code> → 构造函数里的打印只出现 <span class="mono">1</span> 次。</p>
+            <p><b>约束：</b>不允许把内部 map 直接暴露给外部（裸并发写会触发 <code>fatal error: concurrent map writes</code>，且<b>不可 recover</b>）；读多写少可用 <code>RWMutex</code> 或 <code>sync.Map</code>；单例必须惰性初始化（不能靠 <code>init()</code> 提前构造）。</p>
+            <p class="note"><b>来源：</b>研究资料第 18 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（考察点“RWMutex、sync.Map、sync.Once”来自资料原文）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol18" aria-expanded="false" aria-controls="sol18">查看解题思路</button>
+        <div class="reveal-body" id="sol18" hidden>
+          <h6>核心思路</h6><p>计数器：结构体内嵌 <code>map</code> + <code>sync.RWMutex</code>（或 <code>sync.Map</code>），所有访问通过方法；单例：包级变量 + <code>sync.Once</code>。</p>
+          <h6>步骤</h6><ol>
+            <li><code>type SafeCounter struct { mu sync.RWMutex; m map[string]int }</code>，构造时初始化 map。</li>
+            <li><code>Inc</code> 用 <code>mu.Lock()</code>；<code>Get</code> 用 <code>mu.RLock()</code>（读多写少场景）。</li>
+            <li>单例：<code>var (once sync.Once; inst *Config)</code>；<code>GetInstance()</code> 内 <code>once.Do(func(){ inst = newConfig() })</code>。</li>
+            <li>用 <code>go test -race</code> 与 <code>go vet</code> 验证（vet 能查出复制含锁结构体）。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(1)</b> 平均（map 操作；<code>sync.Map</code> 在读多写少时更优）；空间 <b>O(键数量)</b>。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>map 并发写是 <b>fatal error</b>（运行时直接终止），不像普通 panic 能 recover —— 一定要强调。</li>
+            <li><code>sync.Map</code> 不是万能：适合“写入一次多次读 / 键集合稳定”的场景，频繁写反而更慢。</li>
+            <li><code>once.Do</code> 内部 panic 会导致该 Once 永久视为已完成（不会重试），初始化逻辑要稳。</li>
+            <li>结构体含 <code>Mutex</code> 时不能按值复制（方法接收者用指针），否则锁失效。</li>
+            <li><code>Get</code> 返回引用类型时要拷贝或明确文档说明，避免调用方改内部状态。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>参考 7.2「并发 Worker Pool」中的并发安全写法；<code>RWMutex</code>/<code>Once</code> 属于必须背熟的标准库。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p19">
+        <div class="prob-head"><span class="idx">19</span><h5>任务依赖 DAG：拓扑排序 + 并发执行 (DAG Topological Sort &amp; Concurrent Run)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag warn">中等–困难</span><span class="tag v">图 · 调度</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>给定一批任务与依赖关系（<code>A → B</code> 表示 B 依赖 A），要求：① 输出一个合法的执行顺序；② 若存在环则报错（不能死循环）；③ 进阶：按层并发执行（同层任务可并行），全部完成后返回。</p>
+            <p><b>函数签名：</b><code>func Topo(tasks []string, deps map[string][]string) ([]string, bool)</code>；进阶：<code>func RunDAG(ctx context.Context, tasks map[string]Func, deps map[string][]string, parallel int) error</code></p>
+            <p><b>示例 1：</b><span class="mono">tasks = [A,B,C,D,E]</span>，<span class="mono">deps = {B:[A], C:[A], D:[B,C], E:[D]}</span> → 合法顺序 <span class="mono">A,B,C,D,E</span>（或 <span class="mono">A,C,B,D,E</span>，顺序不唯一）；按层分组为 <span class="mono">[[A],[B,C],[D],[E]]</span>。<br>
+              <b>示例 2：</b><span class="mono">deps = {A:[B], B:[A]}</span> → 返回 <code>ok = false</code>（检测到环），进阶版返回 error。</p>
+            <p><b>约束：</b>节点数与边数为中等规模（面试常见不超过 10^4 量级，本题不设精确上限）；任务名唯一；允许孤立节点（无依赖也无后继）；<b>环必须被检测</b>而不是陷入死循环或无限等待。</p>
+            <p class="note"><b>来源：</b>研究资料第 19 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（考察点“入度表、并发调度、环检测”来自资料原文；本项目调度器里也确实有任务编排需求）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol19" aria-expanded="false" aria-controls="sol19">查看解题思路</button>
+        <div class="reveal-body" id="sol19" hidden>
+          <h6>核心思路</h6><p>Kahn 算法：统计入度 → 入度为 0 的任务入队 → 逐个出队并把后继入度减 1，减到 0 再入队；<b>输出长度 ≠ 任务总数就说明有环</b>。</p>
+          <h6>步骤</h6><ol>
+            <li>初始化入度表（注意把所有任务都填 0，包括孤立节点）。</li>
+            <li>把所有入度为 0 的任务放入队列。</li>
+            <li>循环出队：加入结果；遍历它的后继，入度减 1，减到 0 则入队。</li>
+            <li>结束后比较 <code>len(out) == len(tasks)</code>，不等即有环。</li>
+            <li>进阶并发版：按“层”执行——每轮取出当前所有入度 0 的任务，用 WaitGroup + goroutine 并行执行，任一层有错误就 <code>cancel()</code> 并返回。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(V+E)</b>；空间 <b>O(V+E)</b>（入度表 + 邻接表 + 队列）；并发版额外 O(并发度)。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>依赖方向最容易写反：先明确 <code>deps[t]</code> 是“t 的前驱”还是“t 的后继”，全篇统一。</li>
+            <li>map 遍历顺序不确定 → <b>结果顺序不唯一</b>，测试不能断言唯一序列（本项目拓扑排序模板里也特意标注了方向问题）。</li>
+            <li>重复边会让入度偏大，导致任务永远无法出队（要先去重或按多重边语义处理）。</li>
+            <li>环检测不能靠“看队列是否为空”，要靠输出长度比较。</li>
+            <li>并发版的失败传播：用 <code>errgroup</code> 或手动 <code>cancel()</code>，并注意“同层任务”之间不能有依赖。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「任务依赖拓扑排序（调度/流水线场景）」—— 含环检测与按层并发的追问要点。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p20">
+        <div class="prob-head"><span class="idx">20</span><h5>IP/CIDR 处理：判断归属、IP 排序 (IP in CIDR &amp; Sort)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag info">中等</span><span class="tag v">位运算</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>实现两件事：① 判断某个 IPv4 地址是否属于给定 CIDR 网段；② 对一批 IPv4 字符串按<b>数值大小</b>排序（而不是字典序）。</p>
+            <p><b>函数签名：</b><code>func InCIDR(ip, cidr string) (bool, error)</code> / <code>func SortIPs(ips []string) []string</code></p>
+            <p><b>示例 1：</b><code>InCIDR("10.0.0.5", "10.0.0.0/24")</code> → <span class="mono">true</span>；<code>InCIDR("10.0.1.5", "10.0.0.0/24")</code> → <span class="mono">false</span>；<code>InCIDR("10.0.0.5", "10.0.0.0/32")</code> → <span class="mono">false</span>（/32 只匹配 10.0.0.0 本身）。<br>
+              <b>示例 2：</b><code>SortIPs(["10.0.0.10","10.0.0.9","192.168.1.1"])</code> → <span class="mono">["10.0.0.9","10.0.0.10","192.168.1.1"]</span>（字典序会把 "10.0.0.10" 排在 "10.0.0.9" 前面，属于错误答案）。</p>
+            <p><b>约束：</b>仅需处理 IPv4（IPv6 可作扩展）；输入为合法的点分十进制地址与 <code>a.b.c.d/len</code> 形式的 CIDR，掩码长度 0~32；不依赖外部库（可用标准库 <code>net</code>，但要能讲清位运算原理）。</p>
+            <p class="note"><b>来源：</b>研究资料第 20 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（考察点“32 位整数化、前缀匹配、位运算”来自资料原文）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol20" aria-expanded="false" aria-controls="sol20">查看解题思路</button>
+        <div class="reveal-body" id="sol20" hidden>
+          <h6>核心思路</h6><p>把 IPv4 转成 <code>uint32</code>，用<b>掩码按位与</b>比较网络号：<code>(ip &amp; mask) == (net &amp; mask)</code>；排序时按转成的整数比较。</p>
+          <h6>步骤</h6><ol>
+            <li>解析：按 <code>.</code> 切四段，逐段校验 0~255，<code>ip = a&lt;&lt;24 | b&lt;&lt;16 | c&lt;&lt;8 | d</code>。</li>
+            <li>解析 CIDR：拆出网络地址与掩码长度 <code>bits</code>（0~32）。</li>
+            <li>掩码：<code>bits == 0 ? 0 : ^uint32(0) &lt;&lt; (32-bits)</code>（<b>0 要单独处理</b>，否则移位 32 位是未定义/越界）。</li>
+            <li>判断：<code>ip&amp;mask == net&amp;mask</code>；排序：转 uint32 后 <code>sort.Slice</code>，或依次比较四段。</li>
+          </ol>
+          <h6>复杂度</h6><p>单次归属判断 <b>O(1)</b>；排序 <b>O(n log n)</b>；空间 <b>O(1)</b> / 排序 <b>O(n)</b>（或 O(log n) 栈）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>掩码 0 和 32 是两个边界：<code>uint32(32)</code> 左移 32 位在 Go 里结果是 0（不是 2^32），必须特判。</li>
+            <li>用有符号 <code>int</code> 存 IP 会让 128.0.0.0 以上变成负数，比较出错 —— 用 <code>uint32</code>。</li>
+            <li>非法输入（<code>256.1.1.1</code>、段数不足、前导空格）要返回 error，不要静默截断。</li>
+            <li>“字典序排序 IP”是经典陷阱，务必先转整数；结果相同前缀时的稳定性也要说明。</li>
+            <li>CIDR 字符串可能没有掩码（如 "10.0.0.0"），按题意决定是报错还是默认 /32。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>本节无位运算专用模板，可手写；排序风格可参考 7.2「合并区间 / 排序扫描模板」里的 <code>sort.Slice</code> 用法。</p>
+        </div>
+      </article>
+
+      <article class="prob" id="p21">
+        <div class="prob-head"><span class="idx">21</span><h5>简单调度器：按资源打分选节点 (Score-based Scheduler)</h5>
+          <span class="meta"><span class="tag">同类高频</span><span class="tag info">中等</span><span class="tag v">调度 · 打分</span></span></div>
+        <details class="qa"><summary>📄 题目描述（展开查看具体要求）<span class="lvl">LeetCode 风格</span></summary>
+          <div class="ans">
+            <p><b>题目描述：</b>实现一个简易调度器：给定一批节点（含 CPU/内存/GPU 空闲率与状态）和一个待调度任务（含资源需求），先<b>过滤</b>掉不可用节点（未就绪、被污点排除、剩余资源不足），再按<b>加权打分</b>选出最优节点；要求权重可配置、结果可解释。</p>
+            <p><b>函数签名：</b><code>func Schedule(task Task, nodes []Node, w Weights) (Node, error)</code>（<code>Weights</code> 例：<code>{CPU: 0.4, GPU: 0.35, Mem: 0.25}</code>）</p>
+            <p><b>示例：</b>节点 <span class="mono">A(cpuFree=0.8, memFree=0.5)</span>、<span class="mono">B(cpuFree=0.3, memFree=0.9)</span>、<span class="mono">C(NotReady)</span>；权重 <code>cpu=0.5, mem=0.5</code> → 得分 A = 0.5×0.8 + 0.5×0.5 = <span class="mono">0.65</span>，B = 0.5×0.3 + 0.5×0.9 = <span class="mono">0.60</span> → 选择 <b>A</b>；节点 C 在过滤阶段被剔除。<br>
+              <b>示例 2：</b>任务请求 cpu=4 核，而所有节点剩余均 &lt; 4 → 返回明确的 <code>no available node</code> 错误（而不是返回零值节点）。</p>
+            <p><b>约束：</b>节点数 ≤ 10^4（单次调度）；各维度空闲率已归一化到 0~1；权重之和为 1；必须<b>先过滤后打分</b>两阶段；同分时的选择策略要确定（便于测试）。</p>
+            <p class="note"><b>来源：</b>研究资料第 21 条标 <b>⚠️ 无特定来源</b> —— <b>同类高频题参考</b>（对应 K8s 调度的 Filter/Score 两阶段；本项目调度器里也写过同类打分逻辑）。</p>
+          </div></details>
+        <button class="btn reveal" data-target="sol21" aria-expanded="false" aria-controls="sol21">查看解题思路</button>
+        <div class="reveal-body" id="sol21" hidden>
+          <h6>核心思路</h6><p>两阶段：<b>Filter</b> 剔除硬性不满足的节点（Ready、容忍污点、剩余资源 ≥ 请求），<b>Score</b> 对剩余节点按归一化加权分取最大。</p>
+          <h6>步骤</h6><ol>
+            <li>Filter：<code>if !node.Ready || !tolerates(task, node.Taints) || node.Free < task.Request { continue }</code>。</li>
+            <li>Score：<code>s = w.CPU*cpuFree + w.GPU*gpuFree + w.Mem*memFree</code>（各维度已是 0~1）。</li>
+            <li>取最大分；同分时按“节点名升序”或“列表顺序”稳定选择，并把这个规则说清楚。</li>
+            <li>若无候选节点返回 error；返回时把“为什么选它”（各维度得分）一并返回，便于解释与调试。</li>
+          </ol>
+          <h6>复杂度</h6><p>时间 <b>O(n)</b>（n = 节点数，过滤与打分各一遍）；空间 <b>O(1)</b>（不算输出）。</p>
+          <h6>易错点 / 边界</h6><ul>
+            <li>先打分后过滤 → 可能选中一个不可用/资源不足的节点（顺序颠倒是最常见的错）。</li>
+            <li>量纲未归一化：CPU 核数与内存 GB 直接相加会让某一维度压倒性主导。</li>
+            <li>权重和不为 1 或含负数 → 分数不可比；应在入口校验。</li>
+            <li>全部节点被过滤要返回明确错误，不要返回零值 <code>Node{}</code> 让调用方误用。</li>
+            <li>更接近真实调度器的加分点：LeastAllocated / MostAllocated 打分策略、资源碎片与 Pod 数量倾斜、亲和与数据本地性作为过滤条件。</li>
+          </ul>
+          <p class="note"><b>相关模板：</b>7.2「节点打分选择（把 K8s 调度概念写成代码）」—— <code>BestNode</code> 函数即本题骨架。</p>
+        </div>
+      </article>
 
       <h4 class="blk">7.1 高频题型地图</h4>
       <table>
@@ -1573,6 +2258,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       </table>
 
       <h4 class="blk">7.2 模板代码（Go）</h4>
+      <p class="note"><b>以下模板对应上面的题目，可对照阅读：</b>★ 单调队列 → 01 滑动窗口最大值；LRU → 04；Worker Pool → 17 生产者-消费者；令牌桶 → 08 限流器；TopK → 07；拓扑排序 → 19；节点打分 → 21；二分边界 / 并查集 / 合并区间为通用补充（02、03、05、06、09、10–16、18、20 手写即可）。</p>
       <details class="qa"><summary>LRU 缓存（container/list + map）<span class="lvl">Go</span></summary>
         <div class="ans"><pre><code><span class="kw">type</span> entry <span class="kw">struct</span> { k, v <span class="kw">int</span> }
 
@@ -2215,10 +2901,16 @@ document.getElementById('expandAll').onclick = () =>
 document.getElementById('collapseAll').onclick = () =>
   document.querySelectorAll('details.qa').forEach(d => d.open = false);
 
-/* ---------- 搜索过滤（按题目文本） ---------- */
+/* ---------- 搜索过滤（按题目文本；含 07 节题目卡片） ---------- */
 const input = document.getElementById('q');
 const counter = document.getElementById('counter');
-const allQA = [...document.querySelectorAll('details.qa')];
+/* 全局 Q&A：排除 07 节题目卡片内的「题目描述」，它们随卡片整体显隐 */
+const allQA = [...document.querySelectorAll('details.qa')].filter(d => !d.closest('.prob'));
+/* 题目卡片：整卡匹配「题名 + 描述 + 解题思路」文本 */
+const probCards = [...document.querySelectorAll('.prob')];
+probCards.forEach(c => c.querySelectorAll('details.qa').forEach(d => {
+  d.dataset.wasOpen = d.open ? '1' : '0';   /* 记住初始展开状态（前 6 题为 open） */
+}));
 function apply() {
   const kw = input.value.trim().toLowerCase();
   let hits = 0;
@@ -2229,17 +2921,45 @@ function apply() {
     if (ok) hits++;
     if (kw && ok) d.open = true;
   });
+  probCards.forEach(card => {
+    const ok = !kw || card.textContent.toLowerCase().includes(kw);
+    card.classList.toggle('hide', !ok);
+    if (ok) hits++;
+    card.querySelectorAll('details.qa').forEach(d => {
+      if (!kw) d.open = d.dataset.wasOpen === '1';   /* 清空搜索 → 回到初始状态 */
+      else if (ok) d.open = true;                    /* 命中关键词 → 自动展开题目描述 */
+    });
+  });
   document.querySelectorAll('.qgroup').forEach(g => {
     const any = [...g.querySelectorAll('details.qa')].some(d => !d.classList.contains('hide'));
     g.classList.toggle('hide', !any);
   });
-  counter.textContent = kw ? `匹配 ${hits} / ${allQA.length} 题` : `共 ${allQA.length} 题`;
+  const total = allQA.length + probCards.length;
+  counter.textContent = kw ? `匹配 ${hits} / ${total} 题` : `共 ${total} 题`;
 }
 input.addEventListener('input', apply);
 apply();
 
-/* ---------- 打印时展开全部 ---------- */
-window.addEventListener('beforeprint', () => allQA.forEach(d => d.open = true));
+/* ---------- 解题思路「查看/收起」按钮（事件委托；目标缺失不报错） ---------- */
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.reveal');
+  if (!btn) return;
+  const id = btn.getAttribute('data-target');
+  const body = id ? document.getElementById(id) : null;
+  if (!body) {                                    /* 目标 id 不存在：什么都不做，不抛异常 */
+    btn.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  const willOpen = body.hasAttribute('hidden');
+  if (willOpen) body.removeAttribute('hidden');
+  else body.setAttribute('hidden', '');
+  btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  btn.textContent = willOpen ? '收起解题思路' : '查看解题思路';
+});
+
+/* ---------- 打印时展开全部（含 07 节题目的「题目描述」） ---------- */
+window.addEventListener('beforeprint', () =>
+  document.querySelectorAll('details.qa').forEach(d => d.open = true));
 </script>
 </body>
 </html>
