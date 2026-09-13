@@ -176,19 +176,20 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
     </div>
     <nav id="toc">
       <a href="#howto"><b>00</b>使用说明</a>
-      <a href="#pitch"><b>01</b>项目介绍脚本</a>
-      <a href="#retro"><b>02</b>版本复盘·问题与解法</a>
-      <a href="#arch"><b>03</b>架构与设计决策</a>
-      <a href="#qbank"><b>04</b>面试官视角题库</a>
-      <a href="#scenario"><b>05</b>故障排查场景</a>
-      <a href="#code"><b>06</b>手撕代码专区</a>
-      <a href="#design"><b>07</b>系统设计题</a>
-      <a href="#behavior"><b>08</b>行为面与反问</a>
-      <a href="#cheat"><b>09</b>速查与资料</a>
+      <a href="#jdfit"><b>01</b>岗位对照与匹配度</a>
+      <a href="#pitch"><b>02</b>项目介绍脚本</a>
+      <a href="#retro"><b>03</b>版本复盘·问题与解法</a>
+      <a href="#arch"><b>04</b>架构与设计决策</a>
+      <a href="#qbank"><b>05</b>面试官视角题库</a>
+      <a href="#scenario"><b>06</b>故障排查场景</a>
+      <a href="#code"><b>07</b>手撕代码专区</a>
+      <a href="#design"><b>08</b>系统设计题</a>
+      <a href="#behavior"><b>09</b>行为面与反问</a>
+      <a href="#cheat"><b>10</b>速查与资料</a>
     </nav>
     <div class="tip">
       <h4>使用建议</h4>
-      <p>① 先背 <b>01 的 60 秒版</b>；② 用自己的话讲 <b>02 的 5 个故事</b>；③ 用 04 题库自测（点开看要点）；④ 06 手撕至少手写 6 题；⑤ 面试前 10 分钟只看 09 速查。</p>
+      <p>⓪ 先看 <b>01 岗位对照</b>确认要讲什么；① 再背 <b>02 的 60 秒版</b>；② 用自己的话讲 <b>03 的 5 个故事</b>；③ 用 05 题库自测（点开看要点）；④ 07 手撕至少手写 6 题；⑤ 面试前 10 分钟只看 10 速查。</p>
     </div>
   </aside>
 
@@ -224,20 +225,21 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       <div class="grid c3">
         <div class="card"><h4 class="blk">面试前 3 天</h4>
           <ul class="clean">
-            <li>通读 <a href="#retro">02 版本复盘</a>，能按时间线讲出 5 个“问题→根因→解决→结果”。</li>
-            <li>按 <a href="#qbank">04 题库</a> 自测，答不出的记进错题本（K8s 模块 + 项目深挖）。</li>
+            <li>先按 <a href="#jdfit">01 岗位对照</a> 把 JD 逐条对上证据，圈出自己<b>没有证据</b>的条目（按 1.3 的补齐计划说）。</li>
+            <li>通读 <a href="#retro">03 版本复盘</a>，能按时间线讲出 5 个“问题→根因→解决→结果”。</li>
+            <li>按 <a href="#qbank">05 题库</a> 自测（含 <b>JD 场景题</b> 那一组），答不出的记进错题本。</li>
           </ul>
         </div>
         <div class="card"><h4 class="blk">面试前 1 天</h4>
           <ul class="clean">
-            <li>手写 <a href="#code">06 手撕代码</a> 中的 LRU、并发 worker pool、限流、TopK、拓扑排序。</li>
-            <li>把 <a href="#arch">03 架构决策</a> 的“为什么这样设计”讲顺（取舍 > 名词）。</li>
+            <li>手写 <a href="#code">07 手撕代码</a> 中的 LRU、并发 worker pool、限流、TopK、拓扑排序。</li>
+            <li>把 <a href="#arch">04 架构决策</a> 的“为什么这样设计”讲顺（取舍 > 名词）。</li>
           </ul>
         </div>
         <div class="card"><h4 class="blk">面试当天</h4>
           <ul class="clean">
-            <li>只看 <a href="#pitch">01 介绍脚本</a> 与 <a href="#cheat">09 速查</a>。</li>
-            <li>准备好 <a href="#behavior">08 反问</a> 3 个问题；口述代码时先说思路与边界。</li>
+            <li>只看 <a href="#pitch">02 介绍脚本</a> 与 <a href="#cheat">10 速查</a>。</li>
+            <li>准备好 <a href="#behavior">09 反问</a> 3 个问题；口述代码时先说思路与边界。</li>
           </ul>
         </div>
       </div>
@@ -246,19 +248,249 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         本项目的价值恰好在于：每一个坑都有“现象—根因—修复—指标”闭环。</div>
     </section>
 
-    <!-- ===================== 01 PITCH ===================== -->
-    <section id="pitch">
-      <div class="sec-head"><span class="no">01</span><h3>项目介绍脚本（背下来）</h3><span class="en">Pitch</span></div>
+    <!-- ===================== 01 JD FIT ===================== -->
+    <section id="jdfit">
+      <div class="sec-head"><span class="no">01</span><h3>岗位对照与匹配度（JD FIT）</h3><span class="en">JD fit</span></div>
+      <p class="note">本节把 JD 原文与项目事实逐条对齐：<b>有证据的用文件/指标直接举证，没有证据的明确承认并给出补齐计划</b>。
+        面试官最怕的不是“不会”，而是“讲了项目里没有的东西”——诚实标注缺口反而更容易被当成靠谱的实习生。</p>
 
-      <h4 class="blk">60 秒电梯版</h4>
-      <div class="card">
-        <p>“我做的是一个<b>基于 Kubernetes 的云边端协同医疗推理平台</b>：医院（边）和诊所（端）Pod 发起任务，
-          <b>数据中心（云，node3）承载调度器、推理后端和患者数据库</b>。平台支持四类任务：
-          <b>诊断</b>（医疗模型前端在院内、后端在云）、<b>计算</b>（多 Pod 分区协同）、
-          <b>通信</b>（患者库 P2P 云同步与备份）、<b>日常</b>（调度器按节点空闲创建一次性 Job 并回收）。
-          我的工作覆盖架构演进、调度与路由、性能与稳定性治理、可观测性，以及一个 React 集群编排前端。”</p>
-        <p class="note">技术栈一句话：<span class="mono">K8s (Deployment/Service/Job/RBAC/Affinity) · FastAPI · Redis 优先级队列 · Prometheus/metrics-server · PyTorch 分布式拆分 · React+TS</span></p>
+      <h4 class="blk">1.1 JD 原文要点速览</h4>
+      <div class="grid c3">
+        <div class="card"><b>【职位描述】职责</b>
+          <ul class="clean">
+            <li>参与 Kubernetes 集群管理平台的开发与维护；</li>
+            <li>协助完成集群创建、扩缩容、升级、节点管理、巡检等自动化能力建设；</li>
+            <li>协助分析和解决集群稳定性、配置一致性及资源管理问题；</li>
+            <li>参与自动化脚本、控制器或平台工具开发，减少人工操作并提升集群交付与运维效率。</li>
+          </ul></div>
+        <div class="card"><b>【职位要求】</b>
+          <ul class="clean">
+            <li>计算机相关专业在读、基础扎实；</li>
+            <li>熟悉 Go/Python/Java/C++ 至少一门，能独立完成基础编码、调试与测试；</li>
+            <li>熟悉操作系统、计算机网络、数据结构与算法；</li>
+            <li>了解 Docker/容器/Kubernetes 基本概念，有实际使用或项目经验优先；</li>
+            <li>学习能力、问题分析能力、责任心；</li>
+            <li>每周 4 天+、持续 3 个月+ 优先。</li>
+          </ul></div>
+        <div class="card"><b>【加分项】</b>
+          <ul class="clean">
+            <li>K8s/Docker/Linux 运维或云原生项目经验；</li>
+            <li>了解 <b>Operator、Controller、etcd、CNI、CSI</b> 等组件；</li>
+            <li>有自动化工具、后台服务、平台工程或开源项目经验。</li>
+          </ul></div>
       </div>
+      <div class="callout"><b>一句话读 JD：</b>这个岗位要的是<span class="hl">“做集群管理平台与自动化工具的人”</span>——不是纯算法岗、也不是纯值班 SRE。
+        核心动作是<b>把人工操作变成脚本 / 控制器 / 平台能力</b>，核心指标是<b>交付效率与稳定性</b>。
+        所以本手册的面试主线是：<b>平台化</b>（<code>/cluster/*</code> + 集群编辑器）→ <b>自动化</b>（<code>deploy.sh</code>、日常 Job 流水线）→ <b>稳定性与资源治理</b>（探针/滚动更新/超卖/OOM）。</div>
+
+      <h4 class="blk">1.2 逐条对照表（JD 要求 → 我的证据 → 怎么讲 → 可能追问）</h4>
+      <table>
+        <thead><tr><th style="width:132px">JD 要求</th><th style="width:300px">我的对应证据（组件 / 文件 / 指标）</th><th style="width:250px">面试怎么讲（一句话）</th><th>可能追问</th></tr></thead>
+        <tbody>
+          <tr><td><b>集群管理平台的开发与维护</b><br><span class="tag v">职责 1</span></td>
+            <td><code>scheduler/cluster_api.py</code> 的编排 API：<code>/cluster/status · summary · default · validate · apply · reset · restart</code>；
+              React 集群编辑器（SVG 地图 + 列表双视图，拖拽改 node、编辑副本/亲和/资源/镜像/标签）；
+              轻量总览 <code>/cluster/summary</code>（单次 pod list，替代逐 Deployment 查询）。</td>
+            <td>“我做的就是这个岗位的缩小版：Pod 内的服务通过 K8s API 读写集群状态，前面包一层校验与业务语义，再用一个可拖拽的编辑器把它变成平台能力。”</td>
+            <td>和直接 <code>kubectl apply</code> 有什么区别？（多了业务校验、实体拓扑语义、dry-run、默认模型 reset、逐条结果回报）</td></tr>
+
+          <tr><td><b>集群创建自动化</b><br><span class="tag warn">⚠️ 缺口</span></td>
+            <td><b>项目内无直接证据</b>：集群是既有的 4 节点环境（1 Control Plane + 3 Worker，见架构报告 §1.1），未做 kubeadm 建集群。</td>
+            <td>“建集群我没实操过，但我理清了 HA 拓扑：3 节点 etcd + LB 暴露 6443 + 证书管理，并按 1.3 的清单补动手练习。”</td>
+            <td>etcd 为什么取奇数节点？证书过期/续期怎么做？节点加入失败的排查顺序？</td></tr>
+
+          <tr><td><b>扩缩容自动化</b><br><span class="tag v">职责 2</span></td>
+            <td>编辑器改 replicas → <code>/cluster/apply</code> patch Deployment；副本分布的真实教训：软反亲和失效，part1 四副本 3 个落 node1（架构报告实测）；
+              routine 任务按节点空闲度选节点。</td>
+            <td>“我做过声明式改副本 + 观察分布，但没上 HPA/CA；像我们这种任务型负载，队列深度这类自定义指标比 CPU 更合适。”</td>
+            <td>HPA 用 CPU 与用队列长度的差别？缩容抖动怎么防（stabilizationWindow / PDB）？</td></tr>
+
+          <tr><td><b>升级</b><br><span class="tag v">职责 2</span></td>
+            <td>Pod 模板变更 → 新 RS 滚动；<code>maxUnavailable=1</code> 显式滚动预算修复“强制反亲和 + 默认策略 = 升级死锁”；
+              镜像按补丁逐版本打 tag，可回退。</td>
+            <td>“我踩过滚动更新死锁：required 反亲和 + 默认 maxUnavailable → 新 Pod 无处调度、旧 Pod 又不能先下线，最后靠显式滚动预算解套。”</td>
+            <td>kubeadm 升级顺序（控制面→节点）？版本 skew 允许几个小版本？升级失败怎么回滚？</td></tr>
+
+          <tr><td><b>节点管理</b><br><span class="tag v">职责 2</span></td>
+            <td>节点负载读数（metrics-server 聚合 API + allocatable 计算百分比，负载环显示真实值）；
+              日常任务用 <code>nodeSelector: kubernetes.io/hostname</code> 把 Job 钉到选定节点（<code>scheduler/kubeops.py</code>）；
+              v14 从硬 <code>nodeSelector</code> 改为可调度，支持水平扩展。</td>
+            <td>“节点管理我做了三件事：读节点用量、按空闲度挑节点跑一次性 Job、把写死的节点绑定改成可调度。”</td>
+            <td>cordon/drain/uncordon 与 PDB 的关系？drain 卡住怎么查（DaemonSet、local storage、PDB）？</td></tr>
+
+          <tr><td><b>巡检自动化</b><br><span class="tag warn">⚠️ 部分缺口</span></td>
+            <td>已有：<code>/health</code> 逐实体探测、<code>/cluster/summary</code> 负载读数、Prometheus ServiceMonitor（scheduler/hospital 的 <code>/metrics</code>，5s 间隔）+ Grafana 面板；
+              <b>缺</b>周期巡检 Job 与基线告警。</td>
+            <td>“巡检我只做到了‘可观测’——有指标有面板，但没做成周期 Job + 基线阈值 + 自动修复，这是我最想补的一块。”</td>
+            <td>巡检指标怎么定基线（静态阈值 vs 同环比）？自动修复如何防“修复风暴”？</td></tr>
+
+          <tr><td><b>稳定性问题分析与解决</b><br><span class="tag v">职责 3</span></td>
+            <td>故事 1（<code>/tasks/stats</code> 17s → 0.55s、探针误杀 → 崩溃循环、scheduler 0 重启）；
+              故事 3（Prometheus 负载恒 0 → 改用 metrics-server）；
+              <code>BUG_ANALYSIS.md</code> 七大根因：单 worker+GIL 阻塞、OOM、无连接池、无重试、全量扫描、缓存无锁惊群。</td>
+            <td>“我排过最难的故障是‘探针失败引发的崩溃循环’：根因不在探针，而在业务线程占满 + GIL 阻塞了事件循环。”</td>
+            <td>怎么判断是应用问题还是 K8s 问题？分层排查顺序（Pod→容器→应用→Service→节点）？</td></tr>
+
+          <tr><td><b>配置一致性</b><br><span class="tag v">职责 3</span></td>
+            <td>单一事实源 <code>scheduler/cluster_config.py</code>（默认模型 + canonicalize + <code>validate_model</code>）；
+              <code>/cluster/validate</code> 做 dry-run 校验；<code>/cluster/reset</code> 一键回归默认模型；
+              apply 只 patch 白名单字段（<code>_patch_body_for</code>）；声明式 <code>k8s/*.yaml</code> + <code>deploy.sh</code> 固定 7 阶段顺序（RBAC→dc→hospital→clinic→medical-server→scheduler→清理）。</td>
+            <td>“我的做法是‘一个期望模型 + 校验 + 一键回归’：改动先 dry-run，apply 只动白名单字段，跑偏了 reset 回默认模型。”</td>
+            <td>有人手工改了集群怎么办（drift 检测）？GitOps/ArgoCD 怎么落地与自愈？</td></tr>
+
+          <tr><td><b>资源管理</b><br><span class="tag v">职责 3</span></td>
+            <td>requests/limits 与 QoS 取舍（见 <a href="#arch">04 架构 4.3</a>）；routine Job 显式 <code>requests 100m/64Mi → limits 1/256Mi</code>；
+              调度器 1Gi 限制下 OOMKilled 的真实教训（<code>BUG_ANALYSIS</code> 根因 2：14 个任务对象 ≈900MB+）；
+              metrics-server 读数用于挑空闲节点。</td>
+            <td>“资源我经历过真实事故：1Gi 上限 + 大 input 直接 OOMKilled，修复靠并发限流 + 终态剥离大字段 + 明确 requests/limits。”</td>
+            <td>超卖怎么算（sum(limits) vs allocatable）？LimitRange/ResourceQuota 怎么配？碎片怎么缓解？</td></tr>
+
+          <tr><td><b>自动化脚本</b><br><span class="tag v">职责 4</span></td>
+            <td><code>build.sh</code>（多镜像分 tag 构建推送）、<code>deploy.sh</code>（分阶段 apply + rollout 验证 + legacy 清理）、
+              <code>start_all.sh</code>/<code>stop_all.sh</code>、<code>import_grafana_dashboard.py</code>、<code>test/run_v3_comprehensive.py</code>（四类任务综合测试）。</td>
+            <td>“交付侧我写了 build/deploy/start/stop 四个脚本 + 一键综合测试，把部署顺序和 RBAC 固化进脚本，减少手工步骤。”</td>
+            <td>脚本怎么做到幂等与失败可回滚？只靠 <code>set -e</code> 够吗？</td></tr>
+
+          <tr><td><b>控制器 / 平台工具开发</b><br><span class="tag v">职责 4</span></td>
+            <td><code>/cluster/apply</code> 本质是一个“迷你控制器”：读期望模型 → 校验 → 计算 create/patch/delete → 调 K8s API → 逐条回报；
+              日常任务用 Job（<code>backoffLimit</code>、<code>ttlSecondsAfterFinished=120</code>）→ 轮询状态 → 读 Pod 日志解析 JSON → 删除 Job。</td>
+            <td>“我写的 apply 就是控制器的雏形：对账‘期望状态 vs 集群实际状态’；只不过它是同步实现，没用 informer/CRD。”</td>
+            <td>为什么不用 Operator 重写？怎么保证 reconcile 幂等？状态放哪？</td></tr>
+
+          <tr><td><b>Go/Python 编码能力</b><br><span class="tag v">要求 2</span></td>
+            <td>项目主语言 <b>Python</b>（FastAPI + kubernetes-client + Redis）；
+              Go 为本次面试系统准备：LRU / worker pool / 令牌桶 / TopK / 拓扑排序 / <b>单调队列</b> / 二分边界 / 并查集 共 8 个模板（<a href="#code">07 手撕专区</a>）。</td>
+            <td>“生产代码我写 Python；Go 我在系统准备——标准库、并发与错误处理习惯、常见手撕模板，可以现场写并讲清复杂度。”</td>
+            <td>现场来一道（滑动窗口最大值 / worker pool）；<code>defer</code>/<code>recover</code> 用法？错误处理为什么不忽略 error？</td></tr>
+
+          <tr><td><b>OS / 网络 / 数据结构算法基础</b><br><span class="tag v">要求 3</span></td>
+            <td>真实载体：namespace+cgroup（内存量纲 <span class="mono">478Mi</span> 解析）；TCP 连接池与 FD 泄漏（BUG_ANALYSIS 根因 3/4）；
+              DNS 解析链（跨命名空间取 Prometheus）；CNI = kube-flannel（集群实测）；调度 Filter/Score 打分；优先级队列与拓扑排序。</td>
+            <td>“我的基础都落在项目里：FD 泄漏查连接池、负载恒 0 查跨命名空间 DNS、调度打分对应 K8s 的 Filter/Score 两阶段。”</td>
+            <td>线程/进程/GIL 的区别？TIME_WAIT 太多怎么办？LRU 与堆的复杂度、为什么用单调队列？</td></tr>
+
+          <tr><td><b>Docker/容器/K8s 概念 + 项目经验</b><br><span class="tag v">要求 4</span></td>
+            <td>多阶段构建 + CPU-only 依赖：镜像 <b>3GB+ → 约 550MB（-82%）</b>；
+              用到的对象：Deployment / Service / Job / RBAC（ClusterRole+Binding）/ 亲和与反亲和 / 探针 / ServiceMonitor / NodePort / hostPath（未用 LimitRange/ResourceQuota，见 1.3）。</td>
+            <td>“容器这块我从镜像瘦身入手：多阶段构建 + CPU-only PyTorch，把镜像从 3GB 降到 550MB，节点拉取时间显著下降。”</td>
+            <td>镜像为什么大？多阶段构建原理？Pod 与容器、CRI 与 containerd 的关系？</td></tr>
+
+          <tr><td><b>学习能力 / 问题分析 / 责任心</b><br><span class="tag v">要求 5·6</span></td>
+            <td>连续迭代：Alexnet-K8s <b>v1→v16</b>、Pengcheng <b>v1.0→v3.0.9</b>；
+              两份根因文档（<code>BUG_ANALYSIS.md</code> 7 大根因、<code>TASK_DISPATCH_ANALYSIS.md</code> 假调度分析）；
+              每个修复都有量化结果；v3.0 主动砍掉 AlexNet 聚焦主线。可承诺<b>每周 4 天+、持续 3 个月+</b>。</td>
+            <td>“我习惯把每个问题写成‘现象—根因—修复—指标’的闭环文档，这也是我能在十几个版本里持续收敛问题的原因。”</td>
+            <td>举一个你主动认领并闭环的事？遇到不确定的目标你怎么推进？</td></tr>
+
+          <tr><td><b>加分项：Operator/Controller/etcd/CNI/CSI</b><br><span class="tag warn">⚠️ 部分缺口</span></td>
+            <td>已有：<b>Controller 思想</b>（apply 对账 + Job 状态轮询）、<b>etcd</b> 作为集群唯一数据源的理解（未运维）、
+              <b>CNI</b> 集群实际用 Flannel（未深入原理）、<b>CSI</b> 未使用（Redis 走 hostPath 属实验级取舍）。</td>
+            <td>“Controller 我有实践雏形；etcd/CNI/CSI 我懂概念但没运维过，1.3 里给了 1–2 周的动手清单，面试当天能讲清原理与排障路径。”</td>
+            <td>etcd 快照恢复流程？Flannel VXLAN 与 host-gw 的差别？PVC Pending 的排查顺序？</td></tr>
+
+          <tr><td><b>加分项：自动化工具 / 后台服务 / 平台工程 / 开源</b><br><span class="tag v">加分 3</span></td>
+            <td>后台服务：FastAPI 调度器 + hospital/clinic/dc 四类服务 + React 前端（构建产物打进 scheduler 镜像由 <code>/app</code> 托管）；
+              平台工程：集群编辑器 + <code>/cluster/*</code>；<b>开源：暂无个人开源项目（诚实）</b>。</td>
+            <td>“后台服务与平台工程我有真实交付：四个镜像、一套编排 API、一个可拖拽的集群编辑器；开源这块我暂时没有，正在把 apply 逻辑抽成一个小 Operator 练手。”</td>
+            <td>你的服务怎么做幂等与可观测？如果让你开源一个小工具，你会做什么、怎么设计 API？</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><b>红线：</b>上面标 <span class="tag warn">⚠️</span> 的三处（集群创建、巡检自动化、etcd/CNI/CSI 运维）<b>不要编造经历</b>。
+        正确说法是“我没有实操过 X，但我理解它的原理与排障路径，并且已经在做 Y 来补”。</div>
+
+      <h4 class="blk">1.3 能力缺口与 1–2 周补齐计划（可执行的最小交付）</h4>
+      <table>
+        <thead><tr><th style="width:170px">缺口</th><th style="width:250px">为什么这个岗位需要</th><th>最小可交付练习（1–2 周）</th></tr></thead>
+        <tbody>
+          <tr><td><b>Operator / controller-runtime</b></td>
+            <td>JD 明确列为加分项；岗位核心就是“用控制器替代人工操作”。</td>
+            <td>用 Kubebuilder 写一个最小 Operator（例如 <b>RoutineJob</b> 或 <b>ClusterInspection</b> CRD）：
+              实现 reconcile 幂等对账 + <code>finalizer</code> 清理 + <code>status</code> 子资源回报阶段 + RBAC 用 <code>//+kubebuilder:rbac</code> 生成；
+              本地用 kind 跑通“改 CR → 自动创建 Job → 完成后回收”。目标产出：可演示的 1 个 CRD + 控制器 + README。</td></tr>
+          <tr><td><b>etcd 运维</b></td>
+            <td>etcd 是集群唯一数据源，写延迟直接决定 apiserver 表现；JD 加分项点名。</td>
+            <td>在 kind/kubeadm 环境实操：<code>etcdctl endpoint status</code> 看 db size / leader、<code>snapshot save</code> → 故意破坏 → <code>snapshot restore</code> 恢复；
+              <code>compact</code> + <code>defrag</code> 前后对比 db 大小；记录 <code>wal_fsync_duration</code> 与 <code>backend_commit_duration</code> 指标含义。</td></tr>
+          <tr><td><b>CNI</b></td>
+            <td>集群网络是稳定性问题的高发区（DNS/Service/跨节点不通）。</td>
+            <td>对比 <b>Flannel VXLAN 与 host-gw</b> 的数据路径与 MTU 差异；用 <code>ip route</code>/<code>tcpdump</code> 抓一次跨节点 Pod 通信；
+              用 Calico 起一个集群并写一条 NetworkPolicy（只放行 DNS + 指定端口），验证“策略生效/不生效”的两种现象。</td></tr>
+          <tr><td><b>CSI</b></td>
+            <td>有状态负载与存储故障是巡检/稳定性常见入口。</td>
+            <td>用 local-path 或 NFS CSI 驱动做：StorageClass + PVC 动态供给 → <code>WaitForFirstConsumer</code> 观察绑定时机 →
+              制造一次挂载失败（错误 zone/错误 Secret）并按 06 节顺序排查。</td></tr>
+          <tr><td><b>集群创建与 HA</b></td>
+            <td>JD 职责第一条就是“协助完成集群创建”。</td>
+            <td>写一份 <b>kubeadm HA 交付清单</b>：3 节点 etcd + 控制面 LB（6443）+ 证书 SAN + <code>kubeadm init/join</code> + CNI 安装 + 节点标签/污点；
+              用 kind 或 Vagrant 真跑一遍（哪怕单节点也把 <code>kubeadm</code> 流程走通），产出 checklist + 截图。</td></tr>
+          <tr><td><b>集群升级</b></td>
+            <td>JD 职责第二条含“升级”。</td>
+            <td>在测试集群练 <code>kubeadm upgrade plan</code> → 控制面（含 etcd）→ <code>drain/uncordon</code> 逐节点 kubelet/kubectl 升级 →
+              验证 API 兼容与工作负载健康；整理“版本 skew 规则 + 回滚方案 + 升级前检查项”。</td></tr>
+          <tr><td><b>扩缩容（HPA/VPA/CA）</b></td>
+            <td>JD 职责第二条含“扩缩容”，且要“减少人工操作”。</td>
+            <td>给一个 demo 应用配 HPA（CPU + 自定义队列深度指标二选一），观察 scale up/down 抖动并调
+              <code>stabilizationWindowSeconds</code>；写清 VPA 与 CA 的分工与各自不适用场景。</td></tr>
+          <tr><td><b>巡检体系</b></td>
+            <td>JD 职责第二条含“巡检”；这也是 1.2 里我自认的最大缺口。</td>
+            <td>写一份巡检脚本 + CronJob：检查<b>非 Running Pod、OOMKilled、Evicted、NotReady 节点、PVC Pending、磁盘/inode 水位</b>，
+              输出 JSON 落到 ConfigMap/日志并断言阈值；进阶：部署 node-problem-detector 与 descheduler，说明各自解决什么问题。</td></tr>
+          <tr><td><b>配置一致性与 GitOps</b></td>
+            <td>JD 职责第三条明确“配置一致性”。</td>
+            <td>把本项目的 <code>k8s/*.yaml</code> 放进 Git 仓库用 ArgoCD（或 Flux）同步到 kind 集群，
+              演示“手工 <code>kubectl edit</code> 改副本 → drift 被检测并自愈”；整理“单一事实源 + 校验 + 管理默认值”的规则。</td></tr>
+          <tr><td><b>Go 语言工程能力</b></td>
+            <td>JD 要求“至少一门能独立编码、调试、测试”，Operator 生态是 Go。</td>
+            <td>用 Go 重写一个小工具（例如把本项目的 <code>/cluster/summary</code> 用 client-go 实现：list nodes/pods + 计算占用率），
+              配套 <code>go test</code> 单测 + <code>context</code> 超时 + 错误包装（<code>%w</code>）+ 表驱动测试；把 07 节的 8 个模板手写到不看答案。</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">1.4 45–60 秒「定位话术」（开场用，直接对准这个岗位）</h4>
+      <div class="card">
+        <p>“我把自己定位成<b>做集群管理平台和自动化工具的人</b>。在项目里我把调度器从一个‘跑任务的脚本’做成了带编排能力的平台：
+          它通过 K8s API 读写 Deployment、Service、Job、Pod，配上最小权限 RBAC、dry-run 校验、一键 apply/reset，
+          前面再套一个可拖拽的集群编辑器；交付侧用 build/deploy 脚本把七个阶段的部署顺序和 RBAC 固化成一条命令。
+          <b>稳定性</b>上我踩过探针误杀导致的崩溃循环和滚动更新死锁，把 <span class="mono">/tasks/stats</span> 从 17 秒压到 0.55 秒，调度器做到 0 重启；
+          <b>资源管理</b>上经历过 1Gi 限制下的 OOMKilled，之后用并发限流 + 明确 requests/limits 收敛。
+          语言上我生产代码写 Python，Go 做了系统准备，能现场写并发题和常见手撕模板。
+          缺口我也很清楚：<b>Operator、etcd 运维、CNI/CSI、集群创建与升级</b>这些我理解原理但没实操过，
+          我准备用一到两周把 Kubebuilder 的 reconcile 和一个最小 Operator 真正跑起来补上。”</p>
+        <p class="note"><b>讲法要点：</b>① 先给身份定位（平台/自动化），再给三个证据（平台化、稳定性、资源）；
+          ② 每个证据都带一个数字或对象名；③ 主动认领 Go 与 Operator 的学习计划——JD 要的就是“能学、能落地”。
+          时间不够时保留前两句 + 缺口那句（约 35 秒）。</p>
+      </div>
+    </section>
+
+    <!-- ===================== 02 PITCH ===================== -->
+    <section id="pitch">
+      <div class="sec-head"><span class="no">02</span><h3>项目介绍脚本（背下来）</h3><span class="en">Pitch</span></div>
+
+      <h4 class="blk">60 秒电梯版（面向「集群管理平台」岗位 · 主推）</h4>
+      <div class="card">
+        <p>“我做的是一个<b>基于 Kubernetes 的云边端协同医疗推理平台</b>，但我的工作更偏<b>集群管理平台与自动化</b>：
+          集群是 1 个控制面 + 3 个 worker，上面跑调度器、四类业务服务、Redis 和监控栈。
+          我把调度器做成了<b>平台能力</b>——它通过 K8s API 读写 Deployment/Service/Job/Pod，对外提供
+          <span class="mono">/cluster/status · validate · apply · reset</span> 这套编排接口，配一个可拖拽的集群编辑器来改副本、亲和、资源和镜像；
+          <b>交付自动化</b>用 build/deploy 脚本把 RBAC 与七个阶段的部署顺序固化成一条命令，日常运维任务用一次性 Job 跑完、读日志、自动回收。
+          <b>稳定性</b>上我做过三件事：把探针从业务端口挪到独立指标端口，终结了 Pod 的崩溃循环（10/10 成功、0 重启）；
+          定位 <span class="mono">/tasks/stats</span> 17 秒的根因并压到 0.55 秒；
+          <b>资源管理</b>上解决 1Gi 限制下的 OOMKilled，并把实时资源读数从 Prometheus 换成 metrics-server 聚合 API。
+          最终交付 v3.0 正式版，四类任务综合测试全部通过。”</p>
+        <p class="note">技术栈一句话：<span class="mono">K8s (Deployment/Service/Job/RBAC/Affinity/Probe) · FastAPI · Redis 优先级队列 · metrics-server/Prometheus/ServiceMonitor · React+TS 集群编辑器 · Shell 交付脚本</span><br>
+          <b>关键词必须落到：</b>集群管理平台 · 编排 API · 自动化脚本 · 一次性 Job · 稳定性治理 · 资源管理与超卖 · 交付效率。</p>
+      </div>
+      <details class="qa"><summary>备选：通用版 60 秒（投非平台岗 / 泛云原生岗时用）<span class="lvl">备选</span></summary>
+        <div class="ans">
+          <p>“我做的是一个<b>基于 Kubernetes 的云边端协同医疗推理平台</b>：医院（边）和诊所（端）Pod 发起任务，
+            <b>数据中心（云，node3）承载调度器、推理后端和患者数据库</b>。平台支持四类任务：
+            <b>诊断</b>（医疗模型前端在院内、后端在云）、<b>计算</b>（多 Pod 分区协同）、
+            <b>通信</b>（患者库 P2P 云同步与备份）、<b>日常</b>（调度器按节点空闲创建一次性 Job 并回收）。
+            我的工作覆盖架构演进、调度与路由、性能与稳定性治理、可观测性，以及一个 React 集群编排前端。”</p>
+          <p class="note">技术栈一句话：<span class="mono">K8s (Deployment/Service/Job/RBAC/Affinity) · FastAPI · Redis 优先级队列 · Prometheus/metrics-server · PyTorch 分布式拆分 · React+TS</span><br>
+            <b>什么时候用：</b>面试官关注模型/推理链路、AI Infra 算法方向、或明确说“不只看 K8s”时；
+            若对方强调集群管理、平台工程、自动化，则切回上面的主推版本。</p>
+        </div></details>
 
       <h4 class="blk">3 分钟版（背景 → 架构 → 我做的 → 难点与结果）</h4>
       <div class="card">
@@ -297,9 +529,9 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
             <tr><td><b>① 项目深挖</b></td><td>最大技术难题 + 优化成果，能追问到细节</td>
               <td>用下面的 60 秒“难题+成果”话术开场，再预留 2 个钩子（分阶段计时怎么做、探针为什么被杀）等追问。</td></tr>
             <tr><td><b>② 理论问答</b></td><td>K8s 原理与边界，能否把概念接到实践</td>
-              <td>按 <a href="#qbank">04 题库</a> 的模块顺序自测；每答一条都补一句“我们项目里对应的是……”。</td></tr>
+              <td>按 <a href="#qbank">05 题库</a> 的模块顺序自测；每答一条都补一句“我们项目里对应的是……”。</td></tr>
             <tr><td><b>③ 代码题</b></td><td>编码基本功与沟通</td>
-              <td>优先手写 <a href="#code">06 的单调队列（滑动窗口最大值）</a>；先确认边界与规模，再说复杂度，最后跑例子。</td></tr>
+              <td>优先手写 <a href="#code">07 的单调队列（滑动窗口最大值）</a>；先确认边界与规模，再说复杂度，最后跑例子。</td></tr>
           </tbody>
         </table>
       </div>
@@ -328,12 +560,12 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         <span class="hl">你做的取舍、你定位过的真实故障、以及你如何证明修好了</span>。</div>
     </section>
 
-    <!-- ===================== 02 RETRO ===================== -->
+    <!-- ===================== 03 RETRO ===================== -->
     <section id="retro">
-      <div class="sec-head"><span class="no">02</span><h3>版本复盘：问题 → 根因 → 解决 → 结果</h3><span class="en">Retrospective</span></div>
+      <div class="sec-head"><span class="no">03</span><h3>版本复盘：问题 → 根因 → 解决 → 结果</h3><span class="en">Retrospective</span></div>
       <p class="note">下表基于两个仓库的真实版本记录与故障分析文档（Alexnet-K8s v1→v16、Pengcheng v1.0→v3.0.9）。标 ★ 的是最适合面试深挖的故事。</p>
 
-      <h4 class="blk">2.1 早期（Alexnet-K8s v1 → v16）：从单机 Demo 到可运维集群</h4>
+      <h4 class="blk">3.1 早期（Alexnet-K8s v1 → v16）：从单机 Demo 到可运维集群</h4>
       <div class="tbl-scroll">
       <table>
         <thead><tr><th style="width:74px">版本</th><th>问题现象</th><th>根因</th><th>解决</th><th style="width:150px">结果 / 收获</th></tr></thead>
@@ -355,7 +587,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       </table>
       </div>
 
-      <h4 class="blk">2.2 本仓库（Pengcheng v1.0 → v3.0.9）：多模型 + Pod 化 + 正式版</h4>
+      <h4 class="blk">3.2 本仓库（Pengcheng v1.0 → v3.0.9）：多模型 + Pod 化 + 正式版</h4>
       <table>
         <thead><tr><th style="width:74px">版本</th><th>问题 / 目标</th><th>根因 / 关键点</th><th>解决</th><th style="width:160px">结果 / 指标</th></tr></thead>
         <tbody>
@@ -375,7 +607,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         </tbody>
       </table>
 
-      <h4 class="blk">2.3 五个“可深挖”的故事（面试时按 STAR 讲）</h4>
+      <h4 class="blk">3.3 五个“可深挖”的故事（面试时按 STAR 讲）</h4>
       <div class="timeline">
         <div class="ev bad"><h5>故事 1 · 17 秒的 /tasks/stats 与崩溃循环</h5>
           <p><b>S</b>：总览页一打开就卡死、30s 超时，随后 scheduler 被 liveness 杀掉重启。<b>T</b>：恢复可用并找到根因。
@@ -396,7 +628,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
           <b>R</b>：非作者也能在 5 分钟内看懂“哪个任务走了哪条路径、哪一步在并行、慢在哪一段”。</p></div>
       </div>
 
-      <h4 class="blk">2.4 反复出现的 12 条教训 / 模式（面试时用“我总结过几条规律”收尾）</h4>
+      <h4 class="blk">3.4 反复出现的 12 条教训 / 模式（面试时用“我总结过几条规律”收尾）</h4>
       <div class="card">
         <ul class="clean">
           <li><span class="mono">01</span> <b>探针/健康检查绝不能和业务负载走同一条路径。</b>业务端口被推理占满时 1 秒超时 → K8s 判死 → 杀 Pod；
@@ -427,7 +659,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         </ul>
       </div>
 
-      <h4 class="blk">2.5 已知风险与未彻底解决的问题（主动谈局限更加分）</h4>
+      <h4 class="blk">3.5 已知风险与未彻底解决的问题（主动谈局限更加分）</h4>
       <p class="note">面试时的句式：“这个问题我当时只做到了止血/规避，彻底方案应该是……”——比声称“全做对了”可信得多。</p>
       <table>
         <thead><tr><th style="width:180px">风险 / 局限</th><th>证据（来源文件）</th><th style="width:270px">当时的临时办法</th></tr></thead>
@@ -459,7 +691,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         </tbody>
       </table>
 
-      <h4 class="blk">2.6 可量化亮点（面试时背这 6 条，每条都能落到文件）</h4>
+      <h4 class="blk">3.6 可量化亮点（面试时背这 6 条，每条都能落到文件）</h4>
       <div class="grid c2">
         <div class="card tight"><b>1. 镜像 3GB+ → 约 550MB（-82%）</b>
           <p class="note">CPU-only PyTorch（<span class="mono">--index-url .../whl/cpu</span>）+ 多阶段构建，runtime 阶段只复制 site-packages。
@@ -483,13 +715,63 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       <div class="callout good"><b>用法：</b>被问“你的优化成果是什么”时，先说第 2、3 条（有前后对比、有压力测试数据），
         再说第 1、5 条（交付面），最后用第 6 条把话题引向架构与 K8s（面试官最想聊的部分）。</div>
 
+      <h4 class="blk">3.7 JD 能力证据索引（按 JD 逐条举证，只做索引不重复正文）</h4>
+      <p class="note">被问“这个岗位要的能力你有吗”时，按这张表一条条指过去即可；<b>括号里是本手册的页码位置</b>，正文不重复。</p>
+      <table>
+        <thead><tr><th style="width:230px">JD 条目</th><th style="width:290px">对应位置（Story / 小节）</th><th>一句话证据</th></tr></thead>
+        <tbody>
+          <tr><td><b>职责 1 · 集群管理平台开发与维护</b></td>
+            <td><a href="#jdfit">01 节 1.2 第 1 行</a> · <a href="#arch">04 架构 4.3</a> · <a href="#code">07 手撕（模板 8 个）</a></td>
+            <td><code>/cluster/status · validate · apply · reset · restart</code> 编排 API + 可拖拽集群编辑器 + 轻量总览 <code>/cluster/summary</code>。</td></tr>
+          <tr><td><b>职责 2 · 扩缩容与升级</b></td>
+            <td><a href="#retro">03 故事 4</a>（滚动更新死锁）· <a href="#jdfit">01 节 1.2 第 3–4 行</a></td>
+            <td>显式 <code>maxUnavailable=1</code> 解死锁；编辑器改副本 + apply patch；镜像按补丁逐版本 tag 可回退。</td></tr>
+          <tr><td><b>职责 2 · 节点管理</b></td>
+            <td><a href="#retro">03 节 3.1（v14 行）</a> · <a href="#qbank">05 题库「节点管理」场景题</a> · <a href="#cheat">10.5 速查</a></td>
+            <td>metrics-server 读节点用量；routine Job 用 <code>nodeSelector</code> 钉节点；去硬 nodeSelector 支持扩展。</td></tr>
+          <tr><td><b>职责 2 · 集群创建与巡检</b><span class="tag warn">缺口</span></td>
+            <td><a href="#jdfit">01 节 1.3 第 5、8 行</a>（补齐计划）· 10.5 速查（巡检命令）</td>
+            <td>诚实：未做过 kubeadm 建集群与周期巡检；已有 <code>/health</code> + ServiceMonitor 可观测基础。</td></tr>
+          <tr><td><b>职责 3 · 稳定性问题</b></td>
+            <td><a href="#retro">03 故事 1 / 故事 3</a> · <a href="#retro">03 节 3.4 教训 1–5</a> · <a href="#retro">03 节 3.5 风险表</a></td>
+            <td>17s→0.55s、探针误杀→崩溃循环、0 重启；负载恒 0 改 metrics-server；<code>BUG_ANALYSIS</code> 七大根因。</td></tr>
+          <tr><td><b>职责 3 · 配置一致性</b></td>
+            <td><a href="#jdfit">01 节 1.2 第 8 行</a> · <a href="#qbank">05 题库「配置一致性」场景题</a></td>
+            <td>期望模型 + dry-run 校验 + 白名单 patch + 一键 reset；<code>deploy.sh</code> 固定 7 阶段顺序。</td></tr>
+          <tr><td><b>职责 3 · 资源管理</b></td>
+            <td><a href="#arch">04 架构 4.3</a>（取舍）· <a href="#retro">03 故事 1</a> + <a href="#retro">03 节 3.4 教训 3</a>（1Gi OOM）</td>
+            <td>requests/limits 与 QoS 取舍；routine Job 明确 <span class="mono">100m/64Mi → 1/256Mi</span>；OOM 靠限流收敛。</td></tr>
+          <tr><td><b>职责 4 · 自动化脚本 / 控制器 / 平台工具</b></td>
+            <td><a href="#jdfit">01 节 1.2 第 10–11 行</a> · <a href="#retro">03 故事 5</a></td>
+            <td><code>build.sh</code>/<code>deploy.sh</code>/<code>start_all.sh</code>；<code>/cluster/apply</code> 是同步版控制器；日常 Job 流水线自动回收。</td></tr>
+          <tr><td><b>要求 2 · Go / Python 编码</b></td>
+            <td><a href="#code">07 手撕专区（8 个模板）</a> · <a href="#jdfit">01 节 1.2 第 12 行</a></td>
+            <td>生产代码 Python（FastAPI + kubernetes-client）；Go 已系统准备模板与并发/错误处理习惯。</td></tr>
+          <tr><td><b>要求 3 · OS / 网络 / 算法基础</b></td>
+            <td><a href="#qbank">05 题库模块 04（网络）· 06（调度）· 12（运行时与节点）</a> · <a href="#code">07 手撕</a></td>
+            <td>cgroup/namespace、TCP 连接池与 FD 泄漏、DNS 解析链、Filter/Score 调度打分均有项目载体。</td></tr>
+          <tr><td><b>要求 4 · Docker/K8s 概念与项目经验</b></td>
+            <td><a href="#retro">03 节 3.1（v2 镜像行）、3.6 亮点 1</a> · <a href="#arch">04 架构 4.1–4.2</a></td>
+            <td>多阶段构建把镜像 3GB+ 压到约 550MB；四类任务与云/边/端拓扑完整跑通。</td></tr>
+          <tr><td><b>要求 5·6 · 学习能力 / 分析能力 / 责任心</b></td>
+            <td><a href="#retro">03 节 3.4 教训 1–12</a> · <a href="#retro">03 节 3.6 亮点 1–6</a> · <a href="#behavior">09 行为面</a></td>
+            <td>v1→v16 与 v1.0→v3.0.9 连续迭代；每个问题都有“现象—根因—修复—指标”闭环文档。</td></tr>
+          <tr><td><b>加分 2 · Operator / etcd / CNI / CSI</b></td>
+            <td><a href="#qbank">05 题库模块 11（Operator/CRD）· 09（控制面与 etcd）· 04（网络）· 05（存储）</a> + <a href="#cheat">10.6 Operator 速查</a></td>
+            <td>有 Controller 实践雏形与 etcd/CNI/CSI 概念理解；运维实操列为 1.3 的一周补齐计划。</td></tr>
+          <tr><td><b>加分 3 · 后台服务 / 平台工程 / 开源</b></td>
+            <td><a href="#jdfit">01 节 1.2 第 17 行</a> · <a href="#arch">04 架构 4.1</a></td>
+            <td>四个镜像的后台服务（scheduler/hospital/clinic/dc）+ React 前端 + 编排 API；开源项目暂无（诚实）。</td></tr>
+        </tbody>
+      </table>
+
     </section>
 
-    <!-- ===================== 03 ARCH ===================== -->
+    <!-- ===================== 04 ARCH ===================== -->
     <section id="arch">
-      <div class="sec-head"><span class="no">03</span><h3>架构与设计决策（讲“为什么”）</h3><span class="en">Architecture</span></div>
+      <div class="sec-head"><span class="no">04</span><h3>架构与设计决策（讲“为什么”）</h3><span class="en">Architecture</span></div>
 
-      <h4 class="blk">3.1 一张图讲清三层</h4>
+      <h4 class="blk">4.1 一张图讲清三层</h4>
       <div class="card">
         <pre><code><span class="cm"># 逻辑架构（当前正式版 v3.0.9）</span>
         ┌──────────────────────── DATA CENTER · 云（node3）────────────────────────┐
@@ -508,7 +790,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         └───────────────────────────────────────────────────┘</code></pre>
       </div>
 
-      <h4 class="blk">3.2 四类任务与调度路径</h4>
+      <h4 class="blk">4.2 四类任务与调度路径</h4>
       <table>
         <thead><tr><th>任务</th><th>发起</th><th>执行路径</th><th>设计要点</th></tr></thead>
         <tbody>
@@ -527,7 +809,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         </tbody>
       </table>
 
-      <h4 class="blk">3.3 关键取舍速答（面试高频追问）</h4>
+      <h4 class="blk">4.3 关键取舍速答（面试高频追问）</h4>
       <div class="grid c2">
         <div class="card tight"><b>调度器单副本？</b><p class="note">当前规模下单副本最简单；风险是 SPOF。方案：无状态化 + 多副本选主（Lease/etcd），任务幂等 + Redis 队列支持重复消费；或把队列换成 K8s 原生 + 控制器。</p></div>
         <div class="card tight"><b>为什么 Redis 队列，不用 Kafka？</b><p class="note">任务量级与时长（秒级~分钟级）不需要高吞吐日志；Redis ZSET 提供优先级与简单运维。代价：持久化与顺序保证弱，用 AOF + 幂等 + 状态机兜底。</p></div>
@@ -538,10 +820,123 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       </div>
     </section>
 
-    <!-- ===================== 04 QBANK ===================== -->
+    <!-- ===================== 05 QBANK ===================== -->
     <section id="qbank">
-      <div class="sec-head"><span class="no">04</span><h3>面试官视角题库（含答题要点）</h3><span class="en">Question bank</span></div>
+      <div class="sec-head"><span class="no">05</span><h3>面试官视角题库（含答题要点）</h3><span class="en">Question bank</span></div>
       <p class="note">用顶部搜索框过滤；每题的“参考”给的是要点骨架，面试时按 STAR/因果链展开。</p>
+
+      <div class="qgroup">
+        <h5>K8s JD · 集群管理平台场景题（按 JD 职责逐条准备，12 题）</h5>
+        <p class="note">这组题直接对应本岗位 JD 的四条职责与三条加分项；每题最后一行标注了<b>项目里有什么 / 没什么</b>，没有的地方按“我理解原理但没实操，计划怎么补”回答。</p>
+
+        <details class="qa"><summary>集群巡检怎么做？（周期 / 指标 / 基线 / 告警 / 自动修复）<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>分三层定指标：</b>对象层（非 Running Pod、重启次数、OOMKilled/Evicted、PVC Pending、Job 失败数）、节点层（NotReady、Memory/Disk/PIDPressure、磁盘与 inode 水位、kubelet 与证书到期）、控制面层（apiserver 5xx 与 P99、etcd fsync/commit 延迟、controller 与 scheduler 队列积压）。</li>
+            <li><b>周期与基线：</b>分钟级用 CronJob/巡检脚本跑对象与节点检查，天级出容量与版本报表；阈值用“静态红线（磁盘 85%）+ 同环比（重启率/失败率突然抬升）”双轨，避免只看绝对值。</li>
+            <li><b>告警与修复分级：</b>只读巡检 → 给出建议 → 低风险自动修复（删 Evicted Pod、清理镜像与日志、重跑卡住的 Job）→ 高风险需人工确认（drain/驱逐/删 PVC）；自动修复必须限速 + 熔断，防止“修复风暴”把故障放大。</li>
+            <li><b>落地形态：</b>优先把巡检做成“脚本 + CronJob + 结构化输出（JSON 落日志/ConfigMap）”，成熟后再考虑 Operator/CRD 化并加 status 回报。</li>
+            <li><b>我们项目里：</b>只有 <code>/health</code> 逐实体探测、<code>/cluster/summary</code> 负载读数、Prometheus ServiceMonitor 与 Grafana 面板，<b>没有周期巡检与基线告警</b>——这是我自认的最大缺口（见 01 节 1.3）。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>如何保证配置一致性与防漂移？（GitOps / 单一事实源 / 校验 / drift 检测）<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>单一事实源：</b>所有集群改动只改声明式来源（Git 仓库或一份期望模型），人不再直接 <code>kubectl edit</code>；工具负责把事实源同步到集群。</li>
+            <li><b>校验闸门：</b>schema 校验 + server-side dry-run + 准入控制（ValidatingWebhook/OPA/Kyverno）把“必须设 requests/limits、必须配探针、镜像必须带 tag 不能 latest”变成策略，让不合规配置根本进不去。</li>
+            <li><b>drift 检测：</b>周期性对比期望与实际（<code>kubectl diff</code>、ArgoCD 的 OutOfSync），对 apiserver 自动填充的默认值只比较“受管字段”，否则会满屏误报；检测到漂移可选择“告警”或“自动同步回期望状态”。</li>
+            <li><b>GitOps 落地：</b>ArgoCD/Flux 监听 Git，把集群状态收敛到仓库；回滚 = revert commit；配合 PR 评审实现变更审计。</li>
+            <li><b>我们项目里：</b>已有 <code>cluster_config.py</code> 期望模型 + <code>/cluster/validate</code> dry-run + apply 只 patch 白名单字段 + <code>/cluster/reset</code> 一键回归默认；<b>未做</b> GitOps 与 drift 检测（见 1.3 的 ArgoCD 练习）。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>节点管理：cordon / drain / uncordon、维护窗口、节点池、污点与驱逐<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>标准流程：</b><code>cordon</code>（标记不可调度）→ <code>drain</code>（驱逐业务 Pod）→ 维护/升级 → <code>uncordon</code>（恢复）；维护窗口与业务低峰对齐，并提前通知。</li>
+            <li><b>drain 卡住的常见原因：</b>① PDB 不允许中断（可用副本不足，需先扩副本或临时放宽）；② 裸 Pod（无控制器管理，需 <code>--force</code>，但要先确认无状态丢失）；③ DaemonSet 与 local/emptyDir 数据（<code>--ignore-daemonsets --delete-emptydir-data</code>）。</li>
+            <li><b>节点池：</b>按角色与资源打 label（cloud/edge/terminal、gpu）+ taint，业务用 nodeSelector/亲和与容忍落到对应池；容量与配额按池规划，避免异构节点互相争抢。</li>
+            <li><b>驱逐语义：</b>节点压力驱逐按 QoS（BestEffort→Burstable→Guaranteed）与超用量排序，所以设 requests 也是在被驱逐时的保护。</li>
+            <li><b>我们项目里：</b>用 label 表达云/边/端角色，日常任务用 <code>nodeSelector: kubernetes.io/hostname</code> 把 Job 钉到选定节点；v14 又把写死的 nodeSelector 去掉以支持扩展——但没做过真实的 drain 维护演练。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>集群升级方案：控制面与工作节点顺序、kubeadm upgrade、版本 skew、回滚与验证<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>顺序：</b>先备份 etcd → 升控制面（<code>kubeadm upgrade plan</code> / <code>apply</code>，逐个节点）→ 再逐台工作节点 <code>cordon → drain → kubeadm upgrade node → 升级 kubelet/kubectl → uncordon</code>；一次只升一个次版本，不跳版。</li>
+            <li><b>版本 skew：</b>kubelet 不能高于 apiserver，且最多落后 2–3 个小版本；kubectl 允许 ±1 个小版本。跨版本前要扫废弃 API（deprecated API 清单）与 addon 兼容性（CNI/CSI/Ingress/监控栈）。</li>
+            <li><b>前置检查：</b>etcd 快照可用、证书未临期、PDB 与副本冗余足够、镜像已预拉、节点时间同步正常。</li>
+            <li><b>回滚策略：</b>控制面降级基本不被支持，所以真正的回滚是“先升预发集群 + 灰度节点池 + 保留旧版本节点”的<b>灰度发布</b>；应用层用滚动更新 <code>rollout undo</code> 兜底。</li>
+            <li><b>验证：</b>升级后跑 <code>/readyz /livez</code>、核心工作负载健康、CNI 连通、CSI 挂载、巡检脚本全绿。</li>
+            <li><b>我们项目里：</b>只做过 Pod 模板级滚动更新与按 tag 回退，<b>没做过 kubeadm 版本升级</b>（诚实说明，见 1.3）。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>扩缩容：HPA / VPA / Cluster Autoscaler、任务型自定义指标、缩容抖动与 PDB<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>三层分工：</b>HPA 调副本数（CPU/内存/自定义与外部指标）、VPA 调 requests/limits（多为推荐模式，改 limit 常需重启 Pod）、Cluster Autoscaler 加/减节点（云上按节点池，自建需配合弹性资源）。</li>
+            <li><b>任务型负载：</b>用<b>队列深度、排队时长、并发任务数</b>等自定义指标（经 prometheus-adapter 或外部指标 API）比 CPU 更贴近真实压力；CPU 型 HPA 对“等待型”负载反应滞后。</li>
+            <li><b>抖动治理：</b>设置 <code>stabilizationWindowSeconds</code>、<code>behavior.scaleDown</code> 限速、就绪探针与冷启动时间对齐、避免指标延迟导致的反复伸缩；PDB 保证缩容时不破可用性下限。</li>
+            <li><b>常见坑：</b>HPA 与 VPA 同时改资源会互相打架（一般不同时对同一维度启用）；缩容太快会打散缓存与连接池，需要预热策略。</li>
+            <li><b>我们项目里：</b>编辑器改 replicas + <code>/cluster/apply</code> patch Deployment，<b>未上</b> HPA/CA；实测过软反亲和失效导致副本集中在 node1 的分布问题。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>集群创建自动化：kubeadm HA + etcd 3 节点 + LB + 证书 + 加入节点<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>HA 拓扑：</b>3 个控制面 + 3 个 etcd 成员（奇数保证多数派），前置 LB（VIP）统一暴露 6443，etcd 端口 2379/2380 只在控制面之间互通；etcd 与控制面同机房低延迟。</li>
+            <li><b>证书：</b><code>kubeadm init</code> 时用 <code>--control-plane-endpoint=&lt;VIP&gt;</code> 让证书 SAN 覆盖 VIP，否则通过 LB 访问会证书校验失败；证书默认 1 年，需监控到期并规划 <code>kubeadm certs renew</code>。</li>
+            <li><b>流程：</b><code>kubeadm init --control-plane-endpoint --upload-certs</code> → 其余控制面 <code>join --control-plane</code> → 工作节点 <code>join</code> → 安装 CNI → 打标签/污点 → 部署 addon（metrics-server、CoreDNS、CSI、Ingress）。</li>
+            <li><b>自动化与排错：</b>写成脚本/Ansible/Cluster API 保证幂等；join 失败优先查 kubelet 日志、时间同步、6443/10250 连通性与 token/证书有效期。</li>
+            <li><b>我们项目里：</b><b>没做过建集群</b>（用的是既有 4 节点集群）；但 <code>deploy.sh</code> 的“先 RBAC 再业务、分阶段 apply”思路可以直接迁移到建集群后的 addon 交付。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>Operator / Controller 原理与 reconcile 幂等（finalizer、status 子资源、限速队列）<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>组成：</b>CRD 定义新 API 类型与 schema，Controller 通过 informer/watch 感知对象变化，把 key 放进<b>限速工作队列</b>，由 reconcile 把“实际状态”收敛到“期望状态”。</li>
+            <li><b>幂等要求：</b>reconcile 读当前状态 → 计算差异 → 只做必要动作 → 写回 status；不能把状态藏在控制器内存里，也不能依赖事件顺序（level-based，不是 edge-based）。</li>
+            <li><b>生命周期机制：</b>finalizer 在删除 CR 前清理外部资源（云盘、DNS、外部任务）；ownerReference 做级联回收；status 子资源与 conditions 表达阶段与原因；失败用指数退避重试而不是死循环。</li>
+            <li><b>权限与安全：</b>RBAC 按最小权限给（<code>//+kubebuilder:rbac</code> 注解生成），避免 cluster-admin；控制器自身要能被多副本选主（Lease）以防脑裂。</li>
+            <li><b>我们项目里：</b><code>/cluster/apply</code> 是同步版控制器（期望模型 → diff → patch/create/delete → 逐条回报），日常任务用 Job + 状态轮询；改成 Kubebuilder 的 reconcile 实现是 1.3 的第一项练习。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>etcd 备份恢复与容量治理<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>备份：</b>定时 <code>etcdctl snapshot save</code>（配 <code>endpoint status --write-out=table</code> 记录 revision/db size），多份异地保存；备份文件要能校验（<code>snapshot status</code>）。</li>
+            <li><b>恢复：</b><code>snapshot restore</code> 生成新数据目录 → 按成员逐个切换（或 <code>--initial-cluster</code> 重建），恢复后验证关键对象（Deployment/Service/CRD）与版本一致。</li>
+            <li><b>容量治理：</b>默认 quota <code>--quota-backend-bytes</code> 2GB，接近上限会 NOSPACE 并拒绝写入；用 <code>compact</code> 回收历史 revision、<code>defrag</code> 释放碎片（defrag 会阻塞该成员，需逐个执行并避开业务高峰）。</li>
+            <li><b>健康指标：</b><code>wal_fsync_duration_seconds</code>、<code>backend_commit_duration_seconds</code>、mvcc db size、leader 切换次数；磁盘 IO 抖动是第一嫌疑，其次是大对象高频写入（超大 ConfigMap/CR status）。</li>
+            <li><b>我们项目里：</b>etcd 是集群唯一数据源这一点在排障时反复用到，但<b>没有做过备份恢复演练</b>——这属于“必须补”的运维基本功（见 1.3）。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>如何减少人工操作？把 runbook 变成控制器 / Job / 流水线<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>三步演进：</b>① 先写 runbook（把人工步骤、校验点、回滚方式写清楚）→ ② 变成脚本或 Job（可重复执行、带参数校验与结构化日志）→ ③ 稳定后下沉为控制器/流水线（声明式 + 自动对账 + 自愈）。</li>
+            <li><b>选型判据：</b>一次性/周期性动作 → Job/CronJob；需要持续对账、有状态收敛 → Controller/Operator；交付与变更 → CI/CD 流水线 + GitOps。</li>
+            <li><b>防错设计：</b>脚本必须幂等、可 dry-run、失败可回滚；人工可干预的点要显式暴露（比如危险动作需二次确认）。</li>
+            <li><b>度量：</b>每次替换记录“人工步骤数 / 耗时 / 失败率 / 人工介入次数”，否则无法证明效率提升（见本组最后一题）。</li>
+            <li><b>我们项目里：</b><code>deploy.sh</code> 把 7 阶段部署顺序与 RBAC 固化、日常任务用 Job 自动跑完回收、集群编辑器替代手工 <code>kubectl edit</code>——这三件事都可以直接用“减少人工操作”来讲述。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>资源管理与超卖：requests/limits、QoS、LimitRange/ResourceQuota、可分配量、碎片<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>语义：</b>requests 用于调度与 CPU 权重，limits 用于运行时上限（CPU 被 CFS 限流、内存超限 OOMKilled）；QoS 由 requests 与 limits 的关系决定，并决定驱逐优先级。</li>
+            <li><b>超卖：</b>节点可超卖（sum(limits) &gt; allocatable），但可分配量 = capacity − kube-reserved − system-reserved − 驱逐阈值；超卖部分靠 limit 约束，容量规划必须按 requests 算。</li>
+            <li><b>治理工具：</b>LimitRange 给命名空间默认与上下限（防止不写 requests 的 Pod 混进来）、ResourceQuota 限总量；关键服务设 Guaranteed，避免被邻居噪声影响。</li>
+            <li><b>碎片与均衡：</b>打分策略（LeastAllocated 均衡 / MostAllocated 装箱）决定碎片形态；碎片严重时用 descheduler 重平衡，但要考虑驱逐代价，别把集群变成“永远在搬迁”。</li>
+            <li><b>我们项目里：</b>真实事故是 1Gi 限制下 14 个任务对象 ≈900MB+ 触发 OOMKilled → 并发限流 + 终态剥离大字段；routine Job 明确 requests <span class="mono">100m/64Mi</span>、limits <span class="mono">1/256Mi</span>。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>如何排查集群不稳定？（分层：控制面 / 节点 / 网络 / 存储 / 应用 + 常用命令）<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>分层收敛：</b>控制面（apiserver 5xx 与 P99、etcd fsync/commit、controller 队列积压）→ 节点（NotReady、压力条件、kubelet/containerd、磁盘与 inode）→ 网络（CoreDNS、Endpoints 是否为空、CNI、NetworkPolicy）→ 存储（PVC 绑定与挂载、CSI 插件）→ 应用（日志、exit code、探针失败）。</li>
+            <li><b>常用命令：</b><code>kubectl get events -A --sort-by=.lastTimestamp</code>、<code>describe node/pod</code>、<code>top node/pod</code>、<code>journalctl -u kubelet -f</code>、<code>crictl ps/logs</code>、<code>etcdctl endpoint status</code>、<code>curl /readyz /livez</code>。</li>
+            <li><b>方法：</b>先定影响面与时间线（何时开始、当时有什么变更），再对比“变更前后”的指标，最后收敛到单一组件；<b>一次只改一个变量</b>，否则无法归因。</li>
+            <li><b>反模式：</b>直接重启大法、同时重启多个组件、不看 Events 就猜；以及把“指标没数据”当成“系统没问题”（我们项目就遇到过负载恒 0 其实是查询失败被降级）。</li>
+          </ul></div></details>
+
+        <details class="qa"><summary>如何做集群交付效率度量？（交付时长、失败率、人工介入次数、MTTR）<span class="lvl">JD场景</span></summary>
+          <div class="ans"><ul>
+            <li><b>指标定义：</b>交付时长（申请 → 可用的端到端，并分段：审批/资源就绪/部署/验证）、部署失败率与回滚率、<b>人工介入次数</b>（每单手工命令数/工单数）、变更前置时间、MTTR 与 MTTD。</li>
+            <li><b>采集方式：</b>从 CI/CD 流水线、集群事件、告警与工单系统取数，按周/月做趋势，而不是只看一次性数字；口径要写在文档里，避免“同一个指标两种算法”。</li>
+            <li><b>用法：</b>任何平台化改造前先量基线，改造后对比；例如“把 N 步手工操作固化成一条 <code>bash deploy.sh</code>，交付时长从 X 降到 Y、人工步骤从 N 降到 1”。</li>
+            <li><b>反脆弱：</b>只降低时长不看失败率会把风险藏起来，所以交付效率与稳定性指标要一起看（失败率、回滚率、MTTR）。</li>
+            <li><b>我们项目里：</b>可量的只有“部署步骤数”与“日常任务是否需人工”；失败率/MTTR <b>没有系统化采集</b>——诚实说明，并把“巡检 + 度量”一起列进 1.3 的补齐计划。</li>
+          </ul></div></details>
+      </div>
 
       <div class="qgroup">
         <h5>A. 项目深挖（必问）</h5>
@@ -1083,9 +1478,9 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       </div>
     </section>
 
-    <!-- ===================== 05 SCENARIO ===================== -->
+    <!-- ===================== 06 SCENARIO ===================== -->
     <section id="scenario">
-      <div class="sec-head"><span class="no">05</span><h3>故障排查场景题（标准动作）</h3><span class="en">Troubleshooting</span></div>
+      <div class="sec-head"><span class="no">06</span><h3>故障排查场景题（标准动作）</h3><span class="en">Troubleshooting</span></div>
       <table>
         <thead><tr><th style="width:170px">现象</th><th>第一反应与命令</th><th>常见根因</th></tr></thead>
         <tbody>
@@ -1107,9 +1502,9 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         → 永久修复 → 防复发（指标/告警/演练/Checklist）。</div>
     </section>
 
-    <!-- ===================== 06 CODE ===================== -->
+    <!-- ===================== 07 CODE ===================== -->
     <section id="code">
-      <div class="sec-head"><span class="no">06</span><h3>手撕代码专区（MiniMax 明确考察）</h3><span class="en">Live coding</span></div>
+      <div class="sec-head"><span class="no">07</span><h3>手撕代码专区（MiniMax 明确考察）</h3><span class="en">Live coding</span></div>
 
       <div class="callout"><b>MiniMax 面试结构（有来源）：</b>AI Infra 实习面试为<b>三段式</b> ——
         <b>① 项目经历提问 → ② 理论问答 → ③ 代码题</b>；项目环节的原文要求是「着重描述你遇到的
@@ -1119,8 +1514,8 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         <a href="https://caomaolufei.github.io/AIInfraGuide/interview/minimax-ai-infra-%E5%AE%9E%E4%B9%A0-%E4%B8%80%E9%9D%A2-2/" target="_blank" rel="noopener">实习一面（2）</a> ·
         <a href="https://caomaolufei.github.io/AIInfraGuide/" target="_blank" rel="noopener">AIInfraGuide 面经目录</a></div>
 
-      <h4 class="blk">6.0 题目清单（21 题，按类别）</h4>
-      <p class="note">清单来自本次网络检索报告：<b>✅</b> = 有来源（真实面经/题库帖，链接见 9.4）；<b>⚠️</b> = 通用高频补充，<b>无特定来源</b>。
+      <h4 class="blk">7.0 题目清单（21 题，按类别）</h4>
+      <p class="note">清单来自本次网络检索报告：<b>✅</b> = 有来源（真实面经/题库帖，链接见 10.4）；<b>⚠️</b> = 通用高频补充，<b>无特定来源</b>。
         建议先手写带 <b>★</b> 的 4 题（滑动窗口最大值 / LRU / 限流器 / worker pool），再补 7 道标 ⚠️ 的通用题。</p>
       <table>
         <thead><tr><th style="width:96px">类别</th><th style="width:220px">题名</th><th style="width:92px">难度</th><th>考察点</th><th>一句话思路</th></tr></thead>
@@ -1164,7 +1559,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
       <p class="note">注：上表恰好 21 条，其中 14 条出自真实面经/题库帖（✅），7 条为通用高频补充（⚠️、无特定来源）。
         报告原文明确：<b>未找到 MiniMax 使用哪个平台、ACM 模式还是核心代码模式，也没有语言强制的证据</b>——所以 ACM 与核心代码两种模式都要练。</p>
 
-      <h4 class="blk">6.1 高频题型地图</h4>
+      <h4 class="blk">7.1 高频题型地图</h4>
       <table>
         <thead><tr><th style="width:130px">类别</th><th>典型题</th><th>考察点</th></tr></thead>
         <tbody>
@@ -1177,7 +1572,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
         </tbody>
       </table>
 
-      <h4 class="blk">6.2 模板代码（Go）</h4>
+      <h4 class="blk">7.2 模板代码（Go）</h4>
       <details class="qa"><summary>LRU 缓存（container/list + map）<span class="lvl">Go</span></summary>
         <div class="ans"><pre><code><span class="kw">type</span> entry <span class="kw">struct</span> { k, v <span class="kw">int</span> }
 
@@ -1421,7 +1816,7 @@ footer{border-top:1px solid var(--line);margin-top:30px;padding-top:14px;color:v
           ③ 变形：插入区间（先二分定位再合并）、会议室数量/最大重叠数（最小堆或差分数组）、区间调度（按右端点贪心）。
           ④ 工程映射：合并任务的时间窗、任务批次合并下发。</p></div></details>
 
-      <h4 class="blk">6.3 模板代码（Python，常被要求更快写）</h4>
+      <h4 class="blk">7.3 模板代码（Python，常被要求更快写）</h4>
       <details class="qa"><summary>LRU（OrderedDict）/ 并发线程池 / 解析日志<span class="lvl">Py</span></summary>
         <div class="ans"><pre><code><span class="cm"># LRU：OrderedDict 一步到位</span>
 <span class="kw">from</span> collections <span class="kw">import</span> OrderedDict
@@ -1451,7 +1846,7 @@ PAT = re.<span class="fn">compile</span>(r<span class="st">r'task=(\S+)\s+stage=
     m = PAT.<span class="fn">search</span>(line)
     <span class="kw">return</span> {<span class="st">'task'</span>: m.<span class="fn">group</span>(<span class="num">1</span>), <span class="st">'stage'</span>: m.<span class="fn">group</span>(<span class="num">2</span>), <span class="st">'ms'</span>: <span class="fn">float</span>(m.<span class="fn">group</span>(<span class="num">3</span>))} <span class="kw">if</span> m <span class="kw">else</span> <span class="kw">None</span></code></pre></div></details>
 
-      <h4 class="blk">6.4 手撕现场通用策略（面试官很吃这套）</h4>
+      <h4 class="blk">7.4 手撕现场通用策略（面试官很吃这套）</h4>
       <div class="grid c2">
         <div class="card tight"><b>开场 30 秒</b><ul class="clean">
           <li>复述题目 + 确认输入输出/边界（空、超大、重复、溢出）。</li>
@@ -1472,9 +1867,9 @@ PAT = re.<span class="fn">compile</span>(r<span class="st">r'task=(\S+)\s+stage=
       </div>
     </section>
 
-    <!-- ===================== 07 DESIGN ===================== -->
+    <!-- ===================== 08 DESIGN ===================== -->
     <section id="design">
-      <div class="sec-head"><span class="no">07</span><h3>系统设计题（K8s 方向）</h3><span class="en">System design</span></div>
+      <div class="sec-head"><span class="no">08</span><h3>系统设计题（K8s 方向）</h3><span class="en">System design</span></div>
       <details class="qa" open><summary>设计：多集群的边缘推理任务调度系统<span class="lvl">设计</span></summary>
         <div class="ans"><ul>
           <li><b>需求澄清：</b>任务类型/优先级/时延 SLA、数据合规（不出域）、集群数量与异构（ARM/GPU）、故障域。</li>
@@ -1496,12 +1891,47 @@ PAT = re.<span class="fn">compile</span>(r<span class="st">r'task=(\S+)\s+stage=
           <li>任务型系统额外需要：队列长度/排队时长、阶段耗时、重试与失败计数、Pod 就绪数与重启数。</li>
           <li>告警：基于 SLO 的多窗口 burn rate，避免抖动；仪表盘按“入口→队列→执行→资源”分层。</li>
         </ul></div></details>
+      <details class="qa"><summary>设计：多集群巡检与自愈平台<span class="lvl">设计·JD</span></summary>
+        <div class="ans"><ul>
+          <li><b>需求澄清：</b>集群数量与异构程度（自建/托管、GPU 池、边缘小集群）、巡检粒度与 SLA（分钟级对象巡检 vs 天级容量报表）、
+            <b>允许自动修复的边界</b>（只读 → 建议 → 低风险自动 → 高风险需审批）、多租户与权限、审计要求。</li>
+          <li><b>采集层：</b>每个集群一个 Agent（只读 SA + 最小 RBAC），用 <b>informer/watch</b> 采对象与事件而不是轮询全量 list；
+            节点与控制面指标走 Prometheus 联邦/remote write 或定时拉取；巡检规则<b>声明式、版本化</b>（CRD 或配置仓库）。</li>
+          <li><b>规则与基线：</b>静态红线 + 同环比基线 + 规则分级（P0/P1/P2）；每条命中产出 <b>Finding</b>（对象 UID、时间线、指标快照、规则版本），
+            保证可复现、可追责；误报率是一个要持续度量的指标。</li>
+          <li><b>自愈层：</b>分级执行器——低风险（删 Evicted Pod、清理镜像/日志、重跑失败的 Job）自动执行，
+            高风险（drain/驱逐/删 PVC）走人工审批；所有修复动作必须<b>幂等 + 可 dry-run + 有超时与限速</b>，
+            并用令牌桶 + 熔断 + 对象冷却期防止“修复风暴”。</li>
+          <li><b>跨集群控制面：</b>全局控制面（无状态多副本 + Lease 选主）+ 每集群 Agent 心跳上报；任务以 CRD/队列下发；
+            集群离线时 Finding 本地缓存、恢复后补偿上报。</li>
+          <li><b>度量与闭环：</b>巡检覆盖率、发现数、告警准确率（误报率）、自动修复成功率、MTTF/MTTR；
+            告警用多窗口 burn-rate 思路而非单点阈值。</li>
+          <li><b>项目映射（诚实）：</b>现有的 <code>/health</code> 逐实体探测 + <code>/cluster/summary</code> 负载读数 + ServiceMonitor
+            只是<b>单集群、无规则无自愈</b>的雏形；落地路径是“脚本 + CronJob 巡检 → Operator/CRD 化并回报 status”（见 01 节 1.3）。</li>
+        </ul></div></details>
+
+      <details class="qa"><summary>设计：集群创建与交付流水线（声明式 + GitOps）<span class="lvl">设计·JD</span></summary>
+        <div class="ans"><ul>
+          <li><b>需求澄清：</b>集群形态（自建 kubeadm / 托管 / kind 用于测试）、HA 等级（etcd 3 或 5 节点）、
+            交付 SLA（多少分钟交付一个可用集群）、版本策略（例如跟随 N-1）、合规与审计、谁能拿到 kubeconfig。</li>
+          <li><b>分层交付（每层各自声明式）：</b>① 基础设施（机器/网络/LB/VIP，Terraform 或云 API）→ ② 集群（Cluster API / kubeadm 声明式控制面与节点池）→
+            ③ 集群内 addon（CNI/CSI/metrics-server/Ingress/监控，Helm/Kustomize，<b>版本全部锁定</b>）→ ④ 业务应用（独立 GitOps 仓库）。</li>
+          <li><b>流水线：</b>Git 分层仓库 + PR 触发 <code>plan</code>/dry-run → 人工审批 → apply → <b>冒烟验证</b>
+            （节点 Ready、核心 addon Running、探针与 e2e 通过）→ 输出访问入口与最小权限 kubeconfig → 归档交付报告。</li>
+          <li><b>一致性与防漂移：</b>单一事实源 + 校验（policy as code：必须设 requests/limits、禁止 latest 镜像）+
+            drift 检测（ArgoCD OutOfSync）；变更审计靠 PR 记录，回滚靠 revert commit。</li>
+          <li><b>升级策略：</b>不可变基础设施思路——建<b>新版本节点池</b> → 灰度迁移工作负载 → 验证 → 下线旧节点池；
+            集群内组件用 chart 版本滚动，控制面升级另走 kubeadm 流程（见 1.3）。</li>
+          <li><b>可观测与回滚：</b>度量交付时长、失败率、人工介入次数；失败时基础设施层用 state/重建（不可变），集群内用 Git revert，避免“就地修补”变成技术债。</li>
+          <li><b>项目映射（诚实）：</b><code>deploy.sh</code> 的“分阶段 apply + 固定顺序 + RBAC 先行”是这条流水线的手工雏形，
+            可直接演进成 Kustomize overlays + ArgoCD Application；建集群本身我尚未实操。</li>
+        </ul></div></details>
     </section>
 
-    <!-- ===================== 08 BEHAVIOR ===================== -->
+    <!-- ===================== 09 BEHAVIOR ===================== -->
     <section id="behavior">
-      <div class="sec-head"><span class="no">08</span><h3>行为面与反问</h3><span class="en">Behavior &amp; questions</span></div>
-      <h4 class="blk">8.1 行为面常见题（用 STAR，配项目例子）</h4>
+      <div class="sec-head"><span class="no">09</span><h3>行为面与反问</h3><span class="en">Behavior &amp; questions</span></div>
+      <h4 class="blk">9.1 行为面常见题（用 STAR，配项目例子）</h4>
       <table>
         <thead><tr><th style="width:220px">问题</th><th>用哪个项目故事</th></tr></thead>
         <tbody>
@@ -1512,7 +1942,7 @@ PAT = re.<span class="fn">compile</span>(r<span class="st">r'task=(\S+)\s+stage=
           <tr><td>最有成就感的事</td><td>把“看起来在工作其实没生效”的调度改成真正生效（故事 2）</td></tr>
         </tbody>
       </table>
-      <h4 class="blk">8.2 反问面试官（挑 3 个）</h4>
+      <h4 class="blk">9.2 反问面试官（挑 3 个）</h4>
       <div class="card"><ul class="clean">
         <li>团队目前管理多少个集群？规模（节点/Pod）与主要痛点是什么？</li>
         <li>实习生会参与到哪些具体方向：调度优化、可观测、自动化运维、还是平台工具开发？</li>
@@ -1524,10 +1954,10 @@ PAT = re.<span class="fn">compile</span>(r<span class="st">r'task=(\S+)\s+stage=
       <div class="callout warn"><b>注意：</b>不要一上来问薪资/加班；先问团队与成长，最后再问转正与待遇。</div>
     </section>
 
-    <!-- ===================== 09 CHEAT ===================== -->
+    <!-- ===================== 10 CHEAT ===================== -->
     <section id="cheat">
-      <div class="sec-head"><span class="no">09</span><h3>速查与资料</h3><span class="en">Cheat sheet</span></div>
-      <h4 class="blk">9.1 kubectl 排障速查</h4>
+      <div class="sec-head"><span class="no">10</span><h3>速查与资料</h3><span class="en">Cheat sheet</span></div>
+      <h4 class="blk">10.1 kubectl 排障速查</h4>
       <pre><code><span class="cm"># 概览</span>
 kubectl get pods -A -o wide                  <span class="cm"># 全局分布/节点</span>
 kubectl get events -A --sort-by=.lastTimestamp | tail -30
@@ -1550,7 +1980,7 @@ kubectl set image deploy/&lt;name&gt; c=&lt;img&gt;:&lt;tag&gt;
 kubectl auth can-i get deployments -n default
 kubectl explain pod.spec.affinity --recursive | head -40</code></pre>
 
-      <h4 class="blk">9.2 名词与指标速记</h4>
+      <h4 class="blk">10.2 名词与指标速记</h4>
       <table>
         <thead><tr><th style="width:210px">名词</th><th>一句话解释</th></tr></thead>
         <tbody>
@@ -1565,7 +1995,7 @@ kubectl explain pod.spec.affinity --recursive | head -40</code></pre>
         </tbody>
       </table>
 
-      <h4 class="blk">9.3 项目可量化亮点（背 6 条）</h4>
+      <h4 class="blk">10.3 项目可量化亮点（背 6 条）</h4>
       <div class="grid c2">
         <div class="card tight"><b>1.</b> 镜像 3GB → 550MB 级别（CPU-only + 多阶段构建）。</div>
         <div class="card tight"><b>2.</b> /tasks/stats 17s → 0.55s（终态剥离大 input + 接口瘦身 + 降频）。</div>
@@ -1575,7 +2005,7 @@ kubectl explain pod.spec.affinity --recursive | head -40</code></pre>
         <div class="card tight"><b>6.</b> 完整交付 v3.0 正式版：逻辑架构视图 + 执行轨迹地图 + 集群编辑器 + 一键重置。</div>
       </div>
 
-      <h4 class="blk">9.4 复习资料清单（19 组 / 36 条链接，均已实测）</h4>
+      <h4 class="blk">10.4 复习资料清单（19 组 / 36 条链接，均已实测）</h4>
       <p class="note">按“优先级从高到低”排列：先吃透官方文档与真实面经，再用题库与源码仓库查漏。</p>
 
       <ul class="clean">
@@ -1645,6 +2075,118 @@ kubectl explain pod.spec.affinity --recursive | head -40</code></pre>
           <li>牛客/知乎正文多为 JS 空壳（部分经 r.jina.ai 提取成功）；neituya.com 本次不可达。凡标 <b>⚠️</b> 的条目都是<b>通用经验或推断、无特定来源</b>，请勿当作事实引用。</li>
         </ul>
       </div>
+
+      <h4 class="blk">10.5 集群运维速查（JD 岗位的高频动作）</h4>
+      <pre><code><span class="cm"># ---------- 节点管理：维护窗口标准动作 ----------</span>
+kubectl cordon &lt;node&gt;                                    <span class="cm"># 停止调度新 Pod，不驱逐已有 Pod</span>
+kubectl drain &lt;node&gt; --ignore-daemonsets --delete-emptydir-data --dry-run=client
+kubectl drain &lt;node&gt; --ignore-daemonsets --delete-emptydir-data --timeout=300s
+kubectl uncordon &lt;node&gt;                                  <span class="cm"># 维护完成，恢复调度</span>
+<span class="cm"># drain 卡住三大原因：PDB 不允许中断 / 裸 Pod（需 --force，先确认无状态丢失）/ DaemonSet 与 emptyDir 数据</span>
+
+<span class="cm"># ---------- etcd：备份 · 容量治理 · 恢复 ----------</span>
+export ETCDCTL_API=3
+E="--endpoints=https://127.0.0.1:2379 \
+   --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+   --cert=/etc/kubernetes/pki/etcd/server.crt \
+   --key=/etc/kubernetes/pki/etcd/server.key"
+etcdctl $E endpoint status --write-out=table             <span class="cm"># db size / leader / revision</span>
+etcdctl $E snapshot save /backup/etcd-$(date +%F-%H%M).db
+etcdctl $E snapshot status /backup/etcd-*.db --write-out=table   <span class="cm"># 校验快照可用</span>
+REV=$(etcdctl $E endpoint status --write-out=json | grep -o '"revision":[0-9]*' | cut -d: -f2)
+etcdctl $E compact $REV --physical                       <span class="cm"># 回收历史 revision</span>
+etcdctl $E defrag                                        <span class="cm"># 释放碎片：逐个成员做，会阻塞该成员</span>
+etcdctl snapshot restore /backup/etcd-x.db --data-dir=/var/lib/etcd-restore   <span class="cm"># 恢复（离线执行）</span>
+<span class="cm"># 容量：--quota-backend-bytes 默认 2GB，接近上限会 NOSPACE 拒绝写入；恢复必须先在测试环境演练</span>
+
+<span class="cm"># ---------- 集群升级（一次只升一个次版本） ----------</span>
+kubeadm upgrade plan                                     <span class="cm"># 看可升级版本与废弃 API 提示</span>
+kubeadm upgrade apply v1.31.x                            <span class="cm"># 控制面（逐节点执行）</span>
+kubectl drain &lt;node&gt; --ignore-daemonsets
+apt-get install -y kubeadm=1.31.x-1.1 kubelet=1.31.x-1.1 &amp;&amp; kubeadm upgrade node
+systemctl daemon-reload &amp;&amp; systemctl restart kubelet
+kubectl uncordon &lt;node&gt;
+<span class="cm"># 顺序：先控制面（含 etcd 备份）后工作节点；kubelet 不得高于 apiserver，且最多落后 2-3 个小版本</span>
+
+<span class="cm"># ---------- 巡检：一眼看出异常 ----------</span>
+kubectl get pods -A --field-selector=status.phase!=Running
+kubectl get pods -A | grep -E "Evicted|CrashLoopBackOff|ImagePullBackOff|OOMKilled|Pending"
+kubectl get pods -A -o json | jq -r '.items[] | select(.status.containerStatuses[]?.lastState.terminated.reason=="OOMKilled") | .metadata.name'
+kubectl get nodes | grep -v " Ready"                     <span class="cm"># NotReady / SchedulingDisabled</span>
+kubectl get pvc -A | grep -v Bound                       <span class="cm"># 未绑定的存储</span>
+kubectl get events -A --sort-by=.lastTimestamp | tail -30
+kubectl top node &amp;&amp; kubectl top pod -A --containers --sort-by=cpu | head -20
+kubectl describe node &lt;node&gt; | sed -n '/Conditions/,/Events/p'   <span class="cm"># Conditions 是节点体检报告</span>
+kubectl get --raw /readyz?verbose                        <span class="cm"># 控制面健康（apiserver 视角）</span>
+kubectl auth can-i --list --as=system:serviceaccount:default:default   <span class="cm"># 权限体检</span></code></pre>
+      <table>
+        <thead><tr><th style="width:210px">工具 / 组件</th><th>解决什么问题</th><th style="width:250px">什么时候用（不该滥用）</th></tr></thead>
+        <tbody>
+          <tr><td><b>descheduler</b></td><td>把 Pod 从热点/碎片节点重新平衡到其他节点（配合打分策略），也可清理长时间 Pending 的副本。</td>
+            <td>分布长期不均、节点扩容后需要重平衡时用；<b>不要高频跑</b>——驱逐本身有代价，要限速并避开业务高峰。</td></tr>
+          <tr><td><b>node-problem-detector</b></td><td>把节点内核/硬件/运行时问题（磁盘只读、hung task、PID 耗尽、NTP 异常）暴露成 Node Condition 与 Event。</td>
+            <td>需要“节点级可观测”与自动自愈信号时用（DaemonSet 部署）；它是<b>信号源</b>，修复动作仍需自愈层实现。</td></tr>
+          <tr><td><b>kube-state-metrics</b></td><td>把 K8s 对象状态翻译成指标（Deployment 期望 vs 就绪副本、Pod 重启数、PVC 状态），是巡检规则的标配数据源。</td>
+            <td>写巡检/告警规则时用；注意标签基数控制，别把 Pod 名当长期标签维度。</td></tr>
+          <tr><td><b>metrics-server</b></td><td>提供节点与 Pod 的<b>实时</b> CPU/内存读数（聚合 API，短窗口，只保留最新值）。</td>
+            <td>HPA、<code>kubectl top</code>、调度器实时读数；历史趋势与告警仍交给 Prometheus。</td></tr>
+          <tr><td><b>kubectl drain / cordon</b></td><td>节点维护与升级的标准入口。</td>
+            <td>升级、换硬件、排查节点故障前用；执行前确认 PDB、副本余量与裸 Pod。</td></tr>
+        </tbody>
+      </table>
+
+      <h4 class="blk">10.6 Operator 开发速查（Kubebuilder）</h4>
+      <pre><code><span class="cm"># ---------- 目录与生成物 ----------</span>
+api/v1/&lt;kind&gt;_types.go      <span class="cm"># CRD 的 Go 类型：Spec（期望）+ Status（实际），加 kubebuilder 校验标记</span>
+internal/controller/&lt;kind&gt;_controller.go   <span class="cm"># Reconcile 实现</span>
+config/crd|rbac|manager/    <span class="cm"># 生成的 CRD、RBAC、部署清单</span>
+main.go                     <span class="cm"># manager 启动、注册 Scheme 与 Reconciler</span>
+
+kubebuilder init --domain example.com --repo github.com/me/proj
+kubebuilder create api --group ops --version v1 --kind RoutineJob
+make manifests generate      <span class="cm"># 生成 CRD/RBAC + DeepCopy</span>
+make install run             <span class="cm"># 装 CRD 并本地跑控制器（连当前 kubeconfig 的集群）</span>
+
+<span class="cm">// ---------- Reconcile 骨架（幂等是关键） ----------</span>
+<span class="cm">//+kubebuilder:rbac:groups=ops.example.com,resources=routinejobs,verbs=get;list;watch;create;update;patch;delete</span>
+<span class="cm">//+kubebuilder:rbac:groups=ops.example.com,resources=routinejobs/status,verbs=get;update;patch</span>
+<span class="cm">//+kubebuilder:rbac:groups=ops.example.com,resources=routinejobs/finalizers,verbs=update</span>
+<span class="kw">func</span> (r *RoutineJobReconciler) <span class="fn">Reconcile</span>(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+    <span class="kw">var</span> cr opsv1.RoutineJob
+    <span class="kw">if</span> err := r.<span class="fn">Get</span>(ctx, req.NamespacedName, &amp;cr); err != nil { <span class="kw">return</span> ctrl.Result{}, client.<span class="fn">IgnoreNotFound</span>(err) }
+
+    <span class="cm">// 1) 删除路径：先清外部资源，再摘 finalizer</span>
+    <span class="kw">if</span> !cr.DeletionTimestamp.<span class="fn">IsZero</span>() {
+        <span class="kw">if</span> controllerutil.<span class="fn">ContainsFinalizer</span>(&amp;cr, finalizer) {
+            _ = r.<span class="fn">deleteOwnedJob</span>(ctx, &amp;cr)
+            controllerutil.<span class="fn">RemoveFinalizer</span>(&amp;cr, finalizer)
+            <span class="kw">return</span> ctrl.Result{}, r.<span class="fn">Update</span>(ctx, &amp;cr)
+        }
+        <span class="kw">return</span> ctrl.Result{}, <span class="kw">nil</span>
+    }
+    <span class="kw">if</span> !controllerutil.<span class="fn">ContainsFinalizer</span>(&amp;cr, finalizer) {
+        controllerutil.<span class="fn">AddFinalizer</span>(&amp;cr, finalizer); <span class="kw">return</span> ctrl.Result{}, r.<span class="fn">Update</span>(ctx, &amp;cr)
+    }
+
+    <span class="cm">// 2) 对账路径：让“实际”收敛到 Spec（幂等：重复执行结果一致）</span>
+    job, err := r.<span class="fn">ensureJob</span>(ctx, &amp;cr)      <span class="cm">// create-or-update，已存在则复用</span>
+    <span class="kw">if</span> err != <span class="kw">nil</span> { _ = r.<span class="fn">setCondition</span>(&amp;cr, <span class="st">"Failed"</span>, err.<span class="fn">Error</span>()); <span class="kw">return</span> ctrl.Result{}, err }
+
+    <span class="cm">// 3) 写 status（用 Status().Update，避免与 spec 冲突）</span>
+    cr.Status.JobName = job.Name
+    _ = r.Status().<span class="fn">Update</span>(ctx, &amp;cr)
+    <span class="kw">return</span> ctrl.Result{RequeueAfter: 30 * time.Second}, <span class="kw">nil</span>   <span class="cm">// 轮询/退避，别写死死循环</span>
+}
+
+<span class="cm"># ---------- 设计检查清单 ----------</span>
+<span class="cm"># 幂等：同一 CR 反复 reconcile 结果一致；不依赖事件顺序（level-based）</span>
+<span class="cm"># 状态：只放 etcd（CR status），控制器内存里不存业务状态；多副本用 Lease 选主</span>
+<span class="cm"># 清理：外部资源用 finalizer，内部资源用 ownerReference 级联回收</span>
+<span class="cm"># 失败：指数退避 + status conditions 说明原因；禁止 reconcile 里做长阻塞操作</span>
+<span class="cm"># 权限：只用注解生成的最小 RBAC；读大量对象用 informer 缓存而不是循环 list</span></code></pre>
+      <div class="callout"><b>与项目的衔接：</b>现有 <code>/cluster/apply</code> 就是“同步版 reconcile”（期望模型 → diff → patch/create/delete → 回报），
+        把它改写成 CRD + Controller 是 01 节 1.3 的第一项练习；<code>kubeops.py</code> 的日常 Job 流水线（创建 → 轮询状态 → 读日志 → 删除，<code>ttlSecondsAfterFinished=120</code>）
+        正好可以整体搬进一个 <span class="mono">RoutineJob</span> CRD 的 reconcile 里。</div>
 
       <footer>
         面试准备手册 · 基于仓库真实版本记录与重构过程整理 ·
