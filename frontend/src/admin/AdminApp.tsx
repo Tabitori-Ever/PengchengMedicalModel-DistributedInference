@@ -3,6 +3,7 @@ import Layout from '../components/Layout';
 import ArchitecturePage from '../pages/ArchitecturePage';
 import ClusterPage from '../pages/ClusterPage';
 import LoadPage from '../pages/LoadPage';
+import PlatformOverviewPage from '../pages/PlatformOverviewPage';
 import TestPage from '../pages/TestPage';
 
 /**
@@ -14,12 +15,13 @@ export default function AdminApp() {
     <HashRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<Navigate to="/visual" replace />} />
+          <Route path="/" element={<Navigate to="/overview" replace />} />
+          <Route path="/overview" element={<PlatformOverviewPage />} />
           <Route path="/visual" element={<ArchitecturePage />} />
           <Route path="/load" element={<LoadPage />} />
           <Route path="/test" element={<TestPage />} />
           <Route path="/cluster" element={<ClusterPage />} />
-          <Route path="*" element={<Navigate to="/visual" replace />} />
+          <Route path="*" element={<Navigate to="/overview" replace />} />
         </Route>
       </Routes>
     </HashRouter>

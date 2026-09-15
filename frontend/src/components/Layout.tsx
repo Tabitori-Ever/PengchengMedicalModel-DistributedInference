@@ -15,10 +15,11 @@ function Monogram() {
 
 /** 管理平台导航（纯中文） */
 const NAV = [
-  { to: '/visual', no: '01', label: '可视化' },
-  { to: '/load', no: '02', label: '集群负载' },
-  { to: '/test', no: '03', label: '综合测试' },
-  { to: '/cluster', no: '04', label: '集群编排' },
+  { to: '/overview', no: '01', label: '平台总览' },
+  { to: '/visual', no: '02', label: '可视化' },
+  { to: '/load', no: '03', label: '集群负载' },
+  { to: '/test', no: '04', label: '综合测试' },
+  { to: '/cluster', no: '05', label: '集群编排' },
 ];
 
 export default function Layout() {
