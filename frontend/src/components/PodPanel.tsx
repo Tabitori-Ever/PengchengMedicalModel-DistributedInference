@@ -84,13 +84,13 @@ export default function PodPanel({ id, ent, live, isDefault, edgeNodes, onChange
           <label>目标节点（也可在地图上拖动）</label>
           <select value={ent.node || ''}
             onChange={(e) => onChange(id, { node: e.target.value })}>
-            <option value="">— 选择边缘节点 —</option>
+            <option value="">— 选择业务节点 —</option>
             {edgeNodes.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       )}
       {ent.affinity !== 'fixed' && (
-        <div className="muted xs">非固定策略：Pod 将分布在边缘节点（role=edge）上</div>
+        <div className="muted xs">非固定策略：实例将分布在业务节点（role=edge）上</div>
       )}
 
       <div className="pp-row col">
@@ -141,7 +141,7 @@ export default function PodPanel({ id, ent, live, isDefault, edgeNodes, onChange
         <button className="btn secondary sm" onClick={() => onRestart(id)}>重启 (滚动更新)</button>
         {ent.kind === 'clinic' && (
           <button className="btn danger sm" onClick={() => onDelete(id)}>
-            删除该 Clinic Pod
+            删除该医院实体
           </button>
         )}
       </div>
@@ -151,7 +151,7 @@ export default function PodPanel({ id, ent, live, isDefault, edgeNodes, onChange
         </div>
       ) : (
         <div className="muted xs">
-          hospital 为医院核心实体（承载诊断 worker 前端与协同计算能力），不可删除；可拖动换节点或修改右侧参数。
+          医疗中心为三级体系中的核心实体（承载诊断前端与协同计算能力），不可删除；可拖动换节点或修改右侧参数。
         </div>
       )}
     </div>

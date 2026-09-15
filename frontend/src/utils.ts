@@ -1,6 +1,11 @@
 // Small shared helpers & lookups (v3.0: four kinds 诊断/计算/通信/日常)
+// 三级命名（数据中心 / 医疗中心 / 医院）统一取自 ./terms。
 
 import type { HealthState, HospitalId, ModelKind, NodeInfo, SourceId } from './types';
+import { TIER_LABEL, entityRole, nodeRoleText } from './terms';
+
+// 实体显示名统一从 terms 再导出（含 SOURCE_NAME 别名）
+export { entityName, entityName as SOURCE_NAME } from './terms';
 
 export const MODELS: ModelKind[] = ['diagnosis', 'compute', 'sync', 'routine'];
 
@@ -26,22 +31,25 @@ export const MODEL_COLOR: Record<string, string> = {
   routine: '#a4562a',     // burnt ochre
 };
 
-// task sources: hospital = 边 (edge node), clinic = 端 (terminal pod)
+// 发起端：hospital-* = 医疗中心，clinic-* = 医院
 export const SOURCES: SourceId[] = ['hospital-a', 'hospital-b', 'clinic-1', 'clinic-2'];
 export const HOSPITALS: HospitalId[] = ['hospital-a', 'hospital-b'];
 
-export const SOURCE_ROLE: Record<string, '边' | '端'> = {
-  'hospital-a': '边',
-  'hospital-b': '边',
-  'clinic-1': '端',
-  'clinic-2': '端',
+/** 发起端 id → 角色名（医疗中心 / 医院） */
+export const SOURCE_ROLE: Record<string, string> = {
+  'hospital-a': entityRole('hospital-a'),
+  'hospital-b': entityRole('hospital-b'),
+  'clinic-1': entityRole('clinic-1'),
+  'clinic-2': entityRole('clinic-2'),
 };
 
+/** 后端 role 字段 → 中文角色名 */
 export const ROLE_TEXT: Record<string, string> = {
-  edge: '边',
-  terminal: '端',
+  edge: TIER_LABEL.medical,
+  terminal: TIER_LABEL.hospital,
   '?': '?',
 };
+
 
 export const STATUS_LABEL: Record<string, string> = {
   running: '运行中',
@@ -65,31 +73,31 @@ export const IMG_CLINIC = '10.29.182.66:5000/k8s-repo/clinic:v3.0';
 export const IMG_HOSPITAL = '10.29.182.66:5000/k8s-repo/hospital:v3.0';
 
 export const KIND_LABEL: Record<string, string> = {
-  hospital: '医院 Hospital',
-  clinic: '诊所 Clinic',
+  hospital: TIER_LABEL.medical,
+  clinic: TIER_LABEL.hospital,
 };
 
 export const AFFINITY_LABEL: Record<string, string> = {
   fixed: '固定节点',
-  'role-edge': '边缘节点 (role=edge)',
-  'spread-edge': '边缘分散 (反亲和)',
+  'role-edge': '业务节点 (role=edge)',
+  'spread-edge': '业务节点分散 (反亲和)',
 };
 
 /** Compact affinity wording for the dense list view. */
 export const AFFINITY_SHORT: Record<string, string> = {
   fixed: '固定',
-  'role-edge': '边缘 role=edge',
-  'spread-edge': '边缘分散',
+  'role-edge': '业务 role=edge',
+  'spread-edge': '业务分散',
 };
 
 /** Read-only platform deployments (mirrors the scheduler READONLY_APPS list). */
 export const READONLY_LABEL: Record<string, { zh: string; en: string }> = {
-  'medical-server': { zh: '医学推理服务', en: 'MEDICAL SERVER' },
-  'dc-services': { zh: '数据中心服务', en: 'DC SERVICES' },
-  redis: { zh: '任务状态库', en: 'REDIS' },
-  scheduler: { zh: '调度器', en: 'SCHEDULER' },
-  monitoring: { zh: '监控采集', en: 'MONITORING' },
-  prediction: { zh: '预测服务', en: 'PREDICTION' },
+  'medical-server': { zh: '医疗推理服务', en: '' },
+  'dc-services': { zh: '患者库服务', en: '' },
+  redis: { zh: '队列 / 记录', en: '' },
+  scheduler: { zh: '调度', en: '' },
+  monitoring: { zh: '指标观测', en: '' },
+  prediction: { zh: '预测服务', en: '' },
 };
 
 /** Stable left-to-right / top-to-bottom node ordering used by map, list, arch. */
@@ -103,18 +111,16 @@ export function sortNodes(nodes: NodeInfo[]): NodeInfo[] {
   return [...(nodes || [])].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-/** Edge (business) node predicate — only these accept hospital / clinic pods. */
+/** 业务节点判定：只有 node1 / node2 承载医疗中心 / 医院实体。 */
 export function isEdgeNode(node: NodeInfo | undefined | null, name?: string): boolean {
   const key = name ?? node?.name ?? '';
   if (key === 'node1' || key === 'node2') return true;
   return key ? node?.role === 'edge' : false;
 }
 
+/** 节点角色（纯中文）：数据中心 / 医疗中心 · 医院 / 控制面 */
 export function nodeRoleLabel(role?: string | null, name?: string): { zh: string; en: string } {
-  if (role === 'edge') return { zh: '边', en: 'EDGE' };
-  if (role === 'control-plane') return { zh: '控制面', en: 'CONTROL PLANE' };
-  if (name === 'node3') return { zh: '云', en: 'DATA CENTER' };
-  return { zh: '云', en: 'DATA CENTER' };
+  return { zh: nodeRoleText(role, name), en: '' };
 }
 
 /** `10.29.182.66:5000/k8s-repo/clinic:v3.0` → `clinic:v3.0` (tag only). */

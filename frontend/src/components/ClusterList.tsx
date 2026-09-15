@@ -28,8 +28,8 @@ interface NodeGroup {
 }
 
 const KIND_TEXT: Record<string, { zh: string; en: string }> = {
-  hospital: { zh: '医院 · 边', en: 'HOSPITAL · EDGE' },
-  clinic: { zh: '诊所 · 端', en: 'CLINIC · TERMINAL' },
+  hospital: { zh: '医疗中心', en: '' },
+  clinic: { zh: '医院', en: '' },
 };
 
 export default function ClusterList({
@@ -110,7 +110,7 @@ export default function ClusterList({
     setOverNode('');
     if (!id || !desired[id]) return;
     if (!canDrop(node)) {
-      onNotice?.('err', `仅边缘节点（node1 / node2）可承载 hospital / clinic Pod，${node} 不接受迁移`);
+      onNotice?.('err', `仅业务节点（node1 / node2）可承载医疗中心 / 医院实体，${node} 不接受迁移`);
       return;
     }
     if (desired[id].node === node && desired[id].affinity === 'fixed') return;
@@ -127,7 +127,7 @@ export default function ClusterList({
       <div className="clist-legend">
         <span className="eyebrow">业务实体 · WORKLOAD ROSTER</span>
         <span className="muted xs">
-          拖拽行到目标节点分组即可迁移（仅边缘节点 node1 / node2 可承载医院 / 诊所 Pod），点击行在右侧面板编辑。
+          拖拽行到目标节点分组即可迁移（仅业务节点 node1 / node2 可承载医疗中心 / 医院实体），点击行在右侧面板编辑。
         </span>
       </div>
 
@@ -195,7 +195,7 @@ export default function ClusterList({
               </span>
               <span className={`cn-drophint ${dragOver ? (dropOk ? 'ok' : 'bad') : ''}`}>
                 {dragOver
-                  ? (dropOk ? '松开迁移到此节点' : '不可迁移 · 仅边缘节点')
+                  ? (dropOk ? '松开迁移到此节点' : '不可迁移 · 仅业务节点')
                   : (dragging ? (dropOk ? '可迁移' : '只读节点') : '')}
               </span>
             </header>
@@ -229,7 +229,7 @@ export default function ClusterList({
                     <span className="cr-name">
                       <i className={`cr-kindbar ${ent.kind}`} />
                       <b className="mono">{id}</b>
-                      <i className="cr-handle" title="拖拽迁移到其它边缘节点">⠿</i>
+                      <i className="cr-handle" title="拖拽迁移到其它业务节点">⠿</i>
                     </span>
                     <span className="cr-kind">
                       {kindText.zh}
@@ -313,7 +313,7 @@ export default function ClusterList({
             )}
 
             {dragging && dragOver && !dropOk && (
-              <div className="clist-invalid">该节点不可承载业务 Pod（仅边缘节点可迁移）</div>
+              <div className="clist-invalid">该节点不可承载业务实体（仅业务节点可迁移）</div>
             )}
           </section>
         );

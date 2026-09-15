@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { PLATFORM_NAME, PLATFORM_SLOGAN } from '../terms';
 
-/** Double-ring monogram — pure SVG, no external assets. */
+/** 双环字母标：纯内联 SVG，无外部资源 */
 function Monogram() {
   return (
-    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label="云边端协同推理">
+    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label="三级协同医疗推理">
       <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.32" />
       <circle cx="24" cy="24" r="14" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <path d="M24 3v9M24 36v9M3 24h9M36 24h9" stroke="currentColor" strokeWidth="1" opacity="0.45" />
@@ -12,13 +13,12 @@ function Monogram() {
   );
 }
 
+/** 管理平台导航（纯中文） */
 const NAV = [
-  { to: '/', no: '01', label: '总览' },
-  { to: '/architecture', no: '02', label: '实时架构' },
-  { to: '/submit', no: '03', label: '任务提交' },
-  { to: '/history', no: '04', label: '任务记录' },
-  { to: '/test', no: '05', label: '综合测试' },
-  { to: '/cluster', no: '06', label: '集群编排' },
+  { to: '/visual', no: '01', label: '可视化' },
+  { to: '/load', no: '02', label: '集群负载' },
+  { to: '/test', no: '03', label: '综合测试' },
+  { to: '/cluster', no: '04', label: '集群编排' },
 ];
 
 export default function Layout() {
@@ -29,13 +29,13 @@ export default function Layout() {
         <div className="brand">
           <Monogram />
           <div className="brand-text">
-            <div className="brand-name">云边端协同推理</div>
-            <div className="brand-caption">云边端协同推理平台</div>
+            <div className="brand-name">管理平台</div>
+            <div className="brand-caption">{PLATFORM_NAME}</div>
           </div>
         </div>
 
         <div className="nav-rule">
-          <span className="eyebrow">控制台</span>
+          <span className="eyebrow">管理功能</span>
         </div>
 
         <nav className="nav">
@@ -51,13 +51,27 @@ export default function Layout() {
           ))}
         </nav>
 
+        <div className="nav-rule">
+          <span className="eyebrow">前往</span>
+        </div>
+        <nav className="nav">
+          <a className="nav-item" href="../user/">
+            <span className="nav-no mono">→</span>
+            <span className="nav-label">用户平台</span>
+          </a>
+          <a className="nav-item" href="../">
+            <span className="nav-no mono">→</span>
+            <span className="nav-label">首页</span>
+          </a>
+        </nav>
+
         <div className="sidebar-foot">
           <div className="foot-line">
             <span className="pulse-dot" />
-            数据不出院 · 算力云端化
+            {PLATFORM_SLOGAN}
           </div>
           <div className="foot-ver mono">v3.0 · 四类任务编排</div>
-          <div className="foot-meta mono">K8S 集群 · 2 边 / 1 云 / 1 控制面</div>
+          <div className="foot-meta">K8S 集群 · 4 节点 · 2 业务 / 1 数据中心 / 1 控制面</div>
         </div>
       </aside>
       <main className="content">

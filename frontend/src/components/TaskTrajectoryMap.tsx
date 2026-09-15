@@ -3,11 +3,12 @@ import type { ModelKind, TaskItem } from '../types';
 import {
   MODEL_COLOR, MODEL_LABEL, MODELS, SOURCE_ROLE, STATUS_LABEL, fmtMs,
 } from '../utils';
+import { TIER_LABEL as TIER_TEXT, entityName } from '../terms';
 
 /* ===========================================================================
    任务执行轨迹（逻辑架构视图的配套地图）
 
-   云数据中心 / 医院 · 边 / 诊所 · 端 三层示意图：先以极淡的“无关”线画出同类任务的
+   数据中心 / 医疗中心 / 医院 三层示意图：先以极淡的“无关”线画出同类任务的
    标准执行路径，再按时间顺序走一遍某个真实任务的具体执行链路 —— 由任务数据推导出的
    有序步骤时间轴驱动游标，每个节点/连线只处于四种状态之一：
 
@@ -50,7 +51,7 @@ const NODE_BOX: Record<string, Box> = {
 };
 
 /**
- * 日常任务专用伪节点：每个真正跑过一次性 Job 的边缘节点一个虚线圆
+ * 日常任务专用伪节点：每个真正跑过一次性 Job 的业务节点一个虚线圆
  * （调度器只会在 node1 / node2 上创建 Job）。
  * The circle slot is keyed by the Kubernetes node name, so several Jobs on the
  * same node collapse onto one pseudo node — and unknown nodes get no highlight.
@@ -76,15 +77,16 @@ const TERM_LANES: Record<string, { up: number[]; down: number[] }> = {
 /** Per-(node, side) port offsets, so parallel edges never share a port. */
 const OFFSETS = [0, -18, 18, -36, 36, -54, 54, -70, 70, -14, 14, -26, 26, -44, 44, -8, 8];
 
-const NODE_META: Record<string, { name: string; caption: string; tier: Tier }> = {
-  'scheduler': { name: 'scheduler', caption: '调度', tier: 'cloud' },
-  'medical-server': { name: 'medical-server', caption: '医疗推理', tier: 'cloud' },
-  'dc-services': { name: 'dc-services', caption: '患者库 · 协同计算', tier: 'cloud' },
-  'redis': { name: 'redis', caption: '队列 · 记录', tier: 'cloud' },
-  'hospital-a': { name: 'hospital-a', caption: '诊断 · 计算 · 通信 · 日常', tier: 'edge' },
-  'hospital-b': { name: 'hospital-b', caption: '诊断 · 计算 · 通信 · 日常', tier: 'edge' },
-  'clinic-1': { name: 'clinic-1', caption: '转诊 · 计算 · 通信 · 日常', tier: 'terminal' },
-  'clinic-2': { name: 'clinic-2', caption: '转诊 · 计算 · 通信 · 日常', tier: 'terminal' },
+const NODE_META: Record<string, { name: string; id: string; caption: string; tier: Tier }> = {
+  'scheduler': { name: 'scheduler', id: 'scheduler', caption: '调度', tier: 'cloud' },
+  'medical-server': { name: 'medical-server', id: 'medical-server', caption: '医疗推理', tier: 'cloud' },
+  'dc-services': { name: 'dc-services', id: 'dc-services', caption: '患者库 · 协同计算', tier: 'cloud' },
+  'redis': { name: 'redis', id: 'redis', caption: '队列 · 记录', tier: 'cloud' },
+  // 医疗中心 = 原 hospital-*（node1 / node2）；医院 = 原 clinic-*（node1 / node2）
+  'hospital-a': { name: entityName('hospital-a'), id: 'hospital-a', caption: '诊断 · 计算 · 通信 · 日常', tier: 'edge' },
+  'hospital-b': { name: entityName('hospital-b'), id: 'hospital-b', caption: '诊断 · 计算 · 通信 · 日常', tier: 'edge' },
+  'clinic-1': { name: entityName('clinic-1'), id: 'clinic-1', caption: '转诊 · 计算 · 通信 · 日常', tier: 'terminal' },
+  'clinic-2': { name: entityName('clinic-2'), id: 'clinic-2', caption: '转诊 · 计算 · 通信 · 日常', tier: 'terminal' },
 };
 
 /** inline 24×24 icon per node — no icon library, no external assets */
@@ -113,7 +115,7 @@ const RING_R = 27;
 const MEDAL_INSET = 30;
 const TEXT_INSET = 62;
 
-/** The cloud tier reads as one whole: the Data Center container panel. */
+/** 数据中心容器：云侧四个组件作为一个整体展示 */
 const DC_PANEL = { x: 280, y: 14, w: 894, h: 106 };
 const DC_NODES = ['scheduler', 'medical-server', 'dc-services', 'redis'];
 const DC_NODE_SET = new Set(DC_NODES);
@@ -209,10 +211,11 @@ export function iconShapes(kind: IconKind) {
   }
 }
 
+/** 自下而上的三层标签（命名取自 terms.ts 单一来源） */
 const TIER_LABEL: { text: string; y: number }[] = [
-  { text: '云数据中心', y: 106 },
-  { text: '医院 · 边', y: 316 },
-  { text: '诊所 · 端', y: 536 },
+  { text: TIER_TEXT.cloud, y: 106 },
+  { text: TIER_TEXT.medical, y: 316 },
+  { text: TIER_TEXT.hospital, y: 536 },
 ];
 
 function isJob(id: string): boolean {
@@ -877,7 +880,7 @@ function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
     ref: 'submit',
   });
   steps.push({
-    label: '取云清单',
+    label: '取清单',
     detail: detail?.missing !== undefined
       ? `云端 ${detail?.cloud_items ?? '—'} 项 · 缺失 ${detail.missing} 项`
       : 'dc-services 清单 → 计算缺失分块',
@@ -962,7 +965,7 @@ function stepsRoutine(task: TaskItem | null, ctx: Ctx): Step[] {
   });
   steps.push({
     label: '读取空闲节点',
-    detail: nodesUsed.length ? `空闲边缘节点 ${nodesUsed.join(' / ')}` : 'scheduler 读取节点空闲度',
+    detail: nodesUsed.length ? `空闲业务节点 ${nodesUsed.join(' / ')}` : 'scheduler 读取节点空闲度',
     nodes: ['scheduler'],
     edges: [],
     ref: 'nodes',
@@ -1283,10 +1286,10 @@ interface PlayState {
   mode: PlayMode;
 }
 
-const STEP_MS = 2500;
-const DWELL_MS = 3000;
-const MIN_STEP_MS = 1200;
-const MAX_STEP_MS = 4000;
+const STEP_MS = 2000;
+const DWELL_MS = 2400;
+const MIN_STEP_MS = 1000;
+const MAX_STEP_MS = 3500;
 
 /**
  * Autoplay dwell for one step, and the duration of its progress bar: a step
@@ -1362,6 +1365,132 @@ function usePrefersReducedMotion(): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// 多任务并发（调度态势）：同一份 tasks prop，不新增接口
+// ---------------------------------------------------------------------------
+/** 后端 scheduler MAX_CONCURRENT 默认值 */
+const CONCURRENCY_MAX = 4;
+const WINDOW_MIN_MS = 5 * 60 * 1000;
+const WINDOW_MAX_MS = 10 * 60 * 1000;
+const LANE_ROWS_MAX = 12;
+
+type LaneTier = 'medical' | 'hospital' | 'cloud';
+
+interface LaneRow {
+  id: string;
+  kind: ModelKind;
+  source: string;
+  sourceName: string;
+  tier: LaneTier;
+  status: string;
+  stateClass: 'running' | 'done' | 'failed';
+  priority: number;
+  left: number;
+  width: number;
+  startMs: number;
+  endMs: number;
+}
+
+interface LaneModel {
+  rows: LaneRow[];
+  queued: LaneRow[];
+  spanMs: number;
+  total: number;
+  running: number;
+  hidden: number;
+}
+
+function tierOfSource(source: string): LaneTier {
+  if (source.startsWith('clinic')) return 'hospital';
+  if (source.startsWith('hospital')) return 'medical';
+  return 'cloud';
+}
+
+function hhmm(ms: number): string {
+  return new Date(ms).toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * 最近 5–10 分钟（自动伸缩）的并发窗口：每个任务一行，
+ * 条从 start_time 画到 end_time（运行中延伸到“现在”）。
+ */
+function buildLanes(list: TaskItem[], nowMs: number): LaneModel {
+  const all = (Array.isArray(list) ? list : []).filter((t) => t && t.id);
+  const parsed = all
+    .map((t) => {
+      const startMs = Date.parse(String(t.start_time || ''));
+      const endRaw = Date.parse(String(t.end_time || ''));
+      return { t, startMs: Number.isFinite(startMs) ? startMs : nowMs, endMs: Number.isFinite(endRaw) ? endRaw : NaN };
+    })
+    .filter((x) => Number.isFinite(x.startMs));
+
+  const earliest = parsed.length ? Math.min(...parsed.map((x) => x.startMs)) : nowMs;
+  const spanMs = Math.min(WINDOW_MAX_MS, Math.max(WINDOW_MIN_MS, nowMs - earliest));
+  const t0 = nowMs - spanMs;
+
+  const toRow = (x: { t: TaskItem; startMs: number; endMs: number }): LaneRow => {
+    const status = String(x.t.status || '');
+    const running = status === 'running' || status === 'queued';
+    const failed = status === 'failed';
+    const endMs = status === 'running' || !Number.isFinite(x.endMs) ? nowMs : x.endMs;
+    const clampedStart = Math.max(x.startMs, t0);
+    const clampedEnd = Math.min(Math.max(endMs, clampedStart + 1000), nowMs + 1000);
+    const left = ((clampedStart - t0) / spanMs) * 100;
+    const width = Math.max(1.6, ((clampedEnd - clampedStart) / spanMs) * 100);
+    const src = String(x.t.source || '');
+    return {
+      id: String(x.t.id),
+      kind: ((x.t.model as ModelKind) || 'diagnosis'),
+      source: src,
+      sourceName: src ? entityName(src) : '—',
+      tier: tierOfSource(src),
+      status,
+      stateClass: failed ? 'failed' : status === 'running' ? 'running' : 'done',
+      priority: Number.isFinite(Number(x.t.priority)) ? Number(x.t.priority) : 5,
+      left: Math.max(0, Math.min(100, left)),
+      width: Math.min(100 - Math.max(0, Math.min(100, left)), width),
+      startMs: clampedStart,
+      endMs: clampedEnd,
+    };
+  };
+
+  const inWindow = parsed
+    .filter((x) => x.startMs >= t0 || (Number.isFinite(x.endMs) && x.endMs >= t0))
+    .map((x) => toRow(x))
+    .sort((a, b) => a.startMs - b.startMs);
+
+  const queued = all
+    .filter((t) => String(t.status || '') === 'queued')
+    .map((t) => {
+      const startMs = Date.parse(String(t.start_time || '')) || nowMs;
+      const src = String(t.source || '');
+      return {
+        id: String(t.id),
+        kind: ((t.model as ModelKind) || 'diagnosis'),
+        source: src,
+        sourceName: src ? entityName(src) : '—',
+        tier: tierOfSource(src),
+        status: 'queued',
+        stateClass: 'running' as const,
+        priority: Number.isFinite(Number(t.priority)) ? Number(t.priority) : 5,
+        left: 0,
+        width: 0,
+        startMs,
+        endMs: nowMs,
+      };
+    })
+    .sort((a, b) => b.priority - a.priority || a.startMs - b.startMs);
+
+  return {
+    rows: inWindow.slice(0, LANE_ROWS_MAX),
+    queued,
+    spanMs,
+    total: inWindow.length,
+    running: all.filter((t) => String(t.status || '') === 'running').length,
+    hidden: Math.max(0, inWindow.length - LANE_ROWS_MAX),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // component
 // ---------------------------------------------------------------------------
 const TONES: Tone[] = ['ghost', 'past', 'current', 'pending', 'unrelated', 'failed'];
@@ -1409,11 +1538,28 @@ export default function TaskTrajectoryMap({
     return sortTasks(list).slice(0, 6);
   }, [tasks, kind]);
 
+  // 同类型的完整列表（下拉只展示最近 6 条，但已选任务可能更早）
+  const kindAll = useMemo(() => {
+    const list = (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.model === kind);
+    return sortTasks(list);
+  }, [tasks, kind]);
+
   const traced = useMemo(() => {
-    if (!kindTasks.length) return null;
-    if (autoFollow) return kindTasks[0];
-    return kindTasks.find((t) => t.id === selId) || kindTasks[0];
-  }, [kindTasks, autoFollow, selId]);
+    if (autoFollow) return kindTasks[0] || null;
+    if (selId) {
+      const found = kindAll.find((t) => t.id === selId)
+        || (Array.isArray(tasks) ? tasks : []).find((t) => t && t.id === selId);
+      if (found) return found;
+    }
+    return kindTasks[0] || null;
+  }, [kindTasks, kindAll, autoFollow, selId, tasks]);
+
+  // 下拉选项：最近 6 条；若当前追踪的任务更早，则额外附上一条
+  const options = useMemo(() => {
+    const list = [...kindTasks];
+    if (traced && !list.some((t) => t.id === traced.id)) list.push(traced);
+    return list;
+  }, [kindTasks, traced]);
 
   // geometry only depends on kind + traced task, never on the cursor
   const view = useMemo(() => buildView(kind, traced), [kind, traced]);
@@ -1531,8 +1677,21 @@ export default function TaskTrajectoryMap({
     setPlay({ id: tracedId, index: Math.min(Math.max(0, i), lastStep), mode: 'manual' });
   };
 
+  // 多任务并发：最近 5–10 分钟窗口 + 调度队列
+  const lanes = useMemo(() => buildLanes(Array.isArray(tasks) ? tasks : [], Date.now()), [tasks]);
+  const windowMin = Math.round(lanes.spanMs / 60000);
+  const ticks = useMemo(() => [0, 0.25, 0.5, 0.75, 1].map((p) => ({
+    p,
+    label: hhmm(Date.now() - lanes.spanMs * (1 - p)),
+  })), [lanes.spanMs]);
+  const pickTask = (row: LaneRow) => {
+    setKind(row.kind);
+    setSelId(row.id);
+    setAutoFollow(false);
+  };
+
   const toneClass = (t: Tone) => `tm-edge ${t}`;
-  const labelOf = (id: string): { name: string; caption: string } => {
+  const labelOf = (id: string): { name: string; id?: string; caption: string } => {
     if (isJob(id)) {
       const node = jobNodeOf(id);
       const job = view.jobs.find((j) => j.id === id);
@@ -1585,7 +1744,7 @@ export default function TaskTrajectoryMap({
       </div>
 
       <p className="eyebrow tmap-caption">
-        云数据中心 / 医院 · 边 / 诊所 · 端 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，
+        数据中心 / 医疗中心 / 医院 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，
         或「▶ 自动」循环演示；只有当前步骤为橙色高亮，已执行为灰色、待执行为淡灰虚线、无关链路最淡
       </p>
 
@@ -1621,11 +1780,11 @@ export default function TaskTrajectoryMap({
             className="tmap-select mono"
             aria-label="选择要跟踪的任务"
             value={traced?.id || ''}
-            disabled={!kindTasks.length}
+            disabled={!options.length}
             onChange={(e) => { setSelId(e.target.value); setAutoFollow(false); }}
           >
-            {kindTasks.length === 0 && <option value="">该类型暂无任务记录</option>}
-            {kindTasks.map((t) => (
+            {options.length === 0 && <option value="">该类型暂无任务记录</option>}
+            {options.map((t) => (
               <option key={t.id} value={t.id} title={t.id}>{taskOptionLabel(t)}</option>
             ))}
           </select>
@@ -1706,9 +1865,8 @@ export default function TaskTrajectoryMap({
           </defs>
 
           <g className="tm-guides">
-            {/* 云数据中心 as one container: encloses scheduler + medical-server
-                + dc-services + redis. Connectors cross its hairline border
-                perpendicular, every jog row stays outside it. */}
+            {/* 数据中心容器：包含 scheduler + medical-server + dc-services + redis；
+                连线垂直穿越其发丝边框，所有折行都落在容器之外。 */}
             <g className={`tm-dc ${dcLive ? 'live' : ''}`}>
               <rect
                 className="tm-dc-panel"
@@ -1720,7 +1878,7 @@ export default function TaskTrajectoryMap({
               />
               <rect className="tm-dc-bar" x={DC_PANEL.x} y={DC_PANEL.y} width="3" height={DC_PANEL.h} />
               <text className="tm-dc-title" x={DC_PANEL.x + 16} y={DC_PANEL.y + 21}>
-                云数据中心
+                {TIER_TEXT.cloud}
               </text>
               <text
                 className="tm-dc-meta mono"
@@ -1829,7 +1987,7 @@ export default function TaskTrajectoryMap({
               const tx = b.x - b.w / 2 + TEXT_INSET;
               return (
                 <g key={id} className={['tm-node', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
-                  <title>{`${meta.name} · ${meta.caption}`}</title>
+                  <title>{`${meta.name}${meta.id && meta.id !== meta.name ? `（${meta.id}）` : ''} · ${meta.caption}`}</title>
                   {ringed && <circle className="tm-ring" cx={mx} cy={b.y} r={RING_R} />}
                   <rect
                     className={`tm-tier-flag ${tierOf(id)}`}
@@ -1964,6 +2122,97 @@ export default function TaskTrajectoryMap({
             )}
           </div>
         )}
+      </div>
+
+      <div className="tmap-conc">
+        <div className="tmc-head">
+          <span className="eyebrow">多任务并发 · 调度态势</span>
+          <span className="tmc-meta mono">
+            {`窗口 ${windowMin} 分钟 · 窗口内 ${lanes.total} 条 · 运行中 ${lanes.running}/${CONCURRENCY_MAX}`}
+            {lanes.hidden > 0 ? ` · 仅显示最近 ${LANE_ROWS_MAX} 条` : ''}
+          </span>
+        </div>
+
+        <div className="tmc-body">
+          <div className="tmc-lanes">
+            {lanes.rows.length === 0 ? (
+              <div className="tmc-empty xs muted">最近 {windowMin} 分钟内没有任务记录</div>
+            ) : (
+              <>
+
+            <div className="tmc-axis" aria-hidden="true">
+              {ticks.map((tk) => (
+                <i key={tk.p} className="tmc-tick" style={{ left: `${tk.p * 100}%` }}>
+                  {tk.label}
+                </i>
+              ))}
+            </div>
+            {lanes.rows.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={`tmc-row ${r.id === tracedId ? 'on' : ''}`}
+                onClick={() => pickTask(r)}
+                title={`${r.id} · ${MODEL_LABEL[r.kind]} · ${r.sourceName}（${r.source}）· ${statusLabel(r.status)} · P${r.priority}`}
+              >
+                <span className="tmc-label">
+                  <i className="tmc-kind" style={{ background: MODEL_COLOR[r.kind] }} />
+                  <b>{MODEL_LABEL[r.kind]}</b>
+                  <span className="tmc-src">{r.sourceName}</span>
+                  <i className="tmc-id mono">{idPrefix(r.id, 11)}</i>
+                </span>
+                <span className="tmc-track">
+                  <i
+                    className={`tmc-bar ${r.stateClass}`}
+                    style={{ left: `${r.left}%`, width: `${r.width}%`, background: MODEL_COLOR[r.kind] }}
+                  />
+                  <i className={`tmc-mark tier-${r.tier} ${r.stateClass}`} style={{ left: `${r.left}%` }} />
+                </span>
+                <span className={`tmc-p mono ${r.priority <= 2 ? 'high' : ''}`}>{`P${r.priority}`}</span>
+              </button>
+            ))}
+            <div className="tmc-shapes xs muted">
+              <i className="tmc-mark tier-medical" />医疗中心
+              <i className="tmc-mark tier-hospital" />医院
+              <i className="tmc-mark tier-cloud" />其它
+              <i className="tmc-bar state-running" />运行中
+              <i className="tmc-bar state-done" />已完成
+              <i className="tmc-bar state-failed" />失败
+            </div>
+              </>
+            )}
+          </div>
+
+<div className="tmc-queue">
+            <div className="tmc-queue-head">
+              <span className="eyebrow">调度队列</span>
+              <span className="mono xs">并发上限 {CONCURRENCY_MAX}</span>
+            </div>
+            {lanes.queued.length === 0 ? (
+              <div className="tmc-empty xs muted">队列为空 · 可立即调度</div>
+            ) : (
+              lanes.queued.slice(0, 8).map((q, i) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  className={`tmc-q ${q.id === tracedId ? 'on' : ''}`}
+                  onClick={() => pickTask(q)}
+                  title={`${q.id} · ${MODEL_LABEL[q.kind]} · ${q.sourceName}（${q.source}）· P${q.priority}`}
+                >
+                  <i className="tmc-q-no mono">{i + 1}</i>
+                  <i className="tmc-kind" style={{ background: MODEL_COLOR[q.kind] }} />
+                  <b>{MODEL_LABEL[q.kind]}</b>
+                  <span className="tmc-src">{q.sourceName}</span>
+                  <i className="tmc-id mono">{idPrefix(q.id, 9)}</i>
+                  <i className={`tmc-p mono ${q.priority <= 2 ? 'high' : ''}`}>{`P${q.priority}`}</i>
+                </button>
+              ))
+            )}
+            <div className="tmc-note xs muted">
+              优先级降序调度（同级先到先服务）· 并发上限 {CONCURRENCY_MAX}，运行中 {lanes.running}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="tmap-legend">

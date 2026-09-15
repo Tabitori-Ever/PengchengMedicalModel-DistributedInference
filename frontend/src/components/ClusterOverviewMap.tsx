@@ -2,7 +2,10 @@ import { useMemo } from 'react';
 import type {
   ClusterStatus, ClusterSummary, EntityLive, HealthMap, NodeInfo, PodInfo,
 } from '../types';
-import { fmtPct, healthDetail, healthState, loadColor, nodeRoleLabel } from '../utils';
+import { fmtPct, healthDetail, healthState, loadColor } from '../utils';
+import {
+  CLOUD_CAPTION, FLOW, TIER_LABEL, entityCaption, entityName, entityTier, nodeRoleText,
+} from '../terms';
 import { iconShapes, type IconKind } from './TaskTrajectoryMap';
 
 /* ===========================================================================
@@ -10,10 +13,10 @@ import { iconShapes, type IconKind } from './TaskTrajectoryMap';
 
    Bottom-to-top logical groups (Chinese-only vocabulary):
 
-     云数据中心   scheduler · medical-server · dc-services · redis   (node3)
-     医院 · 边    hospital-a · hospital-b                             (node1 / node2)
-     诊所 · 端    clinic-1 · clinic-2 (+ clinic-N)                    (node1 / node2)
-     运维         monitoring · prediction                             (desktop)
+     数据中心   scheduler · medical-server · dc-services · redis   (node3)
+     医疗中心   hospital-a · hospital-b                             (node1 / node2)
+     医院       clinic-1 · clinic-2 (+ clinic-N)                    (node1 / node2)
+     运维       monitoring · prediction                             (desktop)
 
    Entities are borderless icon medallions + name + one short Chinese caption +
    live state (health probe / pod readiness / node CPU·内存). Group relations
@@ -36,7 +39,7 @@ const BUS_GAP = 16;
 const GUTTER = 68;
 const TOP_Y = 26;
 const BOTTOM_PAD = 22;
-/** free lanes left of the panels for the 端 ⇄ 云 relation (up / down) */
+/** free lanes left of the panels for the 医院 ⇄ 数据中心 relation (up / down) */
 const LANE_UP = 28;
 const LANE_DOWN = 52;
 const MEDAL_R = 18;
@@ -105,7 +108,8 @@ interface Link {
 
 interface Layout {
   panels: Panel[];
-  resources: ResBox;
+  /** 节点资源小框：仅“集群负载”页展示，可视化页传 false 隐藏 */
+  resources: ResBox | null;
   links: Link[];
   height: number;
 }
@@ -218,23 +222,22 @@ interface EntityItem {
   caption: string;
 }
 
-const CLOUD_TILES: { name: string; caption: string; icon: IconKind; keys: string[] }[] = [
-  { name: 'scheduler', caption: '调度', icon: 'scheduler', keys: ['scheduler'] },
-  { name: 'medical-server', caption: '医疗推理', icon: 'server', keys: ['medical_server', 'medical-server'] },
+const CLOUD_TILES: { name: string; icon: IconKind; keys: string[] }[] = [
+  { name: 'scheduler', icon: 'scheduler', keys: ['scheduler'] },
+  { name: 'medical-server', icon: 'server', keys: ['medical_server', 'medical-server'] },
   {
     name: 'dc-services',
-    caption: '患者库 · 协同计算 · 备份',
     icon: 'database',
     keys: ['datacenter(patient-db)', 'datacenter', 'dc-services', 'patient-db'],
   },
-  { name: 'redis', caption: '队列 / 记录', icon: 'cache', keys: ['redis'] },
+  { name: 'redis', icon: 'cache', keys: ['redis'] },
 ];
 
 const OPS_FALLBACK = ['monitoring', 'prediction'];
 
 const CAPTION_BY_KIND: Record<'hospital' | 'clinic', string> = {
-  hospital: '诊断 · 计算 · 通信 · 日常',
-  clinic: '转诊 · 计算 · 通信 · 日常',
+  hospital: entityCaption('hospital-a'),
+  clinic: entityCaption('clinic-1'),
 };
 
 const NODE_BY_ENTITY: Record<string, string> = {
@@ -301,6 +304,7 @@ function buildLayout(
   status: ClusterStatus | null | undefined,
   summary: ClusterSummary | null | undefined,
   health: HealthMap | null | undefined,
+  withResources = true,
 ): Layout {
   const nodes = (status?.nodes?.length ? status.nodes : summary?.nodes) || [];
   const panels: Panel[] = [];
@@ -319,7 +323,7 @@ function buildLayout(
     id: spec.name,
     icon: spec.icon,
     name: spec.name,
-    caption: spec.caption,
+    caption: CLOUD_CAPTION[spec.name] || '',
     node: 'node3',
     state: healthTone(lookupHealth(health, spec.keys)),
     rect: {
@@ -332,7 +336,7 @@ function buildLayout(
   const cloudOk = cloudTiles.filter((t) => t.state.tone === 'ok').length;
   panels.push({
     key: 'cloud',
-    title: '云数据中心',
+    title: TIER_LABEL.cloud,
     summary: `${cloudTiles.length} 个组件 · 就绪 ${cloudOk}`,
     rect: cloudRect,
     tiles: cloudTiles,
@@ -383,7 +387,7 @@ function buildLayout(
     id: `ops:${it.name}`,
     icon: 'monitor',
     name: it.name,
-    caption: /predict/i.test(it.name) ? '预测（可选）' : '指标观测',
+    caption: /predict/i.test(it.name) ? '预测服务（可选）' : '指标观测',
     node: 'desktop',
     state: it.pods.length
       ? podTone(it.pods)
@@ -398,7 +402,7 @@ function buildLayout(
   const opsOk = opsTiles.filter((t) => t.state.tone === 'ok').length;
   panels.push({
     key: 'ops',
-    title: '运维',
+    title: TIER_LABEL.ops,
     summary: `${opsTiles.length} 个组件 · 就绪 ${opsOk}`,
     rect: opsRect,
     tiles: opsTiles,
@@ -410,11 +414,11 @@ function buildLayout(
       d: polyline([{ x: opsRect.x, y }, { x: PANEL_X + PANEL_W, y }]),
       dotted: true,
       arrow: true,
-      label: '指标观测',
+      label: FLOW.opsCloud,
     });
   }
 
-  // ---- 医院 · 边 / 诊所 · 端 ---------------------------------------------
+  // ---- 医疗中心 / 医院 ---------------------------------------------------
   const placeGroup = (
     key: 'edge' | 'terminal',
     title: string,
@@ -429,7 +433,7 @@ function buildLayout(
     const tiles: Tile[] = items.map((it, i) => ({
       id: it.name,
       icon: it.kind === 'clinic' ? 'clinic' : 'hospital',
-      name: it.name,
+      name: entityName(it.name),
       caption: it.caption,
       node: it.node,
       state: podTone(it.pods),
@@ -470,7 +474,7 @@ function buildLayout(
   };
   const resRows: ResRow[] = shownNames.map((name, i) => {
     const n = nodeByName[name];
-    const role = nodeRoleLabel(n?.role, name).zh;
+    const role = nodeRoleText(n?.role, name);
     const load = loadOf(n);
     return {
       name,
@@ -481,31 +485,31 @@ function buildLayout(
       y: resRect.y + HEADER_H + i * RES_ROW_H,
     };
   });
-  const resources: ResBox = {
+  const resources: ResBox | null = withResources ? {
     rect: resRect,
     title: '节点资源',
     summary: `${shownNames.length} 个节点 · 就绪 ${resRows.filter((r) => nodeByName[r.name]?.ready).length}`,
     rows: resRows,
-  };
+  } : null;
 
-  const edge = placeGroup('edge', '医院 · 边', entitiesOf(status, 'hospital'), cloudBottom + GUTTER);
+  const edge = placeGroup('edge', TIER_LABEL.medical, entitiesOf(status, 'hospital'), cloudBottom + GUTTER);
   panels.push(edge.panel);
-  const term = placeGroup('terminal', '诊所 · 端', entitiesOf(status, 'clinic'), edge.bottom + GUTTER);
+  const term = placeGroup('terminal', TIER_LABEL.hospital, entitiesOf(status, 'clinic'), edge.bottom + GUTTER);
   panels.push(term.panel);
-  const height = Math.max(term.bottom, resRect.y + resRect.h) + BOTTOM_PAD;
+  const height = (withResources ? Math.max(term.bottom, resRect.y + resRect.h) : term.bottom) + BOTTOM_PAD;
 
   // ---- group relations (all routed through box-free gutters) --------------
   const edgeTopY = edge.panel.rect.y;
   const termTopY = term.panel.rect.y;
 
-  // 边 ⇄ 云: two parallel lines with opposite arrowheads + one label
+  // 医疗中心 ⇄ 数据中心: two parallel lines with opposite arrowheads + one label
   const upX = 420;
   const downX = 452;
   links.push({
     id: 'edge-cloud-up',
     d: polyline([{ x: upX, y: edgeTopY }, { x: upX, y: cloudBottom }]),
     arrow: true,
-    label: '协同诊断 / 计算 / 同步 / 日常',
+    label: FLOW.medicalCloud,
   });
   links.push({
     id: 'edge-cloud-down',
@@ -513,7 +517,7 @@ function buildLayout(
     arrow: true,
   });
 
-  // 端 ⇄ 云: routed around 医院 · 边 through the free left lanes
+  // 医院 ⇄ 数据中心: routed around 医疗中心 through the free left lanes
   const termMid = term.panel.tiles.length ? term.panel.tiles[0].rect.y + 24 : termTopY + HEADER_H;
   const cloudMid = cloudTiles[2].rect.y + 20;
   links.push({
@@ -525,8 +529,8 @@ function buildLayout(
       { x: PANEL_X, y: cloudMid },
     ]),
     arrow: true,
-    label: '协同计算 / 同步 / 日常',
-    // the lane has no room beside it → label it in the 云/边 gutter
+    label: FLOW.hospitalCloud,
+    // the lane has no room beside it → label it in the 数据中心/医疗中心 gutter
     labelHint: { x: 76, y: cloudBottom + GUTTER / 2 + 4, anchor: 'start' },
   });
   links.push({
@@ -540,7 +544,7 @@ function buildLayout(
     arrow: true,
   });
 
-  // 转诊: one group-level dotted indicator between 诊所 · 端 and 医院 · 边
+  // 转诊: one group-level dotted indicator between 医院 and 医疗中心
   // (added clinic-N entities never add another line)
   {
     const refX = PANEL_X + PANEL_W / 2;
@@ -549,7 +553,7 @@ function buildLayout(
       d: polyline([{ x: refX, y: termTopY }, { x: refX, y: edge.bottom }]),
       dotted: true,
       arrow: true,
-      label: '转诊',
+      label: FLOW.referral,
     });
   }
 
@@ -558,10 +562,12 @@ function buildLayout(
     avoid.push({ x1: p.rect.x - 2, y1: p.rect.y - 2, x2: p.rect.x + p.rect.w + 2, y2: p.rect.y + p.rect.h + 2 });
     p.tiles.forEach((t) => avoid.push(tileBox(t.rect)));
   });
-  avoid.push({
-    x1: resources.rect.x - 2, y1: resources.rect.y - 2,
-    x2: resources.rect.x + resources.rect.w + 2, y2: resources.rect.y + resources.rect.h + 2,
-  });
+  if (resources) {
+    avoid.push({
+      x1: resources.rect.x - 2, y1: resources.rect.y - 2,
+      x2: resources.rect.x + resources.rect.w + 2, y2: resources.rect.y + resources.rect.h + 2,
+    });
+  }
   links.forEach((l) => {
     if (!l.label) return;
     const placed = l.labelHint
@@ -589,7 +595,7 @@ function buildLayout(
 
 /* ---------------------------------------------------------------- component */
 export default function ClusterOverviewMap({
-  status, summary, health, error, updatedAt,
+  status, summary, health, error, updatedAt, showResources = true,
 }: {
   /** GET /cluster/status — entities + readonly deployments with pods */
   status?: ClusterStatus | null;
@@ -600,8 +606,14 @@ export default function ClusterOverviewMap({
   /** probe error; the previous snapshot stays on screen */
   error?: string | null;
   updatedAt?: Date | null;
+  /** 是否展示“节点资源”小框（可视化页传 false，负载页保留） */
+  showResources?: boolean;
 }) {
-  const layout = useMemo(() => buildLayout(status, summary, health), [status, summary, health]);
+  const layout = useMemo(
+    () => buildLayout(status, summary, health, showResources),
+    [status, summary, health, showResources],
+  );
+  const res = layout.resources;
   const stamp = updatedAt ? updatedAt.toLocaleTimeString('zh-CN', { hour12: false }) : null;
   const entityCount = layout.panels.reduce((a, p) => a + p.tiles.length, 0);
 
@@ -619,7 +631,7 @@ export default function ClusterOverviewMap({
       </div>
 
       <p className="eyebrow tmap-caption">
-        逻辑架构视图 —— 按 云数据中心 / 医院 · 边 / 诊所 · 端 / 运维 分组，数值与状态点为实时采集
+        逻辑架构视图 —— 按 数据中心 / 医疗中心 / 医院 / 运维 分组，实体带节点归属，状态点为实时采集
       </p>
 
       {error && <div className="cm-inline-err">集群拓扑接口异常：{error}（保留上次成功数据）</div>}
@@ -685,51 +697,52 @@ export default function ClusterOverviewMap({
             ))}
           </g>
 
+          {res && (
           <g className="lm-panel resource">
             <rect
               className="lm-panel-bg"
-              x={layout.resources.rect.x}
-              y={layout.resources.rect.y}
-              width={layout.resources.rect.w}
-              height={layout.resources.rect.h}
+              x={res.rect.x}
+              y={res.rect.y}
+              width={res.rect.w}
+              height={res.rect.h}
               rx="3"
             />
             <rect
               className="lm-panel-bar"
-              x={layout.resources.rect.x}
-              y={layout.resources.rect.y}
+              x={res.rect.x}
+              y={res.rect.y}
               width="3"
-              height={layout.resources.rect.h}
+              height={res.rect.h}
             />
             <text
               className="lm-panel-title"
-              x={layout.resources.rect.x + 16}
-              y={layout.resources.rect.y + 23}
+              x={res.rect.x + 16}
+              y={res.rect.y + 23}
             >
-              {layout.resources.title}
+              {res.title}
             </text>
             <text
               className="lm-panel-sum mono"
-              x={layout.resources.rect.x + 16}
-              y={layout.resources.rect.y + 41}
+              x={res.rect.x + 16}
+              y={res.rect.y + 41}
             >
-              {layout.resources.summary}
+              {res.summary}
             </text>
             <line
               className="lm-panel-rule"
-              x1={layout.resources.rect.x + 14}
-              y1={layout.resources.rect.y + HEADER_H - 3}
-              x2={layout.resources.rect.x + layout.resources.rect.w - 14}
-              y2={layout.resources.rect.y + HEADER_H - 3}
+              x1={res.rect.x + 14}
+              y1={res.rect.y + HEADER_H - 3}
+              x2={res.rect.x + res.rect.w - 14}
+              y2={res.rect.y + HEADER_H - 3}
             />
-            {layout.resources.rows.map((row) => {
-              const x0 = layout.resources.rect.x + 16;
+            {(res?.rows || []).map((row) => {
+              const x0 = res.rect.x + 16;
               return (
                 <g className="lm-res-row" key={row.name}>
                   <text className="lm-res-name" x={x0} y={row.y + 15}>{row.name}</text>
                   <text
                     className="lm-res-role"
-                    x={layout.resources.rect.x + layout.resources.rect.w - 16}
+                    x={res.rect.x + res.rect.w - 16}
                     y={row.y + 15}
                     textAnchor="end"
                   >
@@ -765,6 +778,7 @@ export default function ClusterOverviewMap({
               );
             })}
           </g>
+          )}
 
           <g className="lm-links">
             {layout.links.map((l) => (
@@ -799,7 +813,7 @@ export default function ClusterOverviewMap({
                     {iconShapes(t.icon)}
                   </g>
                   <text className="lm-name" x={tx} y={nameY}>{t.name}</text>
-                  {t.node && (p.key === 'edge' || p.key === 'terminal') && (
+                  {t.node && (
                     <text className="lm-node mono" x={right} y={nameY} textAnchor="end">{t.node}</text>
                   )}
                   <text className="lm-cap" x={tx} y={capY}>

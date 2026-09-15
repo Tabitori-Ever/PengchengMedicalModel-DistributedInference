@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { fmtMemBytes, fmtMs, MODEL_LABEL } from '../utils';
+import { ROLE_TEXT, entityName, fmtMemBytes, fmtMs, MODEL_LABEL } from '../utils';
 import type { TaskItem, TaskResult } from '../types';
 
 interface Props {
@@ -79,9 +79,9 @@ function HeaderBlock({ kind, result }: { kind: string; result: any }) {
   return (
     <div className="res-head">
       <div className="kvrow">
-        <span>发起端</span>
+        <span>发起方</span>
         <b className="mono">{ini.entity ?? '—'}</b>
-        <span>角色</span><span>{ini.role === 'edge' ? '边 edge' : ini.role === 'terminal' ? '端 terminal' : ini.role || '—'}</span>
+        <span>角色</span><span>{ROLE_TEXT[String(ini.role)] || ini.role || '—'}</span>
         <span>所在节点</span><span className="mono">{ini.node || '—'}</span>
       </div>
       {(kind === 'diagnosis' || forwarded) && (
@@ -89,7 +89,7 @@ function HeaderBlock({ kind, result }: { kind: string; result: any }) {
           <span>转诊</span>
           {forwarded
             ? <b className="mono" style={{ color: '#b45309' }}>{forwarded}</b>
-            : <span className="muted">{ini.entity?.startsWith('clinic') ? '直接执行（无转诊）' : '本医院直接执行'}</span>}
+            : <span className="muted">{ini.entity?.startsWith('clinic') ? '直接执行（无转诊）' : '本医疗中心直接执行'}</span>}
           <span>优先级</span><span className="mono">P{ini.priority ?? '—'}</span>
           <span>截止</span><span className="mono">{ini.deadline || '—'}</span>
         </div>
@@ -202,17 +202,17 @@ function SyncBody({ result }: { result: any }) {
   return (
     <>
       <div className="kvgrid">
-        <div className="kv"><span>云端版本</span><b className="mono">{rd.db_version ?? '—'}</b></div>
-        <div className="kv"><span>云端条目</span><b className="mono">{rd.cloud_items ?? '—'}</b></div>
+        <div className="kv"><span>数据中心版本</span><b className="mono">{rd.db_version ?? '—'}</b></div>
+        <div className="kv"><span>数据中心条目</span><b className="mono">{rd.cloud_items ?? '—'}</b></div>
         <div className="kv"><span>缺失 / 已拉取</span><b className="mono">{rd.missing ?? '—'} / {rd.pulled ?? '—'}</b></div>
         <div className="kv"><span>失败分块</span><b className="mono">{rd.failed_chunks ?? 0}</b></div>
         <div className="kv"><span>拉取字节</span><b className="mono">{fmtMemBytes(rd.bytes_pulled)}</b></div>
         <div className="kv"><span>拉取耗时</span><b className="mono">{fmtMs(rd.pull_ms)}</b></div>
         <div className="kv"><span>并发 / 带宽</span><b className="mono">{rd.concurrency ?? '—'} · {rd.bandwidth_mbps ?? '—'}Mbps</b></div>
-        <div className="kv"><span>上传 / 云端总量</span><b className="mono">{rd.uploaded ?? '—'} / {rd.cloud_total ?? '—'}</b></div>
+        <div className="kv"><span>上传 / 数据中心总量</span><b className="mono">{rd.uploaded ?? '—'} / {rd.cloud_total ?? '—'}</b></div>
       </div>
       <div className="kvrow">
-        <span>数据对端</span>
+        <span>数据来源</span>
         <span>{(rd.peers || []).map((p: string) => <i key={p} className="kv-peer">{p}</i>)}</span>
         <span>备份</span>
         <span className="muted">
@@ -226,7 +226,7 @@ function SyncBody({ result }: { result: any }) {
           <h4 className="sub-title">分块同步明细（前 {Math.min(chunks.length, 30)} / {chunks.length}）</h4>
           <div className="tbl-scroll">
             <table className="datatable">
-              <thead><tr><th>记录 ID</th><th>对端</th><th>大小</th><th>hash</th><th>耗时</th><th>状态</th></tr></thead>
+              <thead><tr><th>记录 ID</th><th>来源</th><th>大小</th><th>hash</th><th>耗时</th><th>状态</th></tr></thead>
               <tbody>
                 {chunks.slice(0, 30).map((c: any, i: number) => (
                   <tr key={i}>
@@ -379,7 +379,7 @@ export function LatencySection({ kind, result }: { kind: string; result: any }) 
 
       {/* 默认：当前统计（汇总） */}
       <div className="chips-line lat-summary">
-        <span className="mini-chip">端到端 <b>{fmtMs(m.e2e_total_ms)}</b></span>
+        <span className="mini-chip">全链路 <b>{fmtMs(m.e2e_total_ms)}</b></span>
         <span className="mini-chip">流水线 <b>{fmtMs(m.pipeline_total_ms)}</b></span>
         <span className="mini-chip">队列等待 <b>{fmtMs(m.queue_wait_ms)}</b></span>
         {kindSummary(kind, result).map((c) => (
@@ -468,12 +468,12 @@ function latencyRows(kind: string, result: any): LatRow[] {
 
   if (kind === 'diagnosis') {
     push('队列等待', m.queue_wait_ms);
-    push('Worker（医院 Pod）', m.worker_total_ms, [
+    push('医疗中心前端', m.worker_total_ms, [
       { label: '　计算', ms: m.worker_compute_ms },
       { label: '　网络', ms: m.worker_network_ms },
     ], true);
     push('阶段间开销', m.inter_stage_ms);
-    push('Server（数据中心）', m.server_total_ms, [
+    push('数据中心融合', m.server_total_ms, [
       { label: '　计算', ms: m.server_compute_ms },
       { label: '　网络', ms: m.server_network_ms },
     ], true);
@@ -488,8 +488,8 @@ function latencyRows(kind: string, result: any): LatRow[] {
     push('P2P 拉取', m.pull_ms ?? rd.pull_ms, [
       { label: '　分块', ms: null }, { label: '　字节', ms: null },
     ], true, `${rd.pulled ?? '—'}/${rd.missing ?? '—'} 分块 · ${fmtMemBytes(rd.bytes_pulled)}`);
-    push('云上传', m.upload_ms ?? rd.upload_ms, undefined, false, `${rd.uploaded ?? '—'} 条`);
-    push('云备份', m.backup_ms ?? rd.backup_ms, undefined, false, rd.backup?.backup_id || '—');
+    push('数据中心上传', m.upload_ms ?? rd.upload_ms, undefined, false, `${rd.uploaded ?? '—'} 条`);
+    push('数据中心备份', m.backup_ms ?? rd.backup_ms, undefined, false, rd.backup?.backup_id || '—');
   } else if (kind === 'routine') {
     push('队列等待', m.queue_wait_ms);
     const jobs: any[] = Array.isArray(rd.jobs) ? rd.jobs : [];
@@ -497,7 +497,7 @@ function latencyRows(kind: string, result: any): LatRow[] {
       j.wall_ms, [{ label: '　CPU', ms: j.output?.cpu_ms }], false, j.state === 'succeeded' ? '已执行并删除' : j.state));
   }
   push('流水线总计', m.pipeline_total_ms, undefined, true);
-  push('端到端总计', m.e2e_total_ms, undefined, true);
+  push('全链路总计', m.e2e_total_ms, undefined, true);
   return rows;
 }
 

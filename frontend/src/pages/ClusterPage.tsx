@@ -116,14 +116,14 @@ export default function ClusterPage() {
         },
       };
     });
-    notify('ok', '已加入新的 clinic Pod（草稿），点击“应用”后创建');
+    notify('ok', '已加入新的医院实体（草稿），点击“应用”后创建');
   };
 
   const removeClinic = (id: string) =>
     setDesired((d) => {
       if (!d) return d;
       if (d[id]?.kind !== 'clinic') {
-        notify('err', `${id} 是医院核心实体，不能删除（可拖动换节点或改参数）`);
+        notify('err', `${id} 是医疗中心核心实体，不能删除（可拖动换节点或改参数）`);
         return d;
       }
       const next = { ...d };
@@ -131,7 +131,7 @@ export default function ClusterPage() {
       const first = Object.keys(next).sort()[0];
       setSelected(first || '');
       notify('ok',
-        `${id} 已从草稿移除，点击“应用”后删除集群中的部署与实例；点击“重置”可恢复默认（含 clinic-1/2）`);
+        `${id} 已从草稿移除，点击“应用”后删除集群中的部署与实例；点击“重置”可恢复默认（含 医院 1/2）`);
       return next;
     });
 
@@ -207,9 +207,9 @@ export default function ClusterPage() {
         <div>
           <h1>集群编排 <span className="ver-tag">v{live?.version || '3.0'}</span></h1>
           <p>
-            大圆圈 = 节点（外环显示 CPU/内存负载）；小圆圈 = 业务 Pod。
-            拖拽 hospital / clinic Pod 到其它边缘节点，或在右侧面板调整副本/亲和/资源/镜像等运维参数，
-            最后点击「应用」下发集群，或「重置」恢复默认拓扑（仅含 hospital-a/b 与 clinic-1/2）。
+            大圆圈 = 节点（外环显示 CPU/内存负载）；小圆圈 = 业务实体。
+            拖拽医疗中心 / 医院实体到其它业务节点，或在右侧面板调整副本/亲和/资源/镜像等运维参数，
+            最后点击「应用」下发集群，或「重置」恢复默认拓扑（仅含医疗中心 A/B 与医院 1/2）。
           </p>
         </div>
         <div className="toolbar">
@@ -291,8 +291,8 @@ export default function ClusterPage() {
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
-            <button className="btn ghost sm" onClick={addClinic}>＋ 新增 clinic</button>
-            <span className="muted xs">（hospital 双站点固定，可通过拖动调整所在节点）</span>
+            <button className="btn ghost sm" onClick={addClinic}>＋ 新增医院</button>
+            <span className="muted xs">（医疗中心双站点固定，可通过拖动调整所在节点）</span>
           </div>
         </section>
 

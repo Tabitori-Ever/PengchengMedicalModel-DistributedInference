@@ -9,7 +9,7 @@ set -e
 
 REGISTRY="${REGISTRY:-10.29.182.66:5000}"
 PROJECT="${PROJECT:-k8s-repo}"
-SCHED_TAG="${SCHED_TAG:-v3.0.12}"
+SCHED_TAG="${SCHED_TAG:-v3.1.0}"
 TAG="${TAG:-v3.0}"
 
 echo "============================================"

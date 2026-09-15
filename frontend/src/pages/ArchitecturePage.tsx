@@ -7,8 +7,11 @@ import type {
   ClusterStatus, ClusterSummary, HealthMap, NodeInfo, TaskItem, TaskStats,
 } from '../types';
 import {
-  healthDetail, healthState, loadColor, MODEL_COLOR, MODEL_EN, MODEL_LABEL, MODELS,
-  nodeLoad, nodeRoleLabel, READONLY_LABEL, sortNodes,
+  CAPTION_HOSPITAL, CAPTION_MEDICAL, TIER_LABEL, entityName,
+} from '../terms';
+import {
+  healthDetail, healthState, MODEL_COLOR, MODEL_LABEL, MODELS,
+  nodeRoleLabel, READONLY_LABEL, sortNodes,
 } from '../utils';
 
 const REFRESH_MS = 10000;
@@ -28,58 +31,66 @@ interface TierNode {
 }
 
 interface Tier {
-  no: string;
   zh: string;
-  en: string;
   desc: string;
+  pod: string;
   nodes: TierNode[];
 }
 
 const TIERS: Tier[] = [
   {
-    no: '01',
-    zh: '云 Data Center',
-    en: 'CLOUD TIER',
-    desc: '集中算力与状态：调度、推理服务、数据中心与缓存',
+    zh: TIER_LABEL.cloud,
+    desc: '集中算力与状态：调度、医疗推理、患者库与队列',
+    pod: 'node3',
     nodes: [{
       node: 'node3',
       chips: [
-        { key: 'scheduler', name: 'scheduler', en: 'SCHEDULER', healthKey: 'scheduler', zh: '任务调度器' },
-        { key: 'medical-server', name: 'medical-server', en: 'MEDICAL SERVER', healthKey: 'medical_server', zh: '医学推理服务' },
-        { key: 'dc-services', name: 'dc-services', en: 'DC SERVICES', healthKey: 'datacenter(patient-db)', zh: '数据中心 / 患者库' },
-        { key: 'redis', name: 'redis', en: 'STATE STORE', healthKey: 'redis', zh: '任务状态库' },
+        { key: 'scheduler', name: 'scheduler', en: '', healthKey: 'scheduler', zh: '调度' },
+        { key: 'medical-server', name: 'medical-server', en: '', healthKey: 'medical_server', zh: '医疗推理服务' },
+        { key: 'dc-services', name: 'dc-services', en: '', healthKey: 'datacenter(patient-db)', zh: '患者库 · 协同计算' },
+        { key: 'redis', name: 'redis', en: '', healthKey: 'redis', zh: '队列 / 记录' },
       ],
     }],
   },
   {
-    no: '02',
-    zh: '边 hospital',
-    en: 'EDGE TIER',
-    desc: '医院 Pod：诊断前端与协同计算分区，数据不出院',
+    zh: TIER_LABEL.medical,
+    desc: '诊断前端与协同计算分区，数据不出院',
+    pod: 'node1 / node2',
     nodes: [
-      { node: 'node1', chips: [{ key: 'hospital-a', name: 'hospital-a', en: 'HOSPITAL · EDGE', healthKey: 'hospital-a', zh: '医院 Pod A' }] },
-      { node: 'node2', chips: [{ key: 'hospital-b', name: 'hospital-b', en: 'HOSPITAL · EDGE', healthKey: 'hospital-b', zh: '医院 Pod B' }] },
+      {
+        node: 'node1',
+        chips: [{ key: 'hospital-a', name: 'hospital-a', en: '', healthKey: 'hospital-a', zh: `${entityName('hospital-a')} · ${CAPTION_MEDICAL}` }],
+      },
+      {
+        node: 'node2',
+        chips: [{ key: 'hospital-b', name: 'hospital-b', en: '', healthKey: 'hospital-b', zh: `${entityName('hospital-b')} · ${CAPTION_MEDICAL}` }],
+      },
     ],
   },
   {
-    no: '03',
-    zh: '端 clinic',
-    en: 'TERMINAL TIER',
-    desc: '诊所 Pod：转诊发起、患者库同步与日常例行任务',
+    zh: TIER_LABEL.hospital,
+    desc: '转诊发起、患者库同步与日常例行任务',
+    pod: 'node1 / node2',
     nodes: [
-      { node: 'node1', chips: [{ key: 'clinic-1', name: 'clinic-1', en: 'CLINIC · TERMINAL', healthKey: 'clinic-1', zh: '诊所 Pod 1' }] },
-      { node: 'node2', chips: [{ key: 'clinic-2', name: 'clinic-2', en: 'CLINIC · TERMINAL', healthKey: 'clinic-2', zh: '诊所 Pod 2' }] },
+      {
+        node: 'node1',
+        chips: [{ key: 'clinic-1', name: 'clinic-1', en: '', healthKey: 'clinic-1', zh: `${entityName('clinic-1')} · ${CAPTION_HOSPITAL}` }],
+      },
+      {
+        node: 'node2',
+        chips: [{ key: 'clinic-2', name: 'clinic-2', en: '', healthKey: 'clinic-2', zh: `${entityName('clinic-2')} · ${CAPTION_HOSPITAL}` }],
+      },
     ],
   },
 ];
 
-const FLOW_STEPS = ['① 发起', '② 调度', '③ 协同执行(边/云)', '④ 结果记录'];
+const FLOW_STEPS = ['① 发起', '② 调度', '③ 协同执行', '④ 结果记录'];
 
 const FLOW_ACTORS: Record<string, string[]> = {
-  diagnosis: ['医院 / 诊所 Pod 发起 bpCR', 'scheduler 入队 + 选院转诊', '边 worker 提特征 → 云 server 融合', 'task.result 落库 · 任务记录'],
-  compute: ['边 / 端 提交分区参数', 'scheduler 切分 N 个分区', '边 + 云 分区并行计算', '云端聚合 checksum'],
-  sync: ['端侧发现缺失条目', 'scheduler 分配带宽 / 并发', '端 ↔ 边 / 云 P2P 拉取', '云端全量备份'],
-  routine: ['边 / 端 例行触发', 'scheduler 选空闲边缘节点', '边 一次性 K8s Job 执行', '输出 JSON 后立即回收'],
+  diagnosis: ['医疗中心 / 医院发起 bpCR', 'scheduler 入队 + 选点转诊', '医疗中心提特征 → 数据中心融合', 'task.result 落库 · 任务记录'],
+  compute: ['医疗中心 / 医院提交分区参数', 'scheduler 切分 N 个分区', '多执行体分区并行计算', '数据中心聚合校验'],
+  sync: ['发起方发现缺失条目', 'scheduler 分配带宽 / 并发', '与对端 / 数据中心并行拉取', '数据中心全量备份'],
+  routine: ['医疗中心 / 医院例行触发', 'scheduler 选空闲节点', '一次性 Job 执行', '输出结果后立即回收'],
 };
 
 function errText(e: any): string {
@@ -159,11 +170,11 @@ export default function ArchitecturePage() {
     <div className="page wide arch">
       <header className="page-head row">
         <div>
-          <h1>实时架构 <span className="ver-tag">LIVE · {REFRESH_MS / 1000}s</span></h1>
+          <h1>可视化 <span className="ver-tag">{REFRESH_MS / 1000}s 自动刷新</span></h1>
           <p>
-            当前平台真实拓扑：云（node3 调度 / 推理 / 数据中心）、边（node1 / node2 医院 Pod）、
-            端（node1 / node2 诊所 Pod）、控制面（desktop-jm5iec6）。顶部总览图展示各节点承载的 Pod 与实时负载，
-            其下轨迹图按任务类型回放执行链路；全部数据每 {REFRESH_MS / 1000} 秒自动刷新。
+            三级命名体系：数据中心（node3 调度 / 医疗推理 / 患者库 / 队列）、医疗中心（node1 / node2）、
+            医院（node1 / node2）、控制面（desktop-jm5iec6）。总览图展示实体与归属，轨迹图按任务类型回放执行链路；
+            节点负载请前往「集群负载」页。数据每 {REFRESH_MS / 1000} 秒自动刷新。
           </p>
         </div>
         <div className="toolbar">
@@ -187,6 +198,7 @@ export default function ArchitecturePage() {
         health={health}
         error={clusterErr}
         updatedAt={updatedAt}
+        showResources={false}
       />
 
       <TaskTrajectoryMap tasks={tasks} />
@@ -199,62 +211,37 @@ export default function ArchitecturePage() {
           </span>
         </div>
         <div className="arch-kpis">
-          <ArchKpi label="节点就绪" value={`${readyNodes}/${nodes.length}`} en="NODES READY" />
-          <ArchKpi label="可编排实体" value={summary?.editable ?? '—'} en="EDITABLE" />
-          <ArchKpi label="业务 Pod" value={summary?.editable_pods ?? '—'} en="APP PODS" />
-          <ArchKpi label="只读 Pod" value={summary?.readonly_pods ?? '—'} en="INFRA PODS" />
-          <ArchKpi label="队列长度" value={stats?.queue_length ?? 0} en="QUEUE" tone="brass" />
-          <ArchKpi label="运行中任务" value={stats?.running ?? 0} en="RUNNING" tone="brass" />
-          <ArchKpi label="任务总数" value={stats?.total ?? 0} en="TOTAL" />
+          <ArchKpi label="节点就绪" value={`${readyNodes}/${nodes.length}`} />
+          <ArchKpi label="可编排实体" value={summary?.editable ?? '—'} />
+          <ArchKpi label="业务实例" value={summary?.editable_pods ?? '—'} />
+          <ArchKpi label="平台实例" value={summary?.readonly_pods ?? '—'} />
+          <ArchKpi label="队列长度" value={stats?.queue_length ?? 0} tone="brass" />
+          <ArchKpi label="运行中任务" value={stats?.running ?? 0} tone="brass" />
+          <ArchKpi label="任务总数" value={stats?.total ?? 0} />
         </div>
       </section>
 
       <section className="arch-tiers">
         {TIERS.map((tier) => (
-          <div className="card arch-tier" key={tier.no}>
+          <div className="card arch-tier" key={tier.zh}>
             <header className="arch-tier-head">
-              <span className="tier-no mono">{tier.no}</span>
               <span className="tier-name">{tier.zh}</span>
-              <span className="tier-en mono">{tier.en}</span>
+              <span className="tier-pod mono">{tier.pod}</span>
               <span className="tier-desc muted xs">{tier.desc}</span>
             </header>
             <div className="arch-tier-body">
               {tier.nodes.map((tn) => {
                 const n = nodeByName[tn.node];
                 const role = nodeRoleLabel(n?.role, tn.node);
-                const pct = nodeLoad(n);
-                const cpu = Number(n?.load?.cpu || 0);
-                const mem = Number(n?.load?.memory || 0);
                 return (
-                  <div className="arch-node" key={`${tier.no}-${tn.node}`}>
+                  <div className="arch-node" key={`${tier.zh}-${tn.node}`}>
                     <div className="arch-node-head">
-                      <span className="an-flag" style={{ background: loadColor(pct) }} />
+                      <span className={`an-flag ${n?.ready ? 'ok' : 'bad'}`} />
                       <span className="an-name mono">{tn.node}</span>
-                      <span className="an-role">
-                        {role.zh}
-                        <i className="an-role-en mono">{role.en}</i>
-                      </span>
+                      <span className="an-role">{role.zh}</span>
                       <span className={`an-ready ${n?.ready ? 'ok' : 'bad'}`}>
                         <i className="st-dot" />
-                        {!n ? '未上报' : n.ready ? 'Ready' : 'NotReady'}
-                      </span>
-                      <span className="an-load mono">
-                        CPU {Math.round(cpu * 100)}% · 内存 {Math.round(mem * 100)}%
-                      </span>
-                    </div>
-
-                    <div className="arch-loadbars">
-                      <span className="al-cell">
-                        <i className="al-lbl mono">CPU</i>
-                        <span className="mini-bar">
-                          <i style={{ width: `${Math.min(cpu, 1) * 100}%`, background: loadColor(cpu) }} />
-                        </span>
-                      </span>
-                      <span className="al-cell">
-                        <i className="al-lbl mono">内存</i>
-                        <span className="mini-bar">
-                          <i style={{ width: `${Math.min(mem, 1) * 100}%`, background: loadColor(mem) }} />
-                        </span>
+                        {!n ? '未上报' : n.ready ? '就绪' : '未就绪'}
                       </span>
                     </div>
 
@@ -294,15 +281,15 @@ export default function ArchitecturePage() {
         </div>
 
         <div className="bus-stats">
-          <BusStat label="队列长度" en="QUEUE LENGTH" value={stats?.queue_length ?? 0} tone="brass" />
-          <BusStat label="运行中" en="RUNNING" value={stats?.running ?? 0} tone="brass" />
-          <BusStat label="任务总数" en="TOTAL" value={stats?.total ?? 0} />
+          <BusStat label="队列长度" value={stats?.queue_length ?? 0} tone="brass" />
+          <BusStat label="运行中" value={stats?.running ?? 0} tone="brass" />
+          <BusStat label="任务总数" value={stats?.total ?? 0} />
           <div className="bus-kinds">
             {MODELS.map((m) => (
               <span className="bus-kind" key={m}>
                 <i className="bus-kind-dot" style={{ background: MODEL_COLOR[m] }} />
                 <b>{MODEL_LABEL[m]}</b>
-                <i className="bus-kind-en mono">{MODEL_EN[m]}</i>
+                <i className="bus-kind-en mono">{MODEL_LABEL[m]}</i>
                 <span className="bus-kind-n mono">{byModel[m] ?? 0}</span>
               </span>
             ))}
@@ -311,15 +298,15 @@ export default function ArchitecturePage() {
 
         <div className="bus-flows">
           <div className="flow-cols">
-            <span>任务类型 KIND</span>
-            <span>流转 FLOW</span>
+            <span>任务类型</span>
+            <span>流转</span>
           </div>
           {MODELS.map((m) => (
             <div className="flow-row" key={m}>
               <span className="flow-kind">
                 <i className="flow-dot" style={{ background: MODEL_COLOR[m] }} />
                 <b>{MODEL_LABEL[m]}</b>
-                <i className="flow-en mono">{MODEL_EN[m]}</i>
+                <i className="flow-en mono">{MODEL_LABEL[m]}</i>
                 <span className="flow-count mono">{byModel[m] ?? 0}</span>
               </span>
               <span className="flow-steps">
@@ -360,25 +347,23 @@ function HealthChip({ chip, health }: { chip: Chip; health: HealthMap | null }) 
 }
 
 function ArchKpi({
-  label, value, en, tone,
-}: { label: string; value: string | number; en: string; tone?: 'brass' }) {
+  label, value, tone,
+}: { label: string; value: string | number; tone?: 'brass' }) {
   return (
     <div className={`arch-kpi ${tone || ''}`}>
       <div className="akpi-value mono">{value}</div>
       <div className="akpi-label">{label}</div>
-      <div className="akpi-en mono">{en}</div>
     </div>
   );
 }
 
 function BusStat({
-  label, en, value, tone,
-}: { label: string; en: string; value: number; tone?: 'brass' }) {
+  label, value, tone,
+}: { label: string; value: number; tone?: 'brass' }) {
   return (
     <div className={`bus-stat ${tone || ''}`}>
       <div className="bs-value mono">{value}</div>
       <div className="bs-label">{label}</div>
-      <div className="bs-en mono">{en}</div>
     </div>
   );
 }

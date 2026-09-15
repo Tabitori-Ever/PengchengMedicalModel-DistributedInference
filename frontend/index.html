@@ -4,10 +4,86 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#e8e5e1" />
-    <title>云边协同智能推理平台 · 医院/诊所 Pod 架构</title>
+    <title>三级协同医疗推理平台</title>
+    <style>
+      :root {
+        --paper: #e8e5e1; --panel: #efedea; --panel-2: #f3f1ed;
+        --ink: #080a08; --ink-2: #171713; --ink-3: #3b3c30;
+        --grey-2: #8e897b; --grey-3: #776f60;
+        --brass: #a67d48; --brass-2: #946b3c; --brass-line: rgba(148, 107, 60, 0.42);
+        --line: rgba(8, 10, 8, 0.14); --line-soft: rgba(8, 10, 8, 0.075);
+        --sans: 'MiSans', 'Mi Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+          'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        font-family: var(--sans); font-size: 16px; font-weight: 500; line-height: 1.7;
+        color: var(--ink-2); background-color: var(--paper);
+        background-image: radial-gradient(rgba(8, 10, 8, 0.055) 1px, transparent 1px);
+        background-size: 24px 24px; padding: 48px 24px;
+      }
+      main { width: 100%; max-width: 980px; }
+      header { margin-bottom: 40px; }
+      h1 { font-size: 32px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink); }
+      .sub { margin-top: 10px; color: var(--brass-2); font-family: var(--mono); font-size: 13px; letter-spacing: 0.18em; }
+      .lead { margin-top: 14px; color: var(--grey-3); max-width: 720px; }
+      .entries { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 28px; }
+      a.entry {
+        display: block; text-decoration: none; color: inherit;
+        border: 1px solid var(--line); border-left: 3px solid var(--brass-2);
+        border-radius: 3px; background: var(--panel); padding: 26px 26px 24px;
+        transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+      }
+      a.entry:hover { background: var(--panel-2); border-color: var(--brass-line); transform: translateY(-2px); }
+      .entry-no { font-family: var(--mono); font-size: 12px; color: var(--grey-2); letter-spacing: 0.16em; }
+      .entry-title { margin-top: 8px; font-size: 24px; font-weight: 700; color: var(--ink); }
+      .entry-desc { margin-top: 10px; color: var(--grey-3); font-size: 15.5px; }
+      .entry-cta { margin-top: 16px; color: var(--brass-2); font-size: 15px; border-bottom: 1px solid var(--brass-line); display: inline-block; }
+      .tiers { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 40px; color: var(--grey-3); font-size: 14.5px; }
+      .tiers span { border: 1px solid var(--line-soft); border-radius: 2px; padding: 4px 12px; background: var(--panel-2); }
+      footer { margin-top: 34px; color: var(--grey-2); font-size: 13.5px; letter-spacing: 0.04em; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <main>
+      <header>
+        <h1>三级协同医疗推理平台</h1>
+        <div class="sub">数据中心 · 医疗中心 · 医院</div>
+        <p class="lead">
+          医疗中心在医院内完成医学特征提取，数据中心完成融合推理、协同计算与患者库备份；
+          数据不出院，算力集中化。请选择入口：
+        </p>
+      </header>
+
+      <div class="entries">
+        <a class="entry" href="./user/">
+          <div class="entry-no">入口 01</div>
+          <div class="entry-title">用户调用平台</div>
+          <p class="entry-desc">
+            面向医疗中心与医院使用者：选择诊断 / 计算 / 通信 / 日常四类任务，填写参数并直接查看执行过程与结果。
+          </p>
+          <span class="entry-cta">进入 →</span>
+        </a>
+        <a class="entry" href="./admin/">
+          <div class="entry-no">入口 02</div>
+          <div class="entry-title">管理平台</div>
+          <p class="entry-desc">
+            面向运维人员：可视化架构与任务轨迹、集群负载与组件健康、综合测试、集群编排与下发。
+          </p>
+          <span class="entry-cta">进入 →</span>
+        </a>
+      </div>
+
+      <div class="tiers">
+        <span>数据中心 · node3</span>
+        <span>医疗中心 · node1 / node2</span>
+        <span>医院 · node1 / node2</span>
+        <span>控制面 · desktop-jm5iec6</span>
+      </div>
+
+      <footer>四类任务：诊断 · 计算 · 通信 · 日常</footer>
+    </main>
   </body>
 </html>

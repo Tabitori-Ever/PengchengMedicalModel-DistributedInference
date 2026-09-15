@@ -1,26 +1,5 @@
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import Layout from './components/Layout';
-import ArchitecturePage from './pages/ArchitecturePage';
-import ClusterPage from './pages/ClusterPage';
-import HistoryPage from './pages/HistoryPage';
-import OverviewPage from './pages/OverviewPage';
-import SubmitPage from './pages/SubmitPage';
-import TestPage from './pages/TestPage';
-
-export default function App() {
-  return (
-    <HashRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<OverviewPage />} />
-          <Route path="/architecture" element={<ArchitecturePage />} />
-          <Route path="/submit" element={<SubmitPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/test" element={<TestPage />} />
-          <Route path="/cluster" element={<ClusterPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </HashRouter>
-  );
-}
+/**
+ * 兼容入口：历史用法仍可通过 src/App.tsx 渲染管理平台。
+ * 正式的三个入口分别是 index.html（首页）、user/index.html、admin/index.html。
+ */
+export { default } from './admin/AdminApp';

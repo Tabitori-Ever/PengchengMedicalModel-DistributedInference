@@ -87,7 +87,7 @@ export default function TestPage() {
     const nextSeq = (k: ModelKind) => ++seq[k];
     const out: Scenario[] = [];
 
-    // ---- 诊断：默认最后一条由诊所(clinic-1)发起、自动转诊；其余由医院直接执行
+    // ---- 诊断：默认最后一条由医院 1 发起、自动转诊；其余由医疗中心直接执行
     for (let i = 0; i < counts.diagnosis; i++) {
       const n = counts.diagnosis;
       const seqN = nextSeq('diagnosis');
@@ -104,7 +104,7 @@ export default function TestPage() {
         });
       }
     }
-    // ---- 计算：分区协同（发起端 + 数据中心 + 合作医院）
+    // ---- 计算：分区协同（发起方 + 数据中心 + 另一医疗中心）
     for (let i = 0; i < counts.compute; i++) {
       const srcs: SourceId[] = ['hospital-a', 'hospital-b', 'clinic-1'];
       out.push({
@@ -115,7 +115,7 @@ export default function TestPage() {
         },
       });
     }
-    // ---- 通信：患者库同步（端侧为主）
+    // ---- 通信：患者库同步（医院侧为主）
     for (let i = 0; i < counts.sync; i++) {
       const srcs: SourceId[] = ['clinic-1', 'clinic-2', 'hospital-a'];
       out.push({
@@ -285,7 +285,7 @@ export default function TestPage() {
             </div>
           ))}
           <div className="muted xs" style={{ margin: '4px 0 12px' }}>
-            默认：诊断 2（其中诊所 clinic-1 发起 1 条自动转诊）、计算 1、通信 1、日常 3。
+            默认：诊断 2（其中医院 1 发起 1 条自动转诊）、计算 1、通信 1、日常 3。
           </div>
           <div className="btnrow">
             <button className="btn primary sm" disabled={busy || total === 0} onClick={run}>
@@ -312,7 +312,7 @@ export default function TestPage() {
                     <span className="mono xs muted">
                       {p.source.startsWith('clinic')
                         ? `→ 转诊${p.target === 'auto' ? '自动' : p.target}`
-                        : '本医院执行'}
+                        : '本医疗中心执行'}
                     </span>
                   )}
                 </div>
@@ -339,7 +339,7 @@ export default function TestPage() {
             ) : (
               <table className="datatable">
                 <thead>
-                  <tr><th>任务</th><th>发起端</th><th>转诊目标（诊断）</th><th>状态</th><th>耗时</th></tr>
+                  <tr><th>任务</th><th>发起方</th><th>转诊目标（诊断）</th><th>状态</th><th>耗时</th></tr>
                 </thead>
                 <tbody>
                   {entries.map((e) => {
@@ -349,7 +349,7 @@ export default function TestPage() {
                         <td><Badge model={e.kind} /><span className="mono xs muted"> · {e.label}</span></td>
                         <td>
                           <span className="mono">{e.source}</span>
-                          <span className={`src-role ${SOURCE_ROLE[e.source] === '边' ? 'edge' : 'term'}`}>
+                          <span className={`src-role ${SOURCE_ROLE[e.source] === '医疗中心' ? 'edge' : 'term'}`}>
                             {SOURCE_ROLE[e.source]}
                           </span>
                         </td>
@@ -357,7 +357,7 @@ export default function TestPage() {
                           {e.kind !== 'diagnosis' ? '—'
                             : e.source.startsWith('clinic')
                               ? (forwarded ? `转 → ${forwarded}` : '自动（待定…）')
-                              : '本医院直接执行'}
+                              : '本医疗中心直接执行'}
                         </td>
                         <td>
                           {e.status === 'error'
