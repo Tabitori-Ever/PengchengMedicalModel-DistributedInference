@@ -11,7 +11,7 @@ import {
   nodeLoad, nodeRoleLabel, READONLY_LABEL, sortNodes,
 } from '../utils';
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 10000;
 
 interface Chip {
   key: string;
@@ -113,7 +113,7 @@ export default function ArchitecturePage() {
         problems.push(`健康探针 /health 不可用：${errText(e)}`);
         return null;
       }),
-      api.listTasks().catch((e) => {
+      api.tasksRecent(20).catch((e) => {
         problems.push(`任务列表 /tasks 不可用：${errText(e)}`);
         return null;
       }),

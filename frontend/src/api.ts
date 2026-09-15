@@ -72,6 +72,10 @@ export const api = {
   taskStats: async (): Promise<TaskStats> =>
     (await http.get('/tasks/stats')).data,
 
+  /** Live dashboards: trimmed newest tasks (small payload). */
+  tasksRecent: async (limit = 20): Promise<TaskItem[]> =>
+    (await http.get('/tasks/recent', { params: { limit } })).data,
+
   taskDetail: async (id: string): Promise<TaskItem> =>
     (await http.get(`/tasks/${id}`)).data,
 

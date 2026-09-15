@@ -257,46 +257,39 @@ def _parse_mem_bytes(value: str) -> Optional[int]:
 
 
 def _node_loads() -> Dict[str, dict]:
-    """Compute node CPU/mem usage percentages from metrics-server + allocatable.
-
-    Returns {node: {"cpu": 0-1, "memory": 0-1, "gpu": 0}}; never blocks for
-    long (single aggregated API call, short timeout).
-    """
+    """Node CPU/mem usage via the shared node_usage cache (3s TTL)."""
     try:
-        usage_by_node = {}
-        nodes_raw = _kube_api_get("/apis/metrics.k8s.io/v1beta1/nodes", 5.0)
-        for item in nodes_raw.get("items", []):
-            usage = item.get("usage", {})
-            cpu = _parse_cpu_cores(usage.get("cpu"))
-            mem = _parse_mem_bytes(usage.get("memory"))
-            usage_by_node[item["metadata"]["name"]] = (cpu, mem)
-
-        alloc = {}
-        apps, core, _ = get_kube_clients()
-        if not core:
-            return {}
-        for n in core.list_node().items:
-            a = n.status.allocatable or {}
-            alloc[n.metadata.name] = (a.get("cpu"), a.get("memory"))
-
-        result = {}
-        for name, (cpu_u, mem_u) in usage_by_node.items():
-            a = alloc.get(name, (None, None))
-            cpu_a = _parse_cpu_cores(a[0]) if a[0] else None
-            mem_a = _parse_mem_bytes(a[1]) if a[1] else None
-            result[name] = {
-                "cpu": round(cpu_u / cpu_a, 3) if (cpu_u and cpu_a) else 0.0,
-                "memory": round(mem_u / mem_a, 3) if (mem_u and mem_a) else 0.0,
-                "gpu": 0.0,
-            }
-        return result
+        from . import node_usage
+        raw = node_usage.node_loads()
+        return {n: {"cpu": v.get("cpu", 0.0), "memory": v.get("memory", 0.0),
+                    "gpu": 0.0} for n, v in raw.items()}
     except Exception:
         return {}
+
+
+# --- short TTL cache so many clients/polls do not re-hit k8s + metrics ---
+_STATUS_CACHE: dict = {}
+_SUMMARY_CACHE: dict = {}
+_TTL = float(os.getenv("CLUSTER_CACHE_TTL", "4"))
+
+
+def _cached(cache: dict, key: str, builder):
+    now = time.time()
+    hit = cache.get(key)
+    if hit and now - hit[0] < _TTL:
+        return hit[1]
+    value = builder()
+    cache[key] = (now, value)
+    return value
 
 
 @router.get("/status")
 def cluster_status():
     """Live cluster topology + editable entities + readonly deployments."""
+    return _cached(_STATUS_CACHE, "status", _build_status)
+
+
+def _build_status():
     nodes_loads = _node_loads()
 
     payload: Dict[str, Any] = {
@@ -348,9 +341,11 @@ def cluster_status():
 
 @router.get("/summary")
 def cluster_summary():
-    """Lightweight cluster snapshot for dashboards (fast, no per-deployment
-    pod queries): node loads + counts only. Prevents heavy polling from
-    starving the scheduler process."""
+    """Lightweight cluster snapshot for dashboards (4s TTL cached)."""
+    return _cached(_SUMMARY_CACHE, "summary", _build_summary)
+
+
+def _build_summary():
     payload: Dict[str, Any] = {
         "version": cc.VERSION,
         "ok": True,

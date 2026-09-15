@@ -242,6 +242,63 @@ def task_stats():
     return stats
 
 
+
+# ---- light task feed for live dashboards (small payload) ----
+def _slim_task(t: dict) -> dict:
+    """Trim a stored task to what live dashboards need (tiny JSON)."""
+    out = {k: t.get(k) for k in (
+        "id", "model", "source", "priority", "status", "stage", "node",
+        "progress", "start_time", "end_time", "duration_ms", "error")}
+    res = t.get("result") or {}
+    if not res:
+        return out
+    rd = res.get("result_detail") or {}
+    slim: dict = {
+        "initiator": res.get("initiator"),
+        "forwarded_to": res.get("forwarded_to"),
+        "stages": [{k: s.get(k) for k in ("name", "actor", "node", "ms")}
+                   for s in (res.get("stages") or [])],
+        "metrics": {k: v for k, v in (res.get("metrics") or {}).items()
+                    if isinstance(v, (int, float))},
+    }
+    kind = t.get("model")
+    if kind == "compute":
+        slim["produced"] = res.get("produced")
+        slim["partitions"] = [{k: p.get(k) for k in (
+            "partition", "actor", "node", "ms", "cpu_ms", "bytes", "rows",
+            "failed", "error")} for p in (res.get("partitions") or [])[:8]]
+        slim["result_detail"] = {k: rd.get(k) for k in (
+            "partitions_ok", "total_bytes", "aggregate_cpu_ms", "checksums")}
+    elif kind == "sync":
+        slim["result_detail"] = {k: rd.get(k) for k in (
+            "db_version", "cloud_items", "missing", "pulled", "failed_chunks",
+            "bytes_pulled", "pull_ms", "upload_ms", "backup_ms", "uploaded",
+            "cloud_total", "peers", "backup")}
+        slim["result_detail"]["chunks"] = [{k: c.get(k) for k in (
+            "id", "ok", "peer", "size", "ms")}
+            for c in (rd.get("chunks") or [])[:12]]
+    elif kind == "routine":
+        slim["result_detail"] = {
+            "succeeded": rd.get("succeeded"),
+            "jobs": [{k: j.get(k) for k in (
+                "job", "node", "state", "deleted", "wall_ms", "pod")}
+                for j in (rd.get("jobs") or [])[:8]],
+        }
+    else:  # diagnosis
+        slim["result_detail"] = {k: rd.get(k) for k in (
+            "bpCR_probability", "worker_latency_ms", "server_latency_ms")}
+        slim["result_detail"]["predictions"] = (rd.get("predictions") or [])[:3]
+    out["result"] = slim
+    return out
+
+
+@app.get("/tasks/recent")
+def list_tasks_recent(limit: int = 20):
+    """最新任务的精简列表（用于实时架构/轨迹轮询，负载远小于 /tasks）。"""
+    tasks = get_tasks(limit=max(1, min(int(limit), 50)))
+    return [_slim_task(t) for t in tasks]
+
+
 @app.get("/tasks/{task_id}")
 def get_task_detail(task_id: str):
     from .redis_client import get_task
@@ -266,6 +323,19 @@ def clear_tasks():
         redis_delete(key)
         count += 1
     return {"count": count}
+
+
+
+# ---- static caching: hashed assets are immutable, index must revalidate ----
+@app.middleware("http")
+async def static_cache_headers(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/app/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif path.startswith("/app/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
 
 
 # ------------------------------ health -------------------------------------
