@@ -52,20 +52,6 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="nav-rule">
-          <span className="eyebrow">前往</span>
-        </div>
-        <nav className="nav">
-          <a className="nav-item" href="../user/">
-            <span className="nav-no mono">→</span>
-            <span className="nav-label">用户平台</span>
-          </a>
-          <a className="nav-item" href="../">
-            <span className="nav-no mono">→</span>
-            <span className="nav-label">首页</span>
-          </a>
-        </nav>
-
         <div className="sidebar-foot">
           <div className="foot-line">
             <span className="pulse-dot" />

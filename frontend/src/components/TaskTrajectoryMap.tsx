@@ -557,9 +557,9 @@ const STAGE_TEXT: Record<string, string> = {
   scheduler: '排队 / 调度',
   queued: '排队 / 调度',
   worker: '医院推理前端',
-  server: '云端融合推理',
+  server: '数据中心融合推理',
   compute: '分区协同计算',
-  sync: '并行拉取 / 云端备份',
+  sync: '并行拉取 / 数据中心备份',
   routine: '一次性 Job 执行',
   finished: '已完成',
   completed: '已完成',
@@ -757,7 +757,7 @@ function stepsDiagnosis(task: TaskItem | null, ctx: Ctx): Step[] {
     });
   }
   steps.push({
-    label: '云端融合',
+    label: '数据中心融合',
     detail: 'medical-server 双塔融合推理',
     nodes: ['medical-server'],
     edges: [],
@@ -810,7 +810,7 @@ function stepsCompute(task: TaskItem | null, ctx: Ctx): Step[] {
     label: '产数',
     detail: produced
       ? `${produced.instruments ?? '—'} 仪器 × ${produced.rows ?? '—'} 行 = ${produced.samples ?? '—'} 样本`
-      : '发起端本地生成仪器流数据',
+      : '发起方本地生成仪器流数据',
     nodes: [src],
     edges: [],
     ref: 'produce',
@@ -860,7 +860,7 @@ function stepsCompute(task: TaskItem | null, ctx: Ctx): Step[] {
 }
 
 /**
- * sync — ①提交 ②取云清单/计算缺失 ③P2P 并行拉取 ④云端上传 ⑤云端备份 ⑥结果回传
+ * sync — ①提交 ②取清单/计算缺失 ③并行拉取 ④数据中心上传 ⑤数据中心备份 ⑥结果回传
  * ordering: peers in result_detail.peers order; durations from the chunk ms
  */
 function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
@@ -882,7 +882,7 @@ function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
   steps.push({
     label: '取清单',
     detail: detail?.missing !== undefined
-      ? `云端 ${detail?.cloud_items ?? '—'} 项 · 缺失 ${detail.missing} 项`
+      ? `数据中心 ${detail?.cloud_items ?? '—'} 项 · 缺失 ${detail.missing} 项`
       : 'dc-services 清单 → 计算缺失分块',
     nodes: ['dc-services', src],
     edges: [],
@@ -915,7 +915,7 @@ function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
     `${peerItems.length} 个对端并行拉取，取最慢耗时`));
 
   steps.push({
-    label: '云端上传',
+    label: '数据中心上传',
     detail: detail?.uploaded !== undefined
       ? `上传 ${detail.uploaded} 项本地更新`
       : `${src} → dc-services 上传本地更新`,
@@ -925,7 +925,7 @@ function stepsSync(task: TaskItem | null, ctx: Ctx): Step[] {
     ref: 'upload',
   });
   steps.push({
-    label: '云端备份',
+    label: '数据中心备份',
     detail: backup?.backup_id ? `备份 ${backup.backup_id}` : 'dc-services 全量备份',
     nodes: ['dc-services'],
     edges: [edgeKey(src, 'dc-services', '上传/备份')],
@@ -1255,7 +1255,7 @@ function factsFor(kind: ModelKind, task: TaskItem): { k: string; v: string }[] {
     const peers: any[] = Array.isArray(detail?.peers) ? detail.peers : [];
     const backup = detail?.backup;
     out.push({ k: '已拉取 / 缺失', v: `${detail?.pulled ?? '—'} / ${detail?.missing ?? '—'}` });
-    out.push({ k: '云端备份', v: backup?.backup_id ? String(backup.backup_id) : '—' });
+    out.push({ k: '数据中心备份', v: backup?.backup_id ? String(backup.backup_id) : '—' });
     out.push({ k: '对端', v: peers.length ? peers.join(' · ') : '—' });
   } else {
     const jobs: any[] = Array.isArray(detail?.jobs) ? detail.jobs : [];
@@ -1369,9 +1369,10 @@ function usePrefersReducedMotion(): boolean {
 // ---------------------------------------------------------------------------
 /** 后端 scheduler MAX_CONCURRENT 默认值 */
 const CONCURRENCY_MAX = 4;
-const WINDOW_MIN_MS = 5 * 60 * 1000;
 const WINDOW_MAX_MS = 10 * 60 * 1000;
 const LANE_ROWS_MAX = 12;
+/** 窗口尾部留白（占窗口比例，避免最长条贴边） */
+const WINDOW_TAIL_RATIO = 0.04;
 
 type LaneTier = 'medical' | 'hospital' | 'cloud';
 
@@ -1394,9 +1395,11 @@ interface LaneModel {
   rows: LaneRow[];
   queued: LaneRow[];
   spanMs: number;
+  windowStart: number;
   total: number;
   running: number;
-  hidden: number;
+  /** 全部任务都在 10 分钟之前且没有进行中任务 → 窗口退化为“最近任务区间” */
+  recentOnly: boolean;
 }
 
 function tierOfSource(source: string): LaneTier {
@@ -1410,8 +1413,9 @@ function hhmm(ms: number): string {
 }
 
 /**
- * 最近 5–10 分钟（自动伸缩）的并发窗口：每个任务一行，
- * 条从 start_time 画到 end_time（运行中延伸到“现在”）。
+ * 并发窗口：始终展示最近任务（最多 12 条）。
+ * 起点 = min(now - 10min, 最早一条 start_time)；终点 = max(now（若有运行中）, 最晚一条 end) + 留白。
+ * 若全部任务都在 10 分钟之前且无进行中任务，则退化为“最近任务区间”。
  */
 function buildLanes(list: TaskItem[], nowMs: number): LaneModel {
   const all = (Array.isArray(list) ? list : []).filter((t) => t && t.id);
@@ -1419,22 +1423,37 @@ function buildLanes(list: TaskItem[], nowMs: number): LaneModel {
     .map((t) => {
       const startMs = Date.parse(String(t.start_time || ''));
       const endRaw = Date.parse(String(t.end_time || ''));
-      return { t, startMs: Number.isFinite(startMs) ? startMs : nowMs, endMs: Number.isFinite(endRaw) ? endRaw : NaN };
+      return {
+        t,
+        startMs: Number.isFinite(startMs) ? startMs : nowMs,
+        endMs: Number.isFinite(endRaw) ? endRaw : NaN,
+      };
     })
-    .filter((x) => Number.isFinite(x.startMs));
+    .filter((x) => Number.isFinite(x.startMs))
+    .sort((a, b) => b.startMs - a.startMs);      // 最近优先
 
-  const earliest = parsed.length ? Math.min(...parsed.map((x) => x.startMs)) : nowMs;
-  const spanMs = Math.min(WINDOW_MAX_MS, Math.max(WINDOW_MIN_MS, nowMs - earliest));
-  const t0 = nowMs - spanMs;
+  const anyRunning = all.some((t) => String(t.status || '') === 'running');
+  const recent = parsed.slice(0, LANE_ROWS_MAX);
+  if (!recent.length) {
+    return { rows: [], queued: [], spanMs: WINDOW_MAX_MS, windowStart: nowMs - WINDOW_MAX_MS, total: 0, running: 0, recentOnly: false };
+  }
+
+  const earliest = Math.min(...recent.map((x) => x.startMs));
+  const latestEnd = Math.max(
+    ...recent.map((x) => (Number.isFinite(x.endMs) ? x.endMs : String(x.t.status || '') === 'running' ? nowMs : x.startMs)),
+    anyRunning ? nowMs : 0,
+  );
+  const windowStart = Math.min(nowMs - WINDOW_MAX_MS, earliest);
+  const rawSpan = Math.max(30000, latestEnd - windowStart);
+  const spanMs = Math.round(rawSpan * (1 + WINDOW_TAIL_RATIO));
 
   const toRow = (x: { t: TaskItem; startMs: number; endMs: number }): LaneRow => {
     const status = String(x.t.status || '');
-    const running = status === 'running' || status === 'queued';
     const failed = status === 'failed';
     const endMs = status === 'running' || !Number.isFinite(x.endMs) ? nowMs : x.endMs;
-    const clampedStart = Math.max(x.startMs, t0);
-    const clampedEnd = Math.min(Math.max(endMs, clampedStart + 1000), nowMs + 1000);
-    const left = ((clampedStart - t0) / spanMs) * 100;
+    const clampedStart = Math.max(x.startMs, windowStart);
+    const clampedEnd = Math.min(Math.max(endMs, clampedStart + 1000), windowStart + spanMs);
+    const left = ((clampedStart - windowStart) / spanMs) * 100;
     const width = Math.max(1.6, ((clampedEnd - clampedStart) / spanMs) * 100);
     const src = String(x.t.source || '');
     return {
@@ -1453,15 +1472,11 @@ function buildLanes(list: TaskItem[], nowMs: number): LaneModel {
     };
   };
 
-  const inWindow = parsed
-    .filter((x) => x.startMs >= t0 || (Number.isFinite(x.endMs) && x.endMs >= t0))
-    .map((x) => toRow(x))
-    .sort((a, b) => a.startMs - b.startMs);
+  const rows = recent.slice().sort((a, b) => a.startMs - b.startMs).map(toRow);
 
   const queued = all
     .filter((t) => String(t.status || '') === 'queued')
     .map((t) => {
-      const startMs = Date.parse(String(t.start_time || '')) || nowMs;
       const src = String(t.source || '');
       return {
         id: String(t.id),
@@ -1474,19 +1489,20 @@ function buildLanes(list: TaskItem[], nowMs: number): LaneModel {
         priority: Number.isFinite(Number(t.priority)) ? Number(t.priority) : 5,
         left: 0,
         width: 0,
-        startMs,
+        startMs: Date.parse(String(t.start_time || '')) || nowMs,
         endMs: nowMs,
       };
     })
     .sort((a, b) => b.priority - a.priority || a.startMs - b.startMs);
 
   return {
-    rows: inWindow.slice(0, LANE_ROWS_MAX),
+    rows,
     queued,
     spanMs,
-    total: inWindow.length,
+    windowStart,
+    total: all.length,
     running: all.filter((t) => String(t.status || '') === 'running').length,
-    hidden: Math.max(0, inWindow.length - LANE_ROWS_MAX),
+    recentOnly: !anyRunning && latestEnd < nowMs - WINDOW_MAX_MS,
   };
 }
 
@@ -1679,11 +1695,10 @@ export default function TaskTrajectoryMap({
 
   // 多任务并发：最近 5–10 分钟窗口 + 调度队列
   const lanes = useMemo(() => buildLanes(Array.isArray(tasks) ? tasks : [], Date.now()), [tasks]);
-  const windowMin = Math.round(lanes.spanMs / 60000);
   const ticks = useMemo(() => [0, 0.25, 0.5, 0.75, 1].map((p) => ({
     p,
-    label: hhmm(Date.now() - lanes.spanMs * (1 - p)),
-  })), [lanes.spanMs]);
+    label: hhmm(lanes.windowStart + lanes.spanMs * p),
+  })), [lanes.windowStart, lanes.spanMs]);
   const pickTask = (row: LaneRow) => {
     setKind(row.kind);
     setSelId(row.id);
@@ -1813,7 +1828,7 @@ export default function TaskTrajectoryMap({
                 <b className="tmi-v mono">{idPrefix(traced.id, 16)}</b>
               </span>
               <span className="tmi-cell">
-                <i className="tmi-k">发起端</i>
+                <i className="tmi-k">发起方</i>
                 <b className="tmi-v">{traced.source || '—'}</b>
                 <i className="tmi-sub">{SOURCE_ROLE[String(traced.source || '')] || '?'}</i>
               </span>
@@ -1835,6 +1850,98 @@ export default function TaskTrajectoryMap({
             <span>· 显示标准执行路径</span>
           </div>
         )}
+      </div>
+
+      <div className="tmap-conc">
+        <div className="tmc-head">
+          <span className="eyebrow">多任务并发 · 调度态势</span>
+          {lanes.recentOnly && <i className="tmc-flag">最近任务（无进行中任务）</i>}
+          <span className="tmc-meta mono">
+            {lanes.total > LANE_ROWS_MAX ? `最近 ${LANE_ROWS_MAX} 条 / 共 ${lanes.total} 条` : `任务 ${lanes.total} 条`}
+            {` · 运行中 ${lanes.running}/${CONCURRENCY_MAX}`}
+          </span>
+        </div>
+
+        <div className="tmc-body">
+          <div className="tmc-lanes">
+            {lanes.rows.length === 0 ? (
+              <div className="tmc-empty xs muted">暂无任务记录</div>
+            ) : (
+              <>
+
+            <div className="tmc-axis" aria-hidden="true">
+              {ticks.map((tk) => (
+                <i key={tk.p} className="tmc-tick" style={{ left: `${tk.p * 100}%` }}>
+                  {tk.label}
+                </i>
+              ))}
+            </div>
+            {lanes.rows.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={`tmc-row ${r.id === tracedId ? 'on' : ''}`}
+                onClick={() => pickTask(r)}
+                title={`${r.id} · ${MODEL_LABEL[r.kind]} · ${r.sourceName}（${r.source}）· ${statusLabel(r.status)} · P${r.priority}`}
+              >
+                <span className="tmc-label">
+                  <i className="tmc-kind" style={{ background: MODEL_COLOR[r.kind] }} />
+                  <b>{MODEL_LABEL[r.kind]}</b>
+                  <span className="tmc-src">{r.sourceName}</span>
+                  <i className="tmc-id mono">{idPrefix(r.id, 11)}</i>
+                </span>
+                <span className="tmc-track">
+                  <i
+                    className={`tmc-bar ${r.stateClass}`}
+                    style={{ left: `${r.left}%`, width: `${r.width}%`, background: MODEL_COLOR[r.kind] }}
+                  />
+                  <i className={`tmc-mark tier-${r.tier} ${r.stateClass}`} style={{ left: `${r.left}%` }} />
+                </span>
+                <span className={`tmc-p mono ${r.priority <= 2 ? 'high' : ''}`}>{`P${r.priority}`}</span>
+              </button>
+            ))}
+            <div className="tmc-shapes xs muted">
+              <i className="tmc-mark tier-medical" />医疗中心
+              <i className="tmc-mark tier-hospital" />医院
+              <i className="tmc-mark tier-cloud" />其它
+              <i className="tmc-bar state-running" />运行中
+              <i className="tmc-bar state-done" />已完成
+              <i className="tmc-bar state-failed" />失败
+            </div>
+              </>
+            )}
+          </div>
+
+<div className="tmc-queue">
+            <div className="tmc-queue-head">
+              <span className="eyebrow">调度队列</span>
+              <span className="mono xs">并发上限 {CONCURRENCY_MAX}</span>
+            </div>
+            {lanes.queued.length === 0 ? (
+              <div className="tmc-empty xs muted">队列为空 · 可立即调度</div>
+            ) : (
+              lanes.queued.slice(0, 8).map((q, i) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  className={`tmc-q ${q.id === tracedId ? 'on' : ''}`}
+                  onClick={() => pickTask(q)}
+                  title={`${q.id} · ${MODEL_LABEL[q.kind]} · ${q.sourceName}（${q.source}）· P${q.priority}`}
+                >
+                  <i className="tmc-q-no mono">{i + 1}</i>
+                  <i className="tmc-kind" style={{ background: MODEL_COLOR[q.kind] }} />
+                  <b>{MODEL_LABEL[q.kind]}</b>
+                  <span className="tmc-src">{q.sourceName}</span>
+                  <i className="tmc-id mono">{idPrefix(q.id, 9)}</i>
+                  <i className={`tmc-p mono ${q.priority <= 2 ? 'high' : ''}`}>{`P${q.priority}`}</i>
+                </button>
+              ))
+            )}
+            <div className="tmc-note xs muted">
+              优先级降序调度（同级先到先服务）· 并发上限 {CONCURRENCY_MAX}，运行中 {lanes.running}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="tmap-canvas">
@@ -2124,97 +2231,6 @@ export default function TaskTrajectoryMap({
         )}
       </div>
 
-      <div className="tmap-conc">
-        <div className="tmc-head">
-          <span className="eyebrow">多任务并发 · 调度态势</span>
-          <span className="tmc-meta mono">
-            {`窗口 ${windowMin} 分钟 · 窗口内 ${lanes.total} 条 · 运行中 ${lanes.running}/${CONCURRENCY_MAX}`}
-            {lanes.hidden > 0 ? ` · 仅显示最近 ${LANE_ROWS_MAX} 条` : ''}
-          </span>
-        </div>
-
-        <div className="tmc-body">
-          <div className="tmc-lanes">
-            {lanes.rows.length === 0 ? (
-              <div className="tmc-empty xs muted">最近 {windowMin} 分钟内没有任务记录</div>
-            ) : (
-              <>
-
-            <div className="tmc-axis" aria-hidden="true">
-              {ticks.map((tk) => (
-                <i key={tk.p} className="tmc-tick" style={{ left: `${tk.p * 100}%` }}>
-                  {tk.label}
-                </i>
-              ))}
-            </div>
-            {lanes.rows.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className={`tmc-row ${r.id === tracedId ? 'on' : ''}`}
-                onClick={() => pickTask(r)}
-                title={`${r.id} · ${MODEL_LABEL[r.kind]} · ${r.sourceName}（${r.source}）· ${statusLabel(r.status)} · P${r.priority}`}
-              >
-                <span className="tmc-label">
-                  <i className="tmc-kind" style={{ background: MODEL_COLOR[r.kind] }} />
-                  <b>{MODEL_LABEL[r.kind]}</b>
-                  <span className="tmc-src">{r.sourceName}</span>
-                  <i className="tmc-id mono">{idPrefix(r.id, 11)}</i>
-                </span>
-                <span className="tmc-track">
-                  <i
-                    className={`tmc-bar ${r.stateClass}`}
-                    style={{ left: `${r.left}%`, width: `${r.width}%`, background: MODEL_COLOR[r.kind] }}
-                  />
-                  <i className={`tmc-mark tier-${r.tier} ${r.stateClass}`} style={{ left: `${r.left}%` }} />
-                </span>
-                <span className={`tmc-p mono ${r.priority <= 2 ? 'high' : ''}`}>{`P${r.priority}`}</span>
-              </button>
-            ))}
-            <div className="tmc-shapes xs muted">
-              <i className="tmc-mark tier-medical" />医疗中心
-              <i className="tmc-mark tier-hospital" />医院
-              <i className="tmc-mark tier-cloud" />其它
-              <i className="tmc-bar state-running" />运行中
-              <i className="tmc-bar state-done" />已完成
-              <i className="tmc-bar state-failed" />失败
-            </div>
-              </>
-            )}
-          </div>
-
-<div className="tmc-queue">
-            <div className="tmc-queue-head">
-              <span className="eyebrow">调度队列</span>
-              <span className="mono xs">并发上限 {CONCURRENCY_MAX}</span>
-            </div>
-            {lanes.queued.length === 0 ? (
-              <div className="tmc-empty xs muted">队列为空 · 可立即调度</div>
-            ) : (
-              lanes.queued.slice(0, 8).map((q, i) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  className={`tmc-q ${q.id === tracedId ? 'on' : ''}`}
-                  onClick={() => pickTask(q)}
-                  title={`${q.id} · ${MODEL_LABEL[q.kind]} · ${q.sourceName}（${q.source}）· P${q.priority}`}
-                >
-                  <i className="tmc-q-no mono">{i + 1}</i>
-                  <i className="tmc-kind" style={{ background: MODEL_COLOR[q.kind] }} />
-                  <b>{MODEL_LABEL[q.kind]}</b>
-                  <span className="tmc-src">{q.sourceName}</span>
-                  <i className="tmc-id mono">{idPrefix(q.id, 9)}</i>
-                  <i className={`tmc-p mono ${q.priority <= 2 ? 'high' : ''}`}>{`P${q.priority}`}</i>
-                </button>
-              ))
-            )}
-            <div className="tmc-note xs muted">
-              优先级降序调度（同级先到先服务）· 并发上限 {CONCURRENCY_MAX}，运行中 {lanes.running}
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="tmap-legend">
         {LEGEND.map((l) => (
           <span className="tm-legend-item" key={l.state}>
@@ -2227,7 +2243,7 @@ export default function TaskTrajectoryMap({
             ? '尚无该类型任务，仅绘制标准路径'
             : curStep
               ? `${active.mode === 'auto' ? '循环演示' : active.mode === 'manual' ? '手动逐步' : '跟随实时阶段'} · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
-              : '该任务发起端未知，未绘制实际连线'}
+              : '该任务发起方未知，未绘制实际连线'}
         </span>
       </div>
     </section>
@@ -2242,6 +2258,7 @@ export default function TaskTrajectoryMap({
 export const __internals = {
   nextPlayState,
   iconKindOf,
+  buildLanes,
   autoplayDelay,
   refStepIndex,
   prefixStepIndex,

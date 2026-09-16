@@ -1,0 +1,5 @@
+{
+  "bandwidth_mbps": 20,
+  "concurrency": 4,
+  "chunk_kb": 4
+}

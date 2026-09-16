@@ -1,0 +1,50 @@
+[
+  {
+    "file": "compute-monitor-small.json",
+    "kind": "compute",
+    "name": "监护数据 · 小规模",
+    "description": "2 台仪器 / 128 行 / 强度 20 / 2 个分区"
+  },
+  {
+    "file": "compute-monitor-medium.json",
+    "kind": "compute",
+    "name": "监护数据 · 中规模",
+    "description": "4 台仪器 / 256 行 / 强度 40 / 3 个分区"
+  },
+  {
+    "file": "compute-monitor-large.json",
+    "kind": "compute",
+    "name": "监护数据 · 大规模",
+    "description": "8 台仪器 / 1024 行 / 强度 120 / 6 个分区"
+  },
+  {
+    "file": "sync-records-normal.json",
+    "kind": "sync",
+    "name": "患者记录 · 普通方式",
+    "description": "20 Mbps / 并发 4 / 4 KB 分块"
+  },
+  {
+    "file": "sync-records-slow.json",
+    "kind": "sync",
+    "name": "患者记录 · 省流方式",
+    "description": "8 Mbps / 并发 2 / 4 KB 分块"
+  },
+  {
+    "file": "sync-records-fast.json",
+    "kind": "sync",
+    "name": "患者记录 · 高速方式",
+    "description": "60 Mbps / 并发 8 / 16 KB 分块"
+  },
+  {
+    "file": "routine-daily.json",
+    "kind": "routine",
+    "name": "例行任务 · 每日",
+    "description": "3 个任务 / 128 行 / 强度 30"
+  },
+  {
+    "file": "diagnosis-patients.json",
+    "kind": "diagnosis",
+    "name": "诊断患者清单",
+    "description": "10 位可用患者（来自测试数据集）"
+  }
+]

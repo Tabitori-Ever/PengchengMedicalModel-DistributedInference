@@ -3137,3 +3137,94 @@ h1, h2, h3, h4 { font-weight: 700; }
   .tm-tl-label, .tm-tl-meta, .tm-tl-link, .tm-tl-para, .tm-legend-line,
   .tm-legend-item, .tmc-bar, .tmc-mark, .tmc-row, .tmc-q { transition: none !important; }
 }
+
+/* ==========================================================================
+   用户平台 · 极简表单（预设 / 数据集 / 高级折叠）与结果卡
+   ========================================================================== */
+.uf-fixed {
+  font-size: 14px;
+  color: var(--ink-3);
+  border-left: 2px solid var(--brass-line);
+  padding: 4px 10px;
+  background: var(--panel);
+  border-radius: var(--r-1);
+}
+.uf-data-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.uf-data {
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--panel);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.uf-data-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left-width: 2px;
+  border-radius: var(--r-1);
+  background: var(--panel-2);
+  padding: 6px 10px;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+.uf-data-item:hover { border-color: rgba(8, 10, 8, 0.26); }
+.uf-data-item.on { border-color: var(--brass-2); background: var(--brass-soft); }
+.uf-data-item b { font-size: 14px; font-weight: 500; color: var(--ink); }
+.uf-data-item i { grid-column: 1; font-style: normal; font-size: 12.5px; color: var(--grey-3); }
+.uf-data-item span { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: 11.5px; color: var(--grey-2); }
+.uf-data-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px dashed var(--line-soft); padding-top: 8px; }
+.uf-adv-toggle {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: var(--brass-2);
+  font-size: 13.5px;
+  letter-spacing: 0.04em;
+  padding: 0;
+  border-bottom: 1px solid var(--brass-line);
+}
+.uf-adv {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.uf-adv-row { display: grid; grid-template-columns: 118px 46px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); }
+.uf-adv-row b { font-size: 14px; color: var(--ink); }
+.uf-adv-row select { grid-column: 2 / span 2; }
+
+/* 结果卡：只给结论 */
+.ur-card { display: flex; flex-direction: column; gap: 12px; }
+.ur-hero { display: flex; align-items: baseline; gap: 12px; }
+.ur-hero-v { font-size: 38px; font-weight: 700; color: var(--brass-2); line-height: 1.1; }
+.ur-hero-k { font-size: 13px; color: var(--grey-3); letter-spacing: 0.06em; }
+.ur-lines { display: flex; flex-direction: column; gap: 6px; }
+.ur-line { display: inline-flex; align-items: baseline; gap: 10px; font-size: 15px; }
+.ur-line i { font-style: normal; font-size: 12.5px; color: var(--grey-2); min-width: 36px; }
+.ur-line b { font-weight: 500; color: var(--ink); }
+.ur-note { font-size: 16px; font-weight: 500; color: var(--ink-2); }
+.ur-note.ok { color: #4f5744; }
+.ur-note.bad { color: var(--rust); }
+.ur-running { display: flex; flex-direction: column; gap: 8px; }
+.ur-bar { height: 6px; background: rgba(8, 10, 8, 0.1); border-radius: 3px; overflow: hidden; }
+.ur-bar > i { display: block; height: 100%; background: var(--brass-2); transition: width 0.4s ease; }
+.ur-stage { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--grey-3); }
+
+/* 管理平台 · 并发栏“最近任务”标记 */
+.tmc-flag {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: #b45f0d;
+  border: 1px solid rgba(237, 130, 27, 0.45);
+  background: rgba(237, 130, 27, 0.08);
+  border-radius: var(--r-1);
+  padding: 1px 7px;
+}
