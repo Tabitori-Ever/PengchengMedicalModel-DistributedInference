@@ -1,101 +1,134 @@
 /* ==========================================================================
-   用户调用平台（/app/user/）专用样式 · v3.1.4
-   仅由 src/user/main.tsx 引入，避免与管理平台样式相互影响。
-   本节覆盖两块：待提交表单（发起方 + 上传）与数据集目录浏览器弹窗。
+   用户调用平台（/app/user/）专用样式 · v3.2
+
+   布局：左侧品牌 + 历史任务，主区顶部「任务类型」横条（沿用管理侧 .seg 的
+   视觉语言），横条下方是一条居中的列（max-width 880px, margin 0 auto）：
+   提交卡在上，本次会话的记录依次在下，全部同宽同列。
+   没有任何左右分栏的气泡，也不存在左右对齐的行。正文 16px，全部中文。
    ========================================================================== */
 
-/* ------------------------------------------------ 待提交表单：上传与所选文件 */
-.uf-label-row { display: flex; align-items: baseline; gap: 8px; }
-.uf-src-id { color: var(--grey-2); font-size: 11.5px; }
-.uf-up-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.uf-up {
-  padding: 8px 20px; font-size: 15px; letter-spacing: 0.06em;
-  border-color: var(--brass-line); color: var(--brass-2); background: var(--panel-2);
+/* ------------------------------------------------------------ 外壳与侧栏 */
+.up-shell {
+  display: flex;
+  min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.6;
+  background: var(--paper);
 }
-.uf-up:hover:not(:disabled) { border-color: var(--brass-2); background: var(--brass-soft); }
-.uf-up.on { border-color: var(--brass-2); background: var(--brass-soft); }
-.uf-picked { display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.uf-picked-name {
-  font-size: 16px; font-weight: 600; color: var(--ink);
-  letter-spacing: 0.02em; word-break: break-all;
+.up-side {
+  width: 252px; flex: 0 0 252px;
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 16px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
 }
-.uf-picked-desc { font-size: 14px; color: var(--grey-3); }
+.up-brand-name { font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+.up-new { width: 100%; }
+.up-side-title { font-size: 13px; color: var(--grey-2); letter-spacing: 0.14em; margin-top: 4px; }
+.up-history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
+.up-empty { font-size: 14px; color: var(--grey-2); padding: 2px 0; }
 
-/* ------------------------------------------------ 数据集目录浏览器（弹窗） */
-.ufm-mask {
-  position: fixed; inset: 0; z-index: 60;
-  background: rgba(8, 10, 8, 0.34);
-  display: flex; align-items: flex-start; justify-content: center;
-  padding: 76px 20px 32px; overflow-y: auto;
-}
-.ufm {
-  width: min(760px, 100%); background: var(--panel);
-  border: 1px solid var(--line-strong); border-radius: var(--r-2);
-  box-shadow: 0 18px 46px rgba(8, 10, 8, 0.24);
-  display: flex; flex-direction: column; max-height: min(74vh, 640px);
-}
-.ufm-head {
-  display: flex; align-items: center; gap: 14px;
-  padding: 13px 16px; border-bottom: 1px solid var(--line);
-}
-.ufm-crumb { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.ufm-crumb-btn {
-  border: none; background: none; padding: 0;
-  font-size: 16px; font-weight: 600; color: var(--brass-2); letter-spacing: 0.03em;
-}
-.ufm-crumb-btn:disabled { color: var(--ink); cursor: default; }
-.ufm-crumb-btn:not(:disabled):hover { text-decoration: underline; }
-.ufm-sep { color: var(--grey-2); font-size: 15px; }
-.ufm-crumb-cur { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.03em; }
-.ufm-x {
-  margin-left: auto; border: 1px solid var(--line); background: var(--panel-2);
-  color: var(--ink-3); border-radius: var(--r-1); padding: 5px 14px; font-size: 14px;
-  transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
-}
-.ufm-x:hover { border-color: var(--brass-2); color: var(--brass-2); background: var(--brass-soft); }
-.ufm-body { padding: 14px 16px 16px; overflow-y: auto; }
-.ufm-note { font-size: 14px; color: var(--grey-3); padding: 4px 0 8px; }
-.ufm-note.bad { color: var(--rust); }
-
-/* 根层：文件夹（含文件数量） */
-.ufm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
-.ufm-dir {
-  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px;
-  text-align: left; padding: 13px 14px; background: var(--panel-2);
-  border: 1px solid var(--line); border-radius: var(--r-1);
+.up-hist {
+  text-align: left; display: flex; flex-direction: column; gap: 4px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r-1); padding: 8px 10px;
   transition: border-color var(--t-fast), background var(--t-fast);
 }
-.ufm-dir:hover { border-color: var(--brass-line); background: var(--brass-soft); }
-.ufm-dir-ico {
-  width: 22px; height: 16px; border: 1px solid var(--brass-2); border-radius: 1px 3px 3px 3px;
-  position: relative; background: linear-gradient(180deg, var(--brass-soft), transparent);
-}
-.ufm-dir-ico::before {
-  content: ''; position: absolute; left: -1px; top: -5px; width: 10px; height: 5px;
-  border: 1px solid var(--brass-2); border-bottom: none; border-radius: 2px 2px 0 0;
-  background: var(--panel-2);
-}
-.ufm-dir-name { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.05em; }
-.ufm-dir-count { color: var(--grey-3); font-size: 12.5px; }
+.up-hist:hover { border-color: var(--line-strong); }
+.up-hist.on { border-color: var(--brass-2); background: var(--brass-soft); }
+.up-hist-top { display: flex; align-items: baseline; gap: 8px; }
+.up-hist-top b { font-size: 14px; font-weight: 500; color: var(--ink); }
+.up-hist-top .up-st { margin-left: auto; }
+.up-hist-bottom { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--grey-3); }
+.up-hist-bottom i { margin-left: auto; color: var(--grey-2); }
 
-/* 文件夹内：文件（名称 + 说明 + 体积） */
-.ufm-files { display: flex; flex-direction: column; gap: 6px; }
-.ufm-file {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline;
-  row-gap: 3px; column-gap: 14px; width: 100%;
-  text-align: left; padding: 11px 14px; background: var(--panel-2);
-  border: 1px solid var(--line); border-left: 2px solid transparent; border-radius: var(--r-1);
+/* --------------------------------------------------------------- 主区 */
+.up-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; }
+.up-head { padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--paper); }
+
+/* 顶部任务类型横条：管理侧 .seg 的同一套视觉语言，撑满主区宽度 */
+.up-bar { display: flex; width: 100%; }
+.up-bar .seg-btn {
+  flex: 1 1 0; text-align: center;
+  font-size: 15px; padding: 10px 0; letter-spacing: 0.16em;
+  font-weight: 500;
+}
+
+.up-scroll { flex: 1; overflow-y: auto; padding: 20px 24px 32px; }
+
+/* 唯一的居中列：提交卡与所有记录同宽同列 */
+.up-col {
+  width: 100%; max-width: 880px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+/* ------------------------------------------------------- 卡片（提交 / 记录） */
+.up-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.up-card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.up-card-title { font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; word-break: break-all; }
+.up-card-note { font-size: 12px; color: var(--grey-2); }
+.up-card-x { margin-left: auto; }
+.up-record.hist { border-left: 2px solid var(--brass-2); }
+
+.up-meta { display: flex; flex-wrap: wrap; gap: 8px 26px; }
+.up-meta-item { display: inline-flex; align-items: baseline; gap: 8px; }
+.up-meta-item i { font-size: 13px; color: var(--grey-2); letter-spacing: 0.08em; }
+.up-meta-item b { font-size: 16px; font-weight: 500; color: var(--ink); }
+.up-st { font-size: 13px; color: var(--grey-3); }
+.up-st.s-running { color: var(--brass-2); }
+.up-st.s-queued { color: var(--grey-3); }
+.up-st.s-finished, .up-st.s-completed { color: var(--olive); }
+.up-st.s-failed { color: var(--rust); }
+
+.up-result { border-top: 1px solid var(--line-soft); padding-top: 12px; }
+
+/* ------------------------------------------------------ 提交卡：发起方与文件 */
+.up-field { display: flex; align-items: center; gap: 12px; }
+.up-label { flex: 0 0 auto; font-size: 14px; color: var(--grey-3); letter-spacing: 0.1em; }
+.up-select { flex: 1 1 auto; font-size: 16px; padding: 9px 30px 9px 12px; }
+
+/* 当前类型文件夹里的数据集文件：一行一个，点一下即选中 */
+.up-files { display: flex; flex-direction: column; gap: 6px; }
+.up-file {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline; row-gap: 3px; column-gap: 16px;
+  width: 100%; text-align: left; padding: 11px 14px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-left: 2px solid transparent; border-radius: var(--r-1);
   transition: border-color var(--t-fast), background var(--t-fast);
 }
-.ufm-file:hover:not(:disabled) { border-color: var(--brass-line); border-left-color: var(--brass-2); background: var(--brass-soft); }
-.ufm-file.on { border-color: var(--brass-2); border-left-color: var(--brass-2); }
-.ufm-file:disabled { opacity: 0.55; }
-.ufm-file-name { grid-column: 1; font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; word-break: break-all; }
-.ufm-file-desc { grid-column: 1; font-size: 14px; color: var(--grey-3); }
-.ufm-file-size { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--grey-2); white-space: nowrap; }
-.ufm-back {
-  margin-top: 12px; padding-top: 11px; width: 100%; text-align: left;
-  border: none; border-top: 1px solid var(--line); background: none;
-  color: var(--brass-2); font-size: 14.5px; letter-spacing: 0.03em;
+.up-file:hover:not(:disabled) {
+  border-color: var(--brass-line); border-left-color: var(--brass-2); background: var(--brass-soft);
 }
-.ufm-back:hover { color: var(--ink); }
+.up-file.on { border-color: var(--brass-2); border-left-color: var(--brass-2); background: var(--brass-soft); }
+.up-file.busy { opacity: 0.6; }
+.up-file:disabled { opacity: 0.5; }
+.up-file-name { grid-column: 1; font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; word-break: break-all; }
+.up-file-desc { grid-column: 1; font-size: 14px; color: var(--grey-3); }
+.up-file-size { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--grey-2); white-space: nowrap; }
+
+.up-note { font-size: 14px; color: var(--grey-3); }
+.up-note.bad { color: var(--rust); }
+
+/* 执行：整列宽，不做左右对齐 */
+.up-run { width: 100%; margin-top: 2px; font-size: 16px; padding: 11px 16px; letter-spacing: 0.18em; }
+
+/* --------------------------------------------------------------- 窄屏 */
+@media (max-width: 820px) {
+  .up-shell { flex-direction: column; }
+  .up-side {
+    width: 100%; flex: none; height: auto; position: static;
+    border-right: none; border-bottom: 1px solid var(--line);
+  }
+  .up-history { max-height: 220px; }
+  .up-main { height: auto; }
+  .up-scroll { overflow: visible; }
+  .up-bar .seg-btn { font-size: 14px; letter-spacing: 0.08em; }
+}

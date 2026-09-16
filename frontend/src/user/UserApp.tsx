@@ -1,289 +1,331 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
-import type { ModelKind, TaskItem, TaskResult } from '../types';
-import { MODEL_LABEL, STATUS_LABEL } from '../utils';
+import type { ModelKind, SourceId, TaskItem } from '../types';
+import { MODEL_LABEL, MODELS, STATUS_LABEL } from '../utils';
 import { PLATFORM_NAME, entityName } from '../terms';
-import type { DatasetEntry } from './dataset';
-import { buildSubmission } from './dataset';
-import TaskForm, { Draft, draftFor, draftSummary } from './TaskForm';
+import type { DatasetEntry, DatasetFileMeta } from './dataset';
+import { buildSubmission, fetchIndex } from './dataset';
+import type { UserRecord, UserState } from './state';
+import {
+  addRecord, clearFocus, focusTask, folderFor, isPending, loadEntry, newTask, nextId,
+  patchFocus, patchRecord, pickFile, queuedResult, recordStatus, selectKind, selectSource,
+  sendSubmission, initialState, withIndex,
+} from './state';
+import TaskForm from './TaskForm';
 import UserResult from './UserResult';
 
 const POLL_MS = 1500;
 const HISTORY_LIMIT = 30;
-
-interface UserMsg {
-  id: string;
-  role: 'user';
-  /** 提交后由所选数据集文件决定；待提交草稿尚未选择文件时为 null */
-  kind: ModelKind | null;
-  draft: Draft;
-  taskId?: string;
-}
-
-interface BotMsg {
-  id: string;
-  role: 'assistant';
-  kind: ModelKind;
-  taskId: string;
-  live: TaskResult | null;
-  task: TaskItem | null;
-}
-
-type Msg = UserMsg | BotMsg;
-
-let seq = 0;
-const nextId = () => `m${(seq += 1)}`;
-
-interface ChatState {
-  messages: Msg[];
-  pendingId: string | null;
-  draft: Draft | null;
-}
-
-/** 平台打开即呈现一条待提交草稿（表单渲染在该气泡内） */
-function initialChat(): { id: string; draft: Draft } {
-  return { id: `u${nextId()}`, draft: draftFor() };
-}
-const FIRST = initialChat();
-
-/** 在会话末尾追加一条待提交草稿消息，并把它标记为 pending */
-function composeTransition(state: ChatState, newId: string, source?: string): ChatState {
-  const draft = draftFor(source);
-  return {
-    messages: [...state.messages, { id: newId, role: 'user', kind: null, draft }],
-    pendingId: newId,
-    draft,
-  };
-}
-
-/**
- * 提交成功：把这条待提交消息补上 taskId 与任务类型（不新增 user 消息），
- * 追加助手消息，并在末尾再开一条新的待提交草稿，便于连续发起。
- */
-function submitTransition(
-  state: ChatState, taskId: string, botId: string, composerId: string, kind: ModelKind, draft: Draft,
-): ChatState {
-  const pid = state.pendingId;
-  const messages: Msg[] = state.messages.map((m) => (m.id === pid && m.role === 'user'
-    ? { ...m, kind, draft, taskId } : m));
-  messages.push({ id: botId, role: 'assistant', kind, taskId, live: null, task: null });
-  const next = draftFor(draft.source);
-  messages.push({ id: composerId, role: 'user', kind: null, draft: next });
-  return { messages, pendingId: composerId, draft: next };
-}
-
-function fmtTime(iso?: string): string {
+const fmtTime = (iso?: string): string => {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('zh-CN', {
     hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   });
-}
+};
 
 /**
- * 用户调用平台（/app/user/）：左侧历史任务，右侧对话流。
- * 用户只做两件事：选发起方、上传数据集文件；任务类型与参数全部来自该文件。
+ * 用户调用平台（/app/user/）：左侧品牌 + 历史任务，主区顶部任务类型横条，
+ * 下方是一条居中列（最大 880px）——提交卡在上，本次会话的记录依次在下。
+ * 没有任何左右分栏的气泡：提交与结果同在一条列里，等宽对齐。
  */
-export default function UserApp() {
-  const [messages, setMessages] = useState<Msg[]>([
-    { id: FIRST.id, role: 'user', kind: null, draft: FIRST.draft },
-  ]);
-  const [pendingId, setPendingId] = useState<string | null>(FIRST.id);
-  const [draft, setDraft] = useState<Draft | null>(FIRST.draft);
-  const [busy, setBusy] = useState(false);
-  const [formErr, setFormErr] = useState('');
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const streamRef = useRef<HTMLDivElement | null>(null);
+export interface UserAppViewProps {
+  state: UserState;
+  busy: boolean;
+  busyPath: string;
+  note: string;
+  error: string;
+  tasks: TaskItem[];
+  onKind: (k: ModelKind) => void;
+  onSource: (s: SourceId) => void;
+  onPick: (meta: DatasetFileMeta) => void;
+  onSubmit: () => void;
+  onNew: () => void;
+  onOpenTask: (t: TaskItem) => void;
+  onCloseFocus: () => void;
+}
 
-  const loadTasks = useCallback(async () => {
-    try {
-      const list = await api.listTasks();
-      setTasks((list || []).slice(0, HISTORY_LIMIT));
-    } catch { /* 保留上一次列表 */ }
-  }, []);
-
-  useEffect(() => { loadTasks(); }, [loadTasks]);
-
-  // 轮询进行中的任务（每 1.5s），完成后拉取完整记录
-  useEffect(() => {
-    const active = messages.filter((m): m is BotMsg => m.role === 'assistant'
-      && !isTerminalStatus(m.live?.status || m.task?.status));
-    if (!active.length) return undefined;
-    let disposed = false;
-    const iv = window.setInterval(async () => {
-      for (const m of active) {
-        try {
-          const live = await api.taskResult(m.taskId);
-          if (disposed) return;
-          setMessages((prev) => prev.map((x) => (x.id === m.id && x.role === 'assistant' ? { ...x, live } : x)));
-          if (isTerminalStatus(live.status)) {
-            let detail: TaskItem | null = null;
-            try { detail = await api.taskDetail(m.taskId); } catch { /* 用轻量结果 */ }
-            if (disposed) return;
-            setMessages((prev) => prev.map((x) => (x.id === m.id && x.role === 'assistant'
-              ? { ...x, live, task: detail ?? x.task } : x)));
-            loadTasks();
-          }
-        } catch { /* 继续轮询 */ }
-      }
-    }, POLL_MS);
-    return () => { disposed = true; window.clearInterval(iv); };
-  }, [messages, loadTasks]);
-
-  useEffect(() => {
-    const el = streamRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, pendingId]);
-
-  /** 提交：按所选文件自带的类型派发到对应接口 */
-  const submit = async () => {
-    if (!draft?.file || !pendingId) return;
-    const d = draft;
-    const file: DatasetEntry = draft.file;
-    const pid = pendingId;
-    setBusy(true);
-    setFormErr('');
-    try {
-      const sub = buildSubmission(file, d.source);
-      let resp: { task_id: string };
-      if (sub.kind === 'diagnosis') {
-        resp = await api.submitDiagnosis(sub.body);
-      } else if (sub.kind === 'compute') {
-        resp = await api.submitCompute(sub.body);
-      } else if (sub.kind === 'sync') {
-        resp = await api.submitSync(sub.body);
-      } else {
-        resp = await api.submitRoutine(sub.body);
-      }
-      const id = nextId();
-      const next = submitTransition(
-        { messages, pendingId: pid, draft: d }, resp.task_id, `a${id}`, `u${id}`, file.kind, d,
-      );
-      setMessages(next.messages);
-      setPendingId(next.pendingId);
-      setDraft(next.draft);
-      loadTasks();
-    } catch (e: any) {
-      setFormErr(e?.response?.data?.detail ?? e?.message ?? '提交失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /** 历史任务 → 载入对话与结果，并保持底部有一条待提交草稿（草稿永远是最后一条） */
-  const openTask = (t: TaskItem) => {
-    const kind = (t.model as ModelKind) || 'diagnosis';
-    const id = nextId();
-    const cid = `u${nextId()}`;
-    const nd = draftFor();
-    setOpenId(t.id);
-    const hist: Msg[] = [
-      {
-        id: `u${id}`,
-        role: 'user',
-        kind,
-        draft: draftFor(String(t.source || '')),
-        taskId: t.id,
-      },
-      { id: `a${id}`, role: 'assistant', kind, taskId: t.id, live: null, task: t },
-      { id: cid, role: 'user', kind: null, draft: nd },
-    ];
-    setMessages((prev) => [...prev.filter((m) => m.id !== pendingId), ...hist]);
-    setPendingId(cid);
-    setDraft(nd);
-  };
-
-  const newTask = () => {
-    const id = `u${nextId()}`;
-    const nd = draftFor();
-    setMessages([{ id, role: 'user', kind: null, draft: nd }]);
-    setPendingId(id);
-    setDraft(nd);
-    setFormErr('');
-    setOpenId(null);
-  };
-
-  const history = useMemo(() => tasks, [tasks]);
+export function UserAppView(props: UserAppViewProps) {
+  const { state, tasks } = props;
+  const folder = folderFor(state.index, state.kind);
+  const focusId = state.focus?.taskId ?? null;
 
   return (
-    <div className="u-shell">
-      <aside className="u-side">
-        <div className="u-brand">
-          <div className="u-brand-name">{PLATFORM_NAME}</div>
+    <div className="up-shell">
+      <aside className="up-side">
+        <div className="up-brand">
+          <div className="up-brand-name">{PLATFORM_NAME}</div>
         </div>
 
-        <button className="btn primary" onClick={newTask}>＋ 新建任务</button>
+        <button type="button" className="btn primary up-new" onClick={props.onNew}>＋ 新建任务</button>
 
-        <div className="u-side-title">历史任务</div>
-        <div className="u-history">
-          {history.length === 0 && <div className="u-side-empty">暂无任务记录</div>}
-          {history.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`u-hist ${openId === t.id ? 'on' : ''}`}
-              onClick={() => openTask(t)}
-              title={`${t.id} · ${t.source || '—'}`}
-            >
-              <span className="u-hist-top">
-                <b>{MODEL_LABEL[t.model] || t.model}</b>
-                <i className={`u-hist-st s-${String(t.status || '')}`}>
-                  {STATUS_LABEL[String(t.status || '')] || t.status}
-                </i>
-              </span>
-              <span className="u-hist-bottom">
-                <span>{t.source ? entityName(t.source) : '—'}</span>
-                <i className="mono">{fmtTime(t.start_time)}</i>
-              </span>
-            </button>
-          ))}
+        <div className="up-side-title">历史任务</div>
+        <div className="up-history">
+          {tasks.length === 0 && <div className="up-empty">暂无任务记录</div>}
+          {tasks.map((t) => {
+            const status = String(t.status || '');
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className={`up-hist ${focusId === t.id ? 'on' : ''}`}
+                title={t.id}
+                onClick={() => props.onOpenTask(t)}
+              >
+                <span className="up-hist-top">
+                  <b>{MODEL_LABEL[t.model] || t.model}</b>
+                  <i className={`up-st s-${status}`}>{STATUS_LABEL[status] || status}</i>
+                </span>
+                <span className="up-hist-bottom">
+                  <span>{t.source ? entityName(t.source) : '—'}</span>
+                  <i className="mono">{fmtTime(t.start_time)}</i>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </aside>
 
-      <main className="u-main">
-        <header className="u-head">
-          <span className="u-head-title">任务对话</span>
+      <main className="up-main">
+        <header className="up-head">
+          <div className="seg up-bar" role="tablist" aria-label="任务类型">
+            {MODELS.map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={state.kind === k}
+                className={`seg-btn ${state.kind === k ? 'on' : ''}`}
+                onClick={() => props.onKind(k)}
+              >
+                {MODEL_LABEL[k]}
+              </button>
+            ))}
+          </div>
         </header>
 
-        <div className="u-stream" ref={streamRef}>
-          {messages.map((m) => (m.role === 'user' ? (
-            <div className="u-row u-row-user" key={m.id}>
-              <div className="u-bubble u-bubble-user">
-                <div className="u-bubble-head">
-                  <b>{m.kind ? `${MODEL_LABEL[m.kind]}任务` : '新建任务'}</b>
-                  {m.taskId && <i className="mono">{m.taskId}</i>}
-                </div>
-                {m.id === pendingId && draft ? (
-                  <TaskForm
-                    draft={draft}
-                    onChange={setDraft}
-                    busy={busy}
-                    error={formErr}
-                    onSubmit={submit}
-                  />
-                ) : (
-                  <div className="u-bubble-text">{draftSummary(m.draft)}</div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="u-row u-row-bot" key={m.id}>
-              <div className="u-bubble u-bubble-bot">
-                <div className="u-bubble-head">
-                  <b>{`${MODEL_LABEL[m.kind]}任务`}</b>
-                </div>
-                <UserResult kind={m.kind} task={m.task} live={m.live} />
-              </div>
-            </div>
-          )))}
+        <div className="up-scroll">
+          <div className="up-col">
+            <TaskForm
+              kind={state.kind}
+              source={state.source}
+              folder={folder}
+              file={state.file}
+              busy={props.busy}
+              busyPath={props.busyPath}
+              note={props.note}
+              error={props.error}
+              onSource={props.onSource}
+              onPick={props.onPick}
+              onSubmit={props.onSubmit}
+            />
+
+            {state.focus && <RecordCard record={state.focus} onClose={props.onCloseFocus} />}
+
+            {state.records.length === 0 && <div className="up-empty">本次会话暂无提交记录</div>}
+            {state.records.map((r) => <RecordCard key={r.id} record={r} />)}
+          </div>
         </div>
       </main>
     </div>
   );
 }
 
+/** 一条记录：提交卡同宽同列，标题是数据集文件名，状态在旁边，结论用 UserResult */
+function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => void }) {
+  const status = recordStatus(record);
+  return (
+    <article className={`up-card up-record ${record.history ? 'hist' : ''}`} data-task={record.taskId}>
+      <header className="up-card-head">
+        <b className="up-card-title">
+          {record.history ? `${MODEL_LABEL[record.kind]}任务` : record.fileName}
+        </b>
+        <i className="up-card-note mono">{record.taskId}</i>
+        {onClose && (
+          <button type="button" className="mini up-card-x" onClick={onClose}>关闭</button>
+        )}
+      </header>
+
+      <div className="up-meta">
+        <span className="up-meta-item">
+          <i>类型</i>
+          <b>{MODEL_LABEL[record.kind]}</b>
+        </span>
+        <span className="up-meta-item">
+          <i>发起方</i>
+          <b>{entityName(record.source)}</b>
+        </span>
+        <span className="up-meta-item">
+          <i>状态</i>
+          <b className={`up-st s-${status}`}>{STATUS_LABEL[status] || status}</b>
+        </span>
+      </div>
+
+      <div className="up-result">
+        <UserResult kind={record.kind} task={record.task} live={record.live} />
+      </div>
+    </article>
+  );
+}
+
+/** 容器：读目录 → 选类型/文件 → 提交 → 轮询记录 */
+export default function UserApp() {
+  const [state, setState] = useState<UserState>(initialState);
+  const [busy, setBusy] = useState(false);
+  const [busyPath, setBusyPath] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const loadTasks = useCallback(async () => {
+    try {
+      setTasks((await api.tasksRecent(HISTORY_LIMIT)) || []);
+    } catch { /* 保留上一次列表 */ }
+  }, []);
+
+  useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  // 进入页面读一次目录；顶部横条的当前类型据此立即列出对应文件夹
+  useEffect(() => {
+    let disposed = false;
+    fetchIndex()
+      .then((idx) => { if (!disposed) setState((s) => withIndex(s, idx)); })
+      .catch((e: any) => { if (!disposed) setNote(String(e?.message || e)); });
+    return () => { disposed = true; };
+  }, []);
+
+  // 轮询进行中的提交（每 1.5s），完成后拉取完整记录，并原地更新该条记录
+  const pendingKey = useMemo(() => state.records.filter(isPending).map((r) => r.id).join(','),
+    [state.records]);
+  useEffect(() => {
+    const ids = pendingKey ? pendingKey.split(',') : [];
+    if (!ids.length) return undefined;
+    let disposed = false;
+    const iv = window.setInterval(async () => {
+      for (const id of ids) {
+        const rec = stateRef.current.records.find((r) => r.id === id);
+        if (!rec) continue;
+        try {
+          const live = await api.taskResult(rec.taskId);
+          if (disposed) return;
+          setState((s) => patchRecord(s, id, { live }));
+          if (isTerminalStatus(live.status)) {
+            let detail: TaskItem | null = null;
+            try { detail = await api.taskDetail(rec.taskId); } catch { /* 用轻量结果 */ }
+            if (disposed) return;
+            if (detail) setState((s) => patchRecord(s, id, { live, task: detail }));
+            loadTasks();
+          }
+        } catch { /* 继续轮询 */ }
+      }
+    }, POLL_MS);
+    return () => { disposed = true; window.clearInterval(iv); };
+  }, [pendingKey, loadTasks]);
+
+  /** 选中类型：提交卡立刻改列该类型的文件夹（已选文件随文件夹失效） */
+  const onKind = (k: ModelKind) => {
+    setError('');
+    setNote('');
+    setState((s) => selectKind(s, k));
+  };
+
+  const onSource = (s: SourceId) => setState((st) => selectSource(st, s));
+
+  /** 点选文件：只读取这一个文件（fetchEntry），选中后 执行 才可用 */
+  const onPick = async (meta: DatasetFileMeta) => {
+    setBusyPath(meta.path);
+    setError('');
+    setNote('');
+    try {
+      const entry: DatasetEntry = await loadEntry(meta);
+      setState((s) => pickFile(s, entry));
+    } catch (e: any) {
+      setNote(`读取失败：${String(e?.message || e)}`);
+    } finally {
+      setBusyPath('');
+    }
+  };
+
+  /** 提交：按文件自带的类型派发，成功后在列首新增一条记录 */
+  const onSubmit = async () => {
+    const s = stateRef.current;
+    const entry = s.file;
+    if (!entry || entry.kind !== s.kind) return;
+    setBusy(true);
+    setError('');
+    try {
+      const sub = buildSubmission(entry, s.source);
+      const taskId = await sendSubmission(sub);
+      const rec: UserRecord = {
+        id: nextId(),
+        kind: entry.kind,
+        fileName: entry.name,
+        source: s.source,
+        taskId,
+        live: queuedResult(taskId),
+        task: null,
+        history: false,
+      };
+      setState((cur) => addRecord(cur, rec));
+      loadTasks();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? e?.message ?? '提交失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 侧栏历史任务 → 列首聚焦该任务的结论，不动提交卡与本次会话记录 */
+  const onOpenTask = (t: TaskItem) => {
+    setState((s) => focusTask(s, t));
+    (async () => {
+      try {
+        const live = await api.taskResult(t.id);
+        setState((s) => patchFocus(s, t.id, { live }));
+        if (isTerminalStatus(live.status)) {
+          try {
+            const detail = await api.taskDetail(t.id);
+            setState((s) => patchFocus(s, t.id, { live, task: detail }));
+          } catch { /* 保留历史列表里的轻量记录 */ }
+        }
+      } catch { /* 保留历史列表里的轻量记录 */ }
+    })();
+  };
+
+  const onNew = () => {
+    setError('');
+    setNote('');
+    setState((s) => newTask(s));
+  };
+
+  return (
+    <UserAppView
+      state={state}
+      busy={busy}
+      busyPath={busyPath}
+      note={note}
+      error={error}
+      tasks={tasks}
+      onKind={onKind}
+      onSource={onSource}
+      onPick={onPick}
+      onSubmit={onSubmit}
+      onNew={onNew}
+      onOpenTask={onOpenTask}
+      onCloseFocus={() => setState((s) => clearFocus(s))}
+    />
+  );
+}
+
 /** 测试钩子：纯状态迁移，便于在无 DOM 环境下验证交互逻辑 */
-export const __userInternals = { composeTransition, submitTransition };
+export const __userInternals = {
+  folderFor, selectKind, selectSource, withIndex, pickFile, addRecord, patchRecord,
+  focusTask, patchFocus, clearFocus, newTask, recordStatus, isPending, loadEntry,
+  sendSubmission, queuedResult, buildSubmission,
+};
+
+export type { UserState, UserRecord };

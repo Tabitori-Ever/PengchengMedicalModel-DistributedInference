@@ -1,13 +1,13 @@
 /* ==========================================================================
-   管理平台「任务执行轨迹」专用样式 · v3.1.3
+   管理平台「任务执行轨迹」专用样式 · v3.1.5
    由 src/components/TaskTrajectoryMap.tsx 引入（管理平台入口只引 index.css），
    避免与用户平台样式相互影响。
    ========================================================================== */
 
 /* ==========================================================================
-   多任务 tab（同屏对比）· v3.1.4
-   在「诊断 计算 通信 日常」之前新增「多任务」：同一块画布上纵向叠放 N 条紧凑轨迹，
-   每条一个 SVG（几何与单任务完全同源），由共享进度驱动各自的步骤游标。
+   多任务 tab（同屏）· v3.1.5
+   「多任务」在「诊断 计算 通信 日常」之前：所选任务全部画在**同一张**拓扑图上，
+   每条任务一条自己的轨迹色（已执行/当前步的平行细线与节点光环），图下为任务条。
    本节只追加多任务相关类，单任务模式的既有规则不作任何修改。
    ========================================================================== */
 
@@ -71,59 +71,101 @@
   padding: 2px 8px;
 }
 
-/* ---- C) 叠放紧凑轨迹：每行 = 表头按钮 + 一个 SVG ---- */
+/* ---- C) 多任务：一张拓扑图 + 图下任务条 ---- */
+/* 画布本身不再纵向叠放多张图，只是「图 + 任务条」的纵向容器 */
 .tmap-canvas.tmap-multi {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  max-height: 82vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
 }
-.tmg-row {
-  flex: 0 0 auto;
+/* 图下任务条：色块 = 图中该任务的轨迹色，点击放大到它的单任务轨迹 */
+.tmg-traces {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 7px;
+}
+.tmg-trace {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   border: 1px solid var(--line);
   border-radius: var(--r-1);
   background: var(--panel);
-  overflow: hidden;
-}
-.tmg-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  width: 100%;
-  padding: 6px 10px;
+  padding: 4px 9px;
   text-align: left;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--line-soft);
-  transition: background var(--t-fast);
+  transition: border-color var(--t-fast), background var(--t-fast);
 }
-.tmg-head:hover { background: var(--brass-soft); }
-.tmg-head:focus-visible { outline: 2px solid var(--brass-2); outline-offset: -2px; }
-.tmg-kindlab { font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.tmg-id { font-size: 10.5px; color: var(--grey-2); }
-.tmg-src { font-size: 12px; color: var(--grey-3); }
-.tmg-dur { font-size: 10.5px; color: var(--grey-2); }
-.tmg-cur {
-  margin-left: auto;
+.tmg-trace:hover { border-color: var(--trace); background: var(--panel-2); }
+.tmg-trace:focus-visible { outline: 2px solid var(--trace); outline-offset: -2px; }
+.tmg-trace-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: center;
+  background: var(--trace);
+}
+.tmg-trace-id { font-size: 11px; color: var(--ink-2); }
+.tmg-trace-kind { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.tmg-trace-src { font-size: 12px; color: var(--grey-3); }
+.tmg-trace-cur {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #b45f0d;
+  color: var(--trace);
 }
-.tmg-figure {
-  position: relative;
-  /* 行高由组件按 clamp(VB_H × MULTI_ROW_SCALE, MULTI_ROW_MIN_H, VB_H) 内联给出 */
-  min-height: 440px;
-  background: var(--panel-2);
-}
-/* 整行由 viewBox 等比缩小：几何、标签避让、四态着色都不变 */
-.tmg-svg { width: 100%; height: 100%; min-width: 780px; }
 .tmg-empty { padding: 12px 2px; }
+
+/* ---- C2) 图中每条任务的色迹与当前步光环 ---- */
+/* 每条任务的轨迹色由组件挂在 --trace 上（TRACE_COLORS 是唯一来源）；
+   .tm-trace-0…3 / .tmg-trace-0…3 只是「这是第几条任务」的槽位类。 */
+.tm-trace {
+  fill: none;
+  stroke: var(--trace, var(--brass-2));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tm-trace.past { stroke-width: 1.7; opacity: 0.72; }
+.tm-trace.current { stroke-width: 2.2; opacity: 1; }
+/* 当前步：该任务游标所在步骤涉及的节点上，一圈自己的颜色（半径逐条错开） */
+.tm-trace-ring {
+  fill: none;
+  stroke: var(--trace, var(--brass-2));
+  stroke-width: 1.6;
+  stroke-opacity: 0.95;
+  animation: tm-trace-ring 2s ease-out infinite;
+}
+@keyframes tm-trace-ring {
+  0% { stroke-opacity: 0.95; stroke-width: 1.6; }
+  70% { stroke-opacity: 0.18; stroke-width: 3.4; }
+  100% { stroke-opacity: 0.95; stroke-width: 1.6; }
+}
+/* 图例里的每任务色迹条目 */
+.tm-legend-traces {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.tm-legend-traces-k { font-style: normal; font-size: 11px; color: var(--grey-3); }
+.tm-legend-trace {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-style: normal;
+}
+.tm-legend-trace-line {
+  width: 16px;
+  height: 0;
+  border-top: 2px solid var(--trace, var(--brass-2));
+  flex-shrink: 0;
+}
+.tm-legend-trace b { font-size: 10.5px; font-weight: 400; color: var(--grey-2); }
+.tm-legend-trace-kind { font-style: normal; font-size: 11px; color: var(--grey-3); }
 
 /* ---- D) 共享进度的时序条 ---- */
 .tm-tl-base {
@@ -149,10 +191,14 @@
   background: rgba(237, 130, 27, 0.1);
 }
 
-/* ---- E) 多任务行内的信息条（沿用既有 tmi-* 语言） ---- */
+/* ---- E) 多任务信息条（沿用既有 tmi-* 语言） ---- */
 .tmap-info .tmi-lead-fact .tmi-v { font-variant-numeric: tabular-nums; }
 
 @media (max-width: 1180px) {
   .tmap-tabs { flex: 1 1 100%; }
-  .tmap-canvas.tmap-multi { max-height: none; }
+  .tmg-traces { gap: 5px; }
+}
+/* 与单任务 .tm-ring 同一处理：减少动态效果时停掉脉冲光圈 */
+@media (prefers-reduced-motion: reduce) {
+  .tm-trace-ring { animation: none !important; }
 }
