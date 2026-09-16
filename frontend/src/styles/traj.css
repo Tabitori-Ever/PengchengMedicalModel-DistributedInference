@@ -1,0 +1,158 @@
+/* ==========================================================================
+   管理平台「任务执行轨迹」专用样式 · v3.1.3
+   由 src/components/TaskTrajectoryMap.tsx 引入（管理平台入口只引 index.css），
+   避免与用户平台样式相互影响。
+   ========================================================================== */
+
+/* ==========================================================================
+   多任务 tab（同屏对比）· v3.1.4
+   在「诊断 计算 通信 日常」之前新增「多任务」：同一块画布上纵向叠放 N 条紧凑轨迹，
+   每条一个 SVG（几何与单任务完全同源），由共享进度驱动各自的步骤游标。
+   本节只追加多任务相关类，单任务模式的既有规则不作任何修改。
+   ========================================================================== */
+
+/* ---- A) 五个 tab + 多任务的叠层字形 ---- */
+.tmap-tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  flex: 0 1 400px;
+}
+.tmg-glyph {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.2;
+  opacity: 0.72;
+}
+.tmap-tabs .seg-btn.on .tmg-glyph { stroke: var(--ink); opacity: 1; }
+/* 多任务是「多条轨迹」而不是某一种任务类型 → 中性墨色标记 */
+.badge.s-multi { color: var(--ink-3); background: rgba(8, 10, 8, 0.06); }
+.badge.s-multi::before { background: var(--ink-3); }
+
+/* ---- B) 任务选择：候选芯片行（最多 6 条，点选加入 / 移出） ---- */
+.tmg-chips {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.tmg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--panel-2);
+  padding: 4px 9px;
+  text-align: left;
+  transition: border-color var(--t-fast), background var(--t-fast), opacity var(--t-fast);
+}
+.tmg-chip:hover { border-color: rgba(8, 10, 8, 0.26); }
+.tmg-chip.on {
+  border-color: var(--brass-2);
+  background: var(--brass-soft);
+  box-shadow: inset 2px 0 0 var(--brass-2);
+}
+.tmg-chip.dim { opacity: 0.52; }
+.tmg-chip-kind { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+.tmg-chip-id { font-size: 10.5px; color: var(--grey-2); }
+.tmg-chip-st { font-size: 11px; color: var(--grey-3); }
+.tmg-kind { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+.tmg-count { font-size: 10.5px; letter-spacing: 0.06em; color: var(--grey-3); }
+.tmg-hint {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: #b45f0d;
+  background: rgba(237, 130, 27, 0.09);
+  border: 1px solid rgba(237, 130, 27, 0.42);
+  border-radius: var(--r-1);
+  padding: 2px 8px;
+}
+
+/* ---- C) 叠放紧凑轨迹：每行 = 表头按钮 + 一个 SVG ---- */
+.tmap-canvas.tmap-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  max-height: 82vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.tmg-row {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: var(--panel);
+  overflow: hidden;
+}
+.tmg-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line-soft);
+  transition: background var(--t-fast);
+}
+.tmg-head:hover { background: var(--brass-soft); }
+.tmg-head:focus-visible { outline: 2px solid var(--brass-2); outline-offset: -2px; }
+.tmg-kindlab { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.tmg-id { font-size: 10.5px; color: var(--grey-2); }
+.tmg-src { font-size: 12px; color: var(--grey-3); }
+.tmg-dur { font-size: 10.5px; color: var(--grey-2); }
+.tmg-cur {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #b45f0d;
+}
+.tmg-figure {
+  position: relative;
+  /* 行高由组件按 clamp(VB_H × MULTI_ROW_SCALE, MULTI_ROW_MIN_H, VB_H) 内联给出 */
+  min-height: 440px;
+  background: var(--panel-2);
+}
+/* 整行由 viewBox 等比缩小：几何、标签避让、四态着色都不变 */
+.tmg-svg { width: 100%; height: 100%; min-width: 780px; }
+.tmg-empty { padding: 12px 2px; }
+
+/* ---- D) 共享进度的时序条 ---- */
+.tm-tl-base {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--grey-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  padding: 0 6px;
+}
+.tm-tl-hit {
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--brass-2);
+  border: 1px solid var(--brass-line);
+  border-radius: var(--r-1);
+  padding: 0 4px;
+  background: var(--brass-soft);
+}
+.tm-tl-step.current .tm-tl-hit {
+  color: #b45f0d;
+  border-color: rgba(237, 130, 27, 0.5);
+  background: rgba(237, 130, 27, 0.1);
+}
+
+/* ---- E) 多任务行内的信息条（沿用既有 tmi-* 语言） ---- */
+.tmap-info .tmi-lead-fact .tmi-v { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1180px) {
+  .tmap-tabs { flex: 1 1 100%; }
+  .tmap-canvas.tmap-multi { max-height: none; }
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "compute",
+  "name": "计算_规模中等_1",
+  "description": "4 台仪器 / 256 行 / 强度 40 / 3 个分区",
+  "params": {
+    "instruments": 4,
+    "rows": 256,
+    "intensity": 40,
+    "partition_count": 3
+  }
+}

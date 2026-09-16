@@ -1,0 +1,9 @@
+{
+  "kind": "diagnosis",
+  "name": "诊断_患者1404920_1",
+  "description": "患者 1404920 · 自动转诊",
+  "params": {
+    "patient_id": "1404920",
+    "target_hospital": "auto"
+  }
+}

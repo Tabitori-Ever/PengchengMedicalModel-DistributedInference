@@ -1,50 +1,101 @@
-[
-  {
-    "file": "compute-monitor-small.json",
-    "kind": "compute",
-    "name": "监护数据 · 小规模",
-    "description": "2 台仪器 / 128 行 / 强度 20 / 2 个分区"
-  },
-  {
-    "file": "compute-monitor-medium.json",
-    "kind": "compute",
-    "name": "监护数据 · 中规模",
-    "description": "4 台仪器 / 256 行 / 强度 40 / 3 个分区"
-  },
-  {
-    "file": "compute-monitor-large.json",
-    "kind": "compute",
-    "name": "监护数据 · 大规模",
-    "description": "8 台仪器 / 1024 行 / 强度 120 / 6 个分区"
-  },
-  {
-    "file": "sync-records-normal.json",
-    "kind": "sync",
-    "name": "患者记录 · 普通方式",
-    "description": "20 Mbps / 并发 4 / 4 KB 分块"
-  },
-  {
-    "file": "sync-records-slow.json",
-    "kind": "sync",
-    "name": "患者记录 · 省流方式",
-    "description": "8 Mbps / 并发 2 / 4 KB 分块"
-  },
-  {
-    "file": "sync-records-fast.json",
-    "kind": "sync",
-    "name": "患者记录 · 高速方式",
-    "description": "60 Mbps / 并发 8 / 16 KB 分块"
-  },
-  {
-    "file": "routine-daily.json",
-    "kind": "routine",
-    "name": "例行任务 · 每日",
-    "description": "3 个任务 / 128 行 / 强度 30"
-  },
-  {
-    "file": "diagnosis-patients.json",
-    "kind": "diagnosis",
-    "name": "诊断患者清单",
-    "description": "10 位可用患者（来自测试数据集）"
-  }
-]
+{
+  "root": "数据集",
+  "folders": [
+    {
+      "id": "compute",
+      "name": "计算",
+      "files": [
+        {
+          "path": "计算/计算_规模小_1.json",
+          "name": "计算_规模小_1",
+          "description": "2 台仪器 / 128 行 / 强度 20 / 2 个分区",
+          "bytes": 228
+        },
+        {
+          "path": "计算/计算_规模中等_1.json",
+          "name": "计算_规模中等_1",
+          "description": "4 台仪器 / 256 行 / 强度 40 / 3 个分区",
+          "bytes": 231
+        },
+        {
+          "path": "计算/计算_规模大_1.json",
+          "name": "计算_规模大_1",
+          "description": "8 台仪器 / 1024 行 / 强度 120 / 3 个分区",
+          "bytes": 232
+        }
+      ]
+    },
+    {
+      "id": "sync",
+      "name": "通信",
+      "files": [
+        {
+          "path": "通信/通信_普通_1.json",
+          "name": "通信_普通_1",
+          "description": "20 Mbps / 并发 4 / 4 KB 分块",
+          "bytes": 188
+        },
+        {
+          "path": "通信/通信_省流_1.json",
+          "name": "通信_省流_1",
+          "description": "8 Mbps / 并发 2 / 4 KB 分块",
+          "bytes": 186
+        },
+        {
+          "path": "通信/通信_高速_1.json",
+          "name": "通信_高速_1",
+          "description": "60 Mbps / 并发 8 / 16 KB 分块",
+          "bytes": 190
+        }
+      ]
+    },
+    {
+      "id": "routine",
+      "name": "日常",
+      "files": [
+        {
+          "path": "日常/日常_任务数3_1.json",
+          "name": "日常_任务数3_1",
+          "description": "3 个任务 / 128 行 / 强度 30",
+          "bytes": 182
+        },
+        {
+          "path": "日常/日常_任务数5_1.json",
+          "name": "日常_任务数5_1",
+          "description": "5 个任务 / 128 行 / 强度 30",
+          "bytes": 182
+        }
+      ]
+    },
+    {
+      "id": "diagnosis",
+      "name": "诊断",
+      "files": [
+        {
+          "path": "诊断/诊断_患者1404920_1.json",
+          "name": "诊断_患者1404920_1",
+          "description": "患者 1404920 · 自动转诊",
+          "bytes": 191
+        },
+        {
+          "path": "诊断/诊断_患者1584882_1.json",
+          "name": "诊断_患者1584882_1",
+          "description": "患者 1584882 · 自动转诊",
+          "bytes": 191
+        },
+        {
+          "path": "诊断/诊断_患者1661073_1.json",
+          "name": "诊断_患者1661073_1",
+          "description": "患者 1661073 · 自动转诊",
+          "bytes": 191
+        },
+        {
+          "path": "诊断/诊断_患者1664718_1.json",
+          "name": "诊断_患者1664718_1",
+          "description": "患者 1664718 · 自动转诊",
+          "bytes": 191
+        }
+      ]
+    }
+  ]
+}

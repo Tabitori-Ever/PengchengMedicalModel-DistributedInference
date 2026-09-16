@@ -1,0 +1,11 @@
+{
+  "kind": "compute",
+  "name": "计算_规模小_1",
+  "description": "2 台仪器 / 128 行 / 强度 20 / 2 个分区",
+  "params": {
+    "instruments": 2,
+    "rows": 128,
+    "intensity": 20,
+    "partition_count": 2
+  }
+}

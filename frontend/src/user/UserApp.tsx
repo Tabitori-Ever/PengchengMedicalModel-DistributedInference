@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, normalizeTarget } from '../api';
+import { api } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
-import type { ModelKind, Patient, TaskItem, TaskResult } from '../types';
-import { MODEL_LABEL, MODELS, STATUS_LABEL } from '../utils';
-import { KIND_HINT, PLATFORM_NAME, entityName } from '../terms';
+import type { ModelKind, TaskItem, TaskResult } from '../types';
+import { MODEL_LABEL, STATUS_LABEL } from '../utils';
+import { PLATFORM_NAME, entityName } from '../terms';
+import type { DatasetEntry } from './dataset';
+import { buildSubmission } from './dataset';
 import TaskForm, { Draft, draftFor, draftSummary } from './TaskForm';
 import UserResult from './UserResult';
 
@@ -13,7 +15,8 @@ const HISTORY_LIMIT = 30;
 interface UserMsg {
   id: string;
   role: 'user';
-  kind: ModelKind;
+  /** 提交后由所选数据集文件决定；待提交草稿尚未选择文件时为 null */
+  kind: ModelKind | null;
   draft: Draft;
   taskId?: string;
 }
@@ -38,36 +41,36 @@ interface ChatState {
   draft: Draft | null;
 }
 
-/**
- * 选择任务类型：已有待提交消息则就地更新其类型与草稿；否则追加一条
- * “待提交草稿消息”（无 taskId）并把它标记为 pending —— 表单即渲染在该气泡内。
- */
-function pickTransition(state: ChatState, kind: ModelKind, draft: Draft, newId: string): ChatState {
-  if (state.pendingId) {
-    return {
-      messages: state.messages.map((m) => (m.id === state.pendingId && m.role === 'user'
-        ? { ...m, kind, draft } : m)),
-      pendingId: state.pendingId,
-      draft,
-    };
-  }
+/** 平台打开即呈现一条待提交草稿（表单渲染在该气泡内） */
+function initialChat(): { id: string; draft: Draft } {
+  return { id: `u${nextId()}`, draft: draftFor() };
+}
+const FIRST = initialChat();
+
+/** 在会话末尾追加一条待提交草稿消息，并把它标记为 pending */
+function composeTransition(state: ChatState, newId: string, source?: string): ChatState {
+  const draft = draftFor(source);
   return {
-    messages: [...state.messages, { id: newId, role: 'user', kind, draft }],
+    messages: [...state.messages, { id: newId, role: 'user', kind: null, draft }],
     pendingId: newId,
     draft,
   };
 }
 
 /**
- * 提交成功：把这条待提交消息补上 taskId（不新增 user 消息），
- * 清空 pending，并追加一条助手消息。
+ * 提交成功：把这条待提交消息补上 taskId 与任务类型（不新增 user 消息），
+ * 追加助手消息，并在末尾再开一条新的待提交草稿，便于连续发起。
  */
-function submitTransition(state: ChatState, taskId: string, botId: string, kind: ModelKind, draft: Draft): ChatState {
+function submitTransition(
+  state: ChatState, taskId: string, botId: string, composerId: string, kind: ModelKind, draft: Draft,
+): ChatState {
   const pid = state.pendingId;
   const messages: Msg[] = state.messages.map((m) => (m.id === pid && m.role === 'user'
     ? { ...m, kind, draft, taskId } : m));
   messages.push({ id: botId, role: 'assistant', kind, taskId, live: null, task: null });
-  return { messages, pendingId: null, draft: null };
+  const next = draftFor(draft.source);
+  messages.push({ id: composerId, role: 'user', kind: null, draft: next });
+  return { messages, pendingId: composerId, draft: next };
 }
 
 function fmtTime(iso?: string): string {
@@ -81,16 +84,17 @@ function fmtTime(iso?: string): string {
 
 /**
  * 用户调用平台（/app/user/）：左侧历史任务，右侧对话流。
- * 只呈现用户关心的内容：任务类型、一句话用途、必要参数、结论。
+ * 用户只做两件事：选发起方、上传数据集文件；任务类型与参数全部来自该文件。
  */
 export default function UserApp() {
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [messages, setMessages] = useState<Msg[]>([
+    { id: FIRST.id, role: 'user', kind: null, draft: FIRST.draft },
+  ]);
+  const [pendingId, setPendingId] = useState<string | null>(FIRST.id);
+  const [draft, setDraft] = useState<Draft | null>(FIRST.draft);
   const [busy, setBusy] = useState(false);
   const [formErr, setFormErr] = useState('');
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,9 +106,6 @@ export default function UserApp() {
   }, []);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
-  useEffect(() => {
-    api.patients().then(setPatients).catch(() => setPatients([]));
-  }, []);
 
   // 轮询进行中的任务（每 1.5s），完成后拉取完整记录
   useEffect(() => {
@@ -137,58 +138,33 @@ export default function UserApp() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, pendingId]);
 
-  /**
-   * 选择任务类型：已有待提交消息则就地更新，否则追加一条“待提交草稿消息”，
-   * 表单即渲染在该气泡内（修复此前“点了没反应”的问题）。
-   */
-  const pickKind = (kind: ModelKind) => {
-    const next = draftFor(kind);
-    setFormErr('');
-    setOpenId(null);
-    const st = pickTransition({ messages, pendingId, draft }, kind, next, `u${nextId()}`);
-    setMessages(st.messages);
-    setPendingId(st.pendingId);
-    setDraft(st.draft);
-  };
-
+  /** 提交：按所选文件自带的类型派发到对应接口 */
   const submit = async () => {
-    if (!draft || !pendingId) return;
+    if (!draft?.file || !pendingId) return;
+    const d = draft;
+    const file: DatasetEntry = draft.file;
+    const pid = pendingId;
     setBusy(true);
     setFormErr('');
-    const d = draft;
-    const pid = pendingId;
     try {
+      const sub = buildSubmission(file, d.source);
       let resp: { task_id: string };
-      if (d.kind === 'diagnosis') {
-        resp = await api.submitDiagnosis({
-          source: d.source as any,
-          patient_id: d.patientId || undefined,
-          target_hospital: normalizeTarget(d.target),
-        });
-      } else if (d.kind === 'compute') {
-        resp = await api.submitCompute({
-          source: d.source as any,
-          instruments: d.instruments,
-          rows: d.rows,
-          intensity: d.intensity,
-          partition_count: d.partitions,
-        });
-      } else if (d.kind === 'sync') {
-        resp = await api.submitSync({
-          source: d.source as any,
-          bandwidth_mbps: d.bandwidth,
-          concurrency: d.concurrency,
-          chunk_kb: d.chunkKb,
-        });
+      if (sub.kind === 'diagnosis') {
+        resp = await api.submitDiagnosis(sub.body);
+      } else if (sub.kind === 'compute') {
+        resp = await api.submitCompute(sub.body);
+      } else if (sub.kind === 'sync') {
+        resp = await api.submitSync(sub.body);
       } else {
-        resp = await api.submitRoutine({
-          source: d.source as any, jobs: d.jobs, rows: d.rows, intensity: d.intensity,
-        });
+        resp = await api.submitRoutine(sub.body);
       }
-      const st = submitTransition({ messages, pendingId: pid, draft: d }, resp.task_id, `a${nextId()}`, d.kind, d);
-      setMessages(st.messages);
-      setPendingId(st.pendingId);
-      setDraft(st.draft);
+      const id = nextId();
+      const next = submitTransition(
+        { messages, pendingId: pid, draft: d }, resp.task_id, `a${id}`, `u${id}`, file.kind, d,
+      );
+      setMessages(next.messages);
+      setPendingId(next.pendingId);
+      setDraft(next.draft);
       loadTasks();
     } catch (e: any) {
       setFormErr(e?.response?.data?.detail ?? e?.message ?? '提交失败');
@@ -197,35 +173,39 @@ export default function UserApp() {
     }
   };
 
-  /** 历史任务 → 载入对话与结果 */
+  /** 历史任务 → 载入对话与结果，并保持底部有一条待提交草稿（草稿永远是最后一条） */
   const openTask = (t: TaskItem) => {
     const kind = (t.model as ModelKind) || 'diagnosis';
     const id = nextId();
+    const cid = `u${nextId()}`;
+    const nd = draftFor();
     setOpenId(t.id);
-    setPendingId(null);
-    setDraft(null);
-    setMessages((prev) => [
-      ...prev,
+    const hist: Msg[] = [
       {
         id: `u${id}`,
         role: 'user',
         kind,
-        draft: { ...draftFor(kind), source: String(t.source || ''), patientId: '' },
+        draft: draftFor(String(t.source || '')),
         taskId: t.id,
       },
       { id: `a${id}`, role: 'assistant', kind, taskId: t.id, live: null, task: t },
-    ]);
+      { id: cid, role: 'user', kind: null, draft: nd },
+    ];
+    setMessages((prev) => [...prev.filter((m) => m.id !== pendingId), ...hist]);
+    setPendingId(cid);
+    setDraft(nd);
   };
 
   const newTask = () => {
-    setMessages([]);
-    setPendingId(null);
-    setDraft(null);
+    const id = `u${nextId()}`;
+    const nd = draftFor();
+    setMessages([{ id, role: 'user', kind: null, draft: nd }]);
+    setPendingId(id);
+    setDraft(nd);
     setFormErr('');
     setOpenId(null);
   };
 
-  const showWelcome = !pendingId && messages.length === 0;
   const history = useMemo(() => tasks, [tasks]);
 
   return (
@@ -269,38 +249,23 @@ export default function UserApp() {
         </header>
 
         <div className="u-stream" ref={streamRef}>
-          {showWelcome && (
-            <div className="u-welcome">
-              <h2>要执行什么任务？</h2>
-              <div className="u-cards">
-                {MODELS.map((m) => (
-                  <button key={m} type="button" className="u-card" onClick={() => pickKind(m)}>
-                    <b className="u-card-title">{MODEL_LABEL[m]}</b>
-                    <span className="u-card-desc">{KIND_HINT[m]}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {messages.map((m) => (m.role === 'user' ? (
             <div className="u-row u-row-user" key={m.id}>
               <div className="u-bubble u-bubble-user">
                 <div className="u-bubble-head">
-                  <b>{`${MODEL_LABEL[m.kind]}任务`}</b>
+                  <b>{m.kind ? `${MODEL_LABEL[m.kind]}任务` : '新建任务'}</b>
                   {m.taskId && <i className="mono">{m.taskId}</i>}
                 </div>
                 {m.id === pendingId && draft ? (
                   <TaskForm
                     draft={draft}
                     onChange={setDraft}
-                    patients={patients}
                     busy={busy}
                     error={formErr}
                     onSubmit={submit}
                   />
                 ) : (
-                  <div className="u-bubble-text">{draftSummary(m.taskId ? m.draft : m.draft)}</div>
+                  <div className="u-bubble-text">{draftSummary(m.draft)}</div>
                 )}
               </div>
             </div>
@@ -315,26 +280,10 @@ export default function UserApp() {
             </div>
           )))}
         </div>
-
-        {pendingId && draft && (
-          <div className="u-quick">
-            <span className="muted xs">切换任务类型：</span>
-            {MODELS.map((m) => (
-              <button
-                key={m}
-                type="button"
-                className={`mini ${draft.kind === m ? 'on' : ''}`}
-                onClick={() => pickKind(m)}
-              >
-                {MODEL_LABEL[m]}
-              </button>
-            ))}
-          </div>
-        )}
       </main>
     </div>
   );
 }
 
 /** 测试钩子：纯状态迁移，便于在无 DOM 环境下验证交互逻辑 */
-export const __userInternals = { pickTransition, submitTransition };
+export const __userInternals = { composeTransition, submitTransition };

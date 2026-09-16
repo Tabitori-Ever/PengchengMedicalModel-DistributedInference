@@ -1,0 +1,10 @@
+{
+  "kind": "routine",
+  "name": "日常_任务数5_1",
+  "description": "5 个任务 / 128 行 / 强度 30",
+  "params": {
+    "jobs": 5,
+    "rows": 128,
+    "intensity": 30
+  }
+}

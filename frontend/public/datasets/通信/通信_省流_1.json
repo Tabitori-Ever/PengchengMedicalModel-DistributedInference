@@ -1,0 +1,10 @@
+{
+  "kind": "sync",
+  "name": "通信_省流_1",
+  "description": "8 Mbps / 并发 2 / 4 KB 分块",
+  "params": {
+    "bandwidth_mbps": 8,
+    "concurrency": 2,
+    "chunk_kb": 4
+  }
+}

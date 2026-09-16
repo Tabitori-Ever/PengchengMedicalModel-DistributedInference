@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+// 本组件专用样式表（多任务 tab / 同屏紧凑轨迹）。管理平台入口只引入 styles/index.css，
+// 因此在组件内引入，保证样式表随组件一起进入管理平台的产物（重复引入会被去重）。
+import '../styles/traj.css';
 import type { ModelKind, TaskItem } from '../types';
 import {
   MODEL_COLOR, MODEL_LABEL, MODELS, SOURCE_ROLE, STATUS_LABEL, fmtMs,
@@ -1507,6 +1510,95 @@ function buildLanes(list: TaskItem[], nowMs: number): LaneModel {
 }
 
 // ---------------------------------------------------------------------------
+// 多任务同屏对比（多任务 tab）
+// ---------------------------------------------------------------------------
+/** Tab 状态：'multi' 与四种任务类型共用一套 seg 控件（只影响渲染分支） */
+type TabKind = 'multi' | ModelKind;
+const MULTI_TAB = 'multi';
+/** 同屏对比的任务条数上限 */
+const MULTI_MAX = 4;
+/** 任务选择芯片行的候选条数上限 */
+const MULTI_PICK_MAX = 6;
+/**
+ * 紧凑行：几何（NODE_BOX / 折行 / 端口 / 标签避让 / 标签避让盒）完全复用，行高 =
+ * VB_H × 比例，由父级 viewBox 等比缩小整行 —— 节点标签 12px、副标签 8.5px 属于
+ * 用户单位，缩小后仍是「按比例」的，因此比例只取决于可读性：
+ * 0.75 ≈ 节点标签 9px / 副标签 6.4px；MULTI_ROW_MIN_H 是不可读下限（硬兜底）。
+ * 多行叠放时整块可纵向滚动（.tmap-canvas.tmap-multi）。
+ */
+const MULTI_ROW_SCALE = 0.75;
+const MULTI_ROW_MIN_H = 440;
+const MULTI_ROW_H = clamp(Math.round(VB_H * MULTI_ROW_SCALE), MULTI_ROW_MIN_H, VB_H);
+
+/** 任务 payload 的 model → 四种类型之一（未知值退化为诊断，避免索引越界）。 */
+function taskKindOf(task: TaskItem): ModelKind {
+  const m = String(task?.model || '');
+  return (MODELS as string[]).includes(m) ? m as ModelKind : 'diagnosis';
+}
+
+/** 并发视图候选排序权重：运行中 → 排队 → 最近完成。 */
+function multiRank(task: TaskItem): number {
+  const s = String(task?.status || '').toLowerCase();
+  if (s === 'running') return 0;
+  if (s === 'queued') return 1;
+  return 2;
+}
+
+/**
+ * 多任务候选：运行中 / 排队优先，其次最近完成（sortTasks 已按开始时间倒序，
+ * 稳定排序保证同一权重内仍是最近优先）。
+ */
+function multiCandidates(list: TaskItem[]): TaskItem[] {
+  const all = (Array.isArray(list) ? list : []).filter((t) => t && t.id);
+  return sortTasks(all)
+    .sort((a, b) => multiRank(a) - multiRank(b))
+    .slice(0, MULTI_PICK_MAX);
+}
+
+/** 默认同屏选择：运行中 / 排队优先，取前 MULTI_MAX 条。 */
+function defaultMultiIds(list: TaskItem[]): string[] {
+  return multiCandidates(list).slice(0, MULTI_MAX).map((t) => String(t.id));
+}
+
+/** 共享步进索引 → 归一化进度 0..1（单步任务恒为 0）。 */
+function sharedProgress(index: number, span: number): number {
+  return span > 1 ? clamp(index / (span - 1), 0, 1) : 0;
+}
+
+/** 归一化进度 → 某条任务自己的步骤游标（步数少的任务只会提前停在自己的末步）。 */
+function sharedCursor(progress: number, stepsLen: number): number {
+  return Math.round(clamp(progress, 0, 1) * Math.max(0, stepsLen - 1));
+}
+
+/** 多任务共用的播放状态：一个归一化进度驱动全部轨迹。 */
+interface SharedPlay {
+  index: number;
+  mode: PlayMode;
+}
+
+/** 共享进度的 ⏮ / ◀ / ▶ / ▶自动 状态机（与单任务同义，只是操作共享刻度）。 */
+function nextSharedState(
+  state: SharedPlay,
+  action: StepAction,
+  last: number,
+  canAuto: boolean,
+): SharedPlay {
+  const lastAt = Math.max(0, last);
+  const at = clamp(state.index, 0, lastAt);
+  switch (action) {
+    case 'reset':
+      return { index: 0, mode: 'manual' };
+    case 'prev':
+      return { index: Math.max(0, at - 1), mode: 'manual' };
+    case 'next':
+      return { index: Math.min(lastAt, at + 1), mode: 'manual' };
+    default:
+      if (!canAuto) return state;
+      return state.mode === 'auto' ? { ...state, mode: 'manual' } : { index: 0, mode: 'auto' };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // component
 // ---------------------------------------------------------------------------
 const TONES: Tone[] = ['ghost', 'past', 'current', 'pending', 'unrelated', 'failed'];
@@ -1535,6 +1627,284 @@ function circled(i: number): string {
   return CIRCLED[i] || `(${i + 1})`;
 }
 
+/**
+ * ONE trajectory = one SVG. 单任务模式与多任务同屏对比共用同一段 SVG：
+ * 几何、层序、四态着色、标签避让全部按 kind+task 现算（与游标无关，播放不重排）。
+ *
+ * - task   : 该行的真实任务（null → 只画标准路径）
+ * - cursor : 该行自己的步骤游标（多任务时由共享进度换算而来），-1 表示未定位
+ * - compact: 紧凑行（多任务）——省略流动光点，并交由父级 viewBox 等比缩放
+ */
+function TrajectoryGraph({
+  task, kind, cursor, compact = false, reduced = false, running = 0, queued = 0,
+}: {
+  task: TaskItem | null;
+  kind: ModelKind;
+  cursor: number;
+  compact?: boolean;
+  reduced?: boolean;
+  /** 数据中心面板上的全局并发计数 */
+  running?: number;
+  queued?: number;
+}) {
+  const view = useMemo(() => buildView(kind, task), [kind, task]);
+  const steps = useMemo(
+    () => buildSteps(kind, task, view.ctx || CANON[kind]),
+    [kind, task, view],
+  );
+  const lastStep = Math.max(0, steps.length - 1);
+  const at = task ? Math.min(Math.max(-1, cursor), lastStep) : -1;
+  const failed = String(task?.status || '').toLowerCase() === 'failed';
+
+  const stepTones = useMemo<Tone[]>(() => {
+    if (!task || !steps.length) return [];
+    return steps.map((_, i) => {
+      if (i === at) return failed ? 'failed' : 'current';
+      return i < at ? 'past' : 'pending';
+    });
+  }, [steps, at, task, failed]);
+
+  const edgeStep = useMemo(() => {
+    const m = new Map<string, number>();
+    steps.forEach((s, i) => {
+      s.edges.forEach((k) => {
+        const prev = m.get(k);
+        if (prev === undefined || i < prev) m.set(k, i);
+      });
+    });
+    return m;
+  }, [steps]);
+
+  const edgeTone = useMemo(() => {
+    const m = new Map<string, Tone>();
+    view.edges.forEach((e) => {
+      if (!task) { m.set(e.key, 'ghost'); return; }
+      const i = edgeStep.get(e.key);
+      if (i === undefined) { m.set(e.key, e.live ? 'pending' : 'unrelated'); return; }
+      m.set(e.key, stepTones[i] || 'pending');
+    });
+    return m;
+  }, [view, task, edgeStep, stepTones]);
+
+  const nodeTone = useMemo(() => {
+    const m = new Map<string, NodeState>();
+    const curTone: NodeState = stepTones[at] || 'current';
+    view.nodeIds.forEach((id) => {
+      if (!task) { m.set(id, 'ghost'); return; }
+      let past = false;
+      let cur = false;
+      let pend = false;
+      steps.forEach((s, i) => {
+        if (!s.nodes.includes(id)) return;
+        if (i === at) cur = true;
+        else if (i < at) past = true;
+        else pend = true;
+      });
+      if (cur) m.set(id, curTone);
+      else if (past) m.set(id, 'past');
+      else if (pend) m.set(id, 'pending');
+      else m.set(id, 'unrelated');
+    });
+    return m;
+  }, [view, steps, at, stepTones, task]);
+
+  const toneClass = (t: Tone) => `tm-edge ${t}`;
+  const labelOf = (id: string): { name: string; id?: string; caption: string } => {
+    if (isJob(id)) {
+      const node = jobNodeOf(id);
+      const job = view.jobs.find((j) => j.id === id);
+      const extra = job && (job.count || 1) > 1 ? ` ×${job.count}` : '';
+      return { name: job?.name ? `…${job.name}` : 'Job', caption: `${node}${extra}` };
+    }
+    return NODE_META[id] || { name: id, caption: '' };
+  };
+
+  // only the current step's edges carry the travelling dot (dropped in compact rows)
+  const dotEdges = useMemo(() => {
+    if (compact || reduced || !task || at < 0) return [];
+    const cur = steps[at];
+    if (!cur) return [];
+    return view.edges.filter((e) => cur.edges.includes(e.key)).slice(0, 3);
+  }, [compact, reduced, view, steps, at, task]);
+
+  const curStep = at >= 0 ? steps[at] : null;
+  const dcLive = !!curStep && curStep.nodes.some((n) => DC_NODE_SET.has(n));
+
+  return (
+    <svg
+      className={compact ? 'tmap-svg tmg-svg' : 'tmap-svg'}
+      viewBox={`0 0 ${VB_W} ${VB_H}`}
+      width="100%"
+      role="img"
+      aria-label={`${MODEL_LABEL[kind]} 任务执行轨迹图`}
+    >
+      <title>{`${MODEL_LABEL[kind]} 任务执行轨迹`}</title>
+      {/* 多任务同屏时每个 SVG 都会定义同名 marker：定义完全一致（用户单位、几何都取自
+          同一套常量），文档级 id 解析到任意一份都是同一个箭头。 */}
+      <defs>
+        {TONES.map((t) => (
+          <marker
+            key={t}
+            id={`tm-arrow-${t}`}
+            viewBox="0 0 8 8"
+            refX="7"
+            refY="4"
+            markerWidth="7.5"
+            markerHeight="7.5"
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+          >
+            <path className={`tm-arrow ${t}`} d="M0,0.7 L7.6,4 L0,7.3 Z" />
+          </marker>
+        ))}
+      </defs>
+
+      <g className="tm-guides">
+        {/* 数据中心容器：包含 scheduler + medical-server + dc-services + redis；
+            连线垂直穿越其发丝边框，所有折行都落在容器之外。 */}
+        <g className={`tm-dc ${dcLive ? 'live' : ''}`}>
+          <rect
+            className="tm-dc-panel"
+            x={DC_PANEL.x}
+            y={DC_PANEL.y}
+            width={DC_PANEL.w}
+            height={DC_PANEL.h}
+            rx="3"
+          />
+          <rect className="tm-dc-bar" x={DC_PANEL.x} y={DC_PANEL.y} width="3" height={DC_PANEL.h} />
+          <text className="tm-dc-title" x={DC_PANEL.x + 16} y={DC_PANEL.y + 21}>
+            {TIER_TEXT.cloud}
+          </text>
+          <text
+            className="tm-dc-meta mono"
+            x={DC_PANEL.x + DC_PANEL.w - 16}
+            y={DC_PANEL.y + 21}
+            textAnchor="end"
+          >
+            {`组件 ${DC_NODES.length} · 运行中 ${running} · 排队 ${queued}`}
+          </text>
+          <line
+            className="tm-dc-rule"
+            x1={DC_PANEL.x + 14}
+            y1={DC_PANEL.y + 29}
+            x2={DC_PANEL.x + DC_PANEL.w - 14}
+            y2={DC_PANEL.y + 29}
+          />
+        </g>
+        <line className="tm-rule" x1="72" y1="20" x2="72" y2="640" />
+        <line className="tm-sep" x1="72" y1="190" x2={VB_W - 12} y2="190" />
+        <line className="tm-sep" x1="72" y1="424" x2={VB_W - 12} y2="424" />
+        {TIER_LABEL.map((t) => (
+          <text
+            key={t.text}
+            className="tm-tier mono"
+            x="44"
+            y={t.y}
+            textAnchor="middle"
+            transform={`rotate(-90 44 ${t.y})`}
+          >
+            {t.text}
+          </text>
+        ))}
+      </g>
+
+      <g className="tm-edges ghost-layer">
+        {['ghost', 'unrelated', 'pending'].flatMap((tone) => view.edges
+          .filter((e) => edgeTone.get(e.key) === tone)
+          .map((e) => (
+            <g key={`g-${e.key}`} className={toneClass(tone as Tone)}>
+              <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${tone})`} />
+              <text
+                className="tm-edge-label"
+                x={e.label_at.x}
+                y={e.label_at.y}
+                textAnchor={e.label_at.anchor}
+              >
+                {e.label}
+              </text>
+            </g>
+          )))}
+      </g>
+
+      <g className="tm-edges live-layer">
+        {['past', 'current', 'failed'].flatMap((tone) => view.edges
+          .filter((e) => edgeTone.get(e.key) === tone)
+          .map((e) => (
+            <g key={`l-${e.key}`} className={toneClass(tone as Tone)}>
+              <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${tone})`} />
+              <text
+                className="tm-edge-label"
+                x={e.label_at.x}
+                y={e.label_at.y}
+                textAnchor={e.label_at.anchor}
+              >
+                {e.label}
+              </text>
+            </g>
+          )))}
+      </g>
+
+      <g className="tm-dots">
+        {dotEdges.map((e) => (
+          <circle key={`d-${e.key}`} className={`tm-dot ${edgeTone.get(e.key) || 'current'}`} r="3.4">
+            <animateMotion dur="3.2s" repeatCount="indefinite" path={e.d} />
+          </circle>
+        ))}
+      </g>
+
+      <g className="tm-nodes">
+        {view.nodeIds.map((id) => {
+          const b = boxOf(id);
+          if (!b) return null;
+          const meta = labelOf(id);
+          const state = nodeTone.get(id) || 'ghost';
+          const focused = state === 'past' || state === 'current' || state === 'failed';
+          const ringed = state === 'current' || state === 'failed';
+          const job = isJob(id);
+
+          if (job) {
+            const r = b.w / 2;
+            return (
+              <g key={id} className={['tm-node', 'job', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
+                <title>{`日常任务 Job · ${meta.name}（${meta.caption}）`}</title>
+                {ringed && <circle className="tm-ring" cx={b.x} cy={b.y} r={r + 5} />}
+                <circle className="tm-box job-box" cx={b.x} cy={b.y} r={r} />
+                <g className="tm-icon tm-icon-sm" transform={`translate(${b.x - 6} ${b.y - 17}) scale(0.5)`}>
+                  {iconShapes('job')}
+                </g>
+                <text className="tm-node-name" x={b.x} y={b.y + 8} textAnchor="middle">{meta.name}</text>
+                <text className="tm-node-cap" x={b.x} y={b.y + 20} textAnchor="middle">{meta.caption}</text>
+              </g>
+            );
+          }
+
+          const mx = b.x - b.w / 2 + MEDAL_INSET;
+          const tx = b.x - b.w / 2 + TEXT_INSET;
+          return (
+            <g key={id} className={['tm-node', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
+              <title>{`${meta.name}${meta.id && meta.id !== meta.name ? `（${meta.id}）` : ''} · ${meta.caption}`}</title>
+              {ringed && <circle className="tm-ring" cx={mx} cy={b.y} r={RING_R} />}
+              <rect
+                className={`tm-tier-flag ${tierOf(id)}`}
+                x={b.x - b.w / 2}
+                y={b.y - 14}
+                width="3"
+                height="28"
+              />
+              <circle className="tm-medal" cx={mx} cy={b.y} r={MEDAL_R} />
+              <g className="tm-icon" transform={`translate(${mx - 12} ${b.y - 12})`}>
+                {iconShapes(iconKindOf(id))}
+              </g>
+              <text className="tm-node-name" x={tx} y={b.y - 3} textAnchor="start">{meta.name}</text>
+              <text className="tm-node-cap" x={tx} y={b.y + 12} textAnchor="start">{meta.caption}</text>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
 export default function TaskTrajectoryMap({
   tasks, initialKind = 'diagnosis',
 }: {
@@ -1543,22 +1913,30 @@ export default function TaskTrajectoryMap({
   /** kind selected on first paint (deep-link / test hook) */
   initialKind?: ModelKind;
 }) {
-  const [kind, setKind] = useState<ModelKind>(initialKind);
+  const [kind, setKind] = useState<TabKind>(initialKind);
   const [selId, setSelId] = useState<string | null>(null);
   const [autoFollow, setAutoFollow] = useState(true);
   const [play, setPlay] = useState<PlayState>({ id: '', index: 0, mode: 'auto' });
+  // 多任务：null = 默认选择（运行 / 排队优先）；[] = 用户手动清空
+  const [multiPicked, setMultiPicked] = useState<string[] | null>(null);
+  const [multiPlay, setMultiPlay] = useState<SharedPlay>({ index: 0, mode: 'auto' });
+  const [multiHint, setMultiHint] = useState('');
   const reduced = usePrefersReducedMotion();
 
+  const multi = kind === MULTI_TAB;
+  // 单任务轨道的类型：多任务模式下不渲染它，退化为默认类型以避免索引越界
+  const singleKind: ModelKind = kind === MULTI_TAB ? 'diagnosis' : kind;
+
   const kindTasks = useMemo(() => {
-    const list = (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.model === kind);
+    const list = (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.model === singleKind);
     return sortTasks(list).slice(0, 6);
-  }, [tasks, kind]);
+  }, [tasks, singleKind]);
 
   // 同类型的完整列表（下拉只展示最近 6 条，但已选任务可能更早）
   const kindAll = useMemo(() => {
-    const list = (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.model === kind);
+    const list = (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.model === singleKind);
     return sortTasks(list);
-  }, [tasks, kind]);
+  }, [tasks, singleKind]);
 
   const traced = useMemo(() => {
     if (autoFollow) return kindTasks[0] || null;
@@ -1577,13 +1955,16 @@ export default function TaskTrajectoryMap({
     return list;
   }, [kindTasks, traced]);
 
-  // geometry only depends on kind + traced task, never on the cursor
-  const view = useMemo(() => buildView(kind, traced), [kind, traced]);
+  // 单任务轨道：上下文只依赖类型 + 任务；几何由 TrajectoryGraph 现算（与游标无关）
+  const singleCtx = useMemo(
+    () => (traced ? ctxFromTask(singleKind, traced) : null),
+    [singleKind, traced],
+  );
 
   // ordered execution timeline — real task when available, canonical otherwise
   const steps = useMemo(
-    () => buildSteps(kind, traced, view.ctx || CANON[kind]),
-    [kind, traced, view],
+    () => buildSteps(singleKind, traced, singleCtx || CANON[singleKind]),
+    [singleKind, traced, singleCtx],
   );
 
   const tracedId = traced?.id || '';
@@ -1597,8 +1978,8 @@ export default function TaskTrajectoryMap({
   const active = play.id === tracedId && tracedId ? play : autoState;
 
   const dataCursor = useMemo(
-    () => (traced && stepsLen ? stageStepIndex(kind, traced, steps) : 0),
-    [kind, traced, steps, stepsLen],
+    () => (traced && stepsLen ? stageStepIndex(singleKind, traced, steps) : 0),
+    [singleKind, traced, steps, stepsLen],
   );
   const lastStep = Math.max(0, stepsLen - 1);
   const cursor = traced
@@ -1611,8 +1992,9 @@ export default function TaskTrajectoryMap({
   }, [tracedId, autoState]);
 
   // autoplay: slower cadence, dwell on the last step, then loop back to ①
+  // （多任务模式由共享进度的定时器驱动，这里不参与）
   useEffect(() => {
-    if (active.mode !== 'auto' || stepsLen < 2 || reduced) return undefined;
+    if (multi || active.mode !== 'auto' || stepsLen < 2 || reduced) return undefined;
     const delay = autoplayDelay(steps[active.index], active.index >= lastStep);
     const id = window.setTimeout(() => {
       setPlay((s) => {
@@ -1621,9 +2003,9 @@ export default function TaskTrajectoryMap({
       });
     }, delay);
     return () => window.clearTimeout(id);
-  }, [active, stepsLen, lastStep, reduced, steps]);
+  }, [multi, active, stepsLen, lastStep, reduced, steps]);
 
-  // ---- step / edge / node state maps ----
+  // ---- step state map（时序条与 TrajectoryGraph 共用同一套四态语义） ----
   const stepTones = useMemo<Tone[]>(() => {
     if (!traced || !stepsLen) return [];
     const failed = String(traced.status || '').toLowerCase() === 'failed';
@@ -1633,49 +2015,64 @@ export default function TaskTrajectoryMap({
     });
   }, [steps, stepsLen, cursor, traced]);
 
-  const edgeStep = useMemo(() => {
-    const m = new Map<string, number>();
-    steps.forEach((s, i) => {
-      s.edges.forEach((k) => {
-        const prev = m.get(k);
-        if (prev === undefined || i < prev) m.set(k, i);
-      });
-    });
-    return m;
-  }, [steps]);
+  // ---- 多任务同屏对比 ----
+  const allTasks = useMemo(
+    () => (Array.isArray(tasks) ? tasks : []).filter((t) => t && t.id),
+    [tasks],
+  );
+  const multiCand = useMemo(() => multiCandidates(allTasks), [allTasks]);
+  // 已选任务：默认取「运行 / 排队优先」，用户点选后完全跟随点选顺序
+  const multiSel = useMemo(() => {
+    if (multiPicked === null) return multiCand.slice(0, MULTI_MAX);
+    const byId = new Map(allTasks.map((t) => [String(t.id), t]));
+    return multiPicked
+      .map((id) => byId.get(id))
+      .filter((t): t is TaskItem => !!t)
+      .slice(0, MULTI_MAX);
+  }, [multiPicked, multiCand, allTasks]);
+  // 每条轨迹自己的步骤（共享进度的刻度 = 其中最长的一条）
+  const multiRows = useMemo(() => multiSel.map((task) => {
+    const k = taskKindOf(task);
+    return { task, kind: k, steps: buildSteps(k, task, ctxFromTask(k, task) || CANON[k]) };
+  }), [multiSel]);
+  const multiSpan = useMemo(
+    () => Math.max(1, ...multiRows.map((r) => r.steps.length)),
+    [multiRows],
+  );
+  const multiLast = Math.max(0, multiSpan - 1);
+  const multiIndex = clamp(multiPlay.index, 0, multiLast);
+  const multiProg = sharedProgress(multiIndex, multiSpan);
+  /** 共享进度 → 某条轨迹自己的游标 */
+  const multiCursorAt = (len: number) => sharedCursor(multiProg, len);
+  // 基准轨迹：步数最多的一条（它的每一步就是共享刻度）
+  const multiRef = useMemo(
+    () => multiRows.reduce<typeof multiRows[number] | null>(
+      (best, r) => (!best || r.steps.length > best.steps.length ? r : best), null,
+    ),
+    [multiRows],
+  );
+  const multiRefSteps = multiRef?.steps || [];
+  const multiRefFailed = String(multiRef?.task.status || '').toLowerCase() === 'failed';
+  const multiTotalMs = useMemo(() => {
+    const known = multiRefSteps.map((s) => s.durationMs).filter((d): d is number => typeof d === 'number');
+    return known.length ? known.reduce((a, b) => a + b, 0) : undefined;
+  }, [multiRefSteps]);
+  /** 每个共享刻度上停着几条轨迹（时序条上体现共享进度） */
+  const multiHits = useMemo(() => {
+    const arr = new Array(multiSpan).fill(0);
+    multiRows.forEach((r) => { arr[sharedCursor(multiProg, r.steps.length)] += 1; });
+    return arr;
+  }, [multiRows, multiSpan, multiProg]);
+  const multiDelay = autoplayDelay(multiRefSteps[multiIndex], multiIndex >= multiLast);
 
-  const edgeTone = useMemo(() => {
-    const m = new Map<string, Tone>();
-    view.edges.forEach((e) => {
-      if (!traced) { m.set(e.key, 'ghost'); return; }
-      const i = edgeStep.get(e.key);
-      if (i === undefined) { m.set(e.key, e.live ? 'pending' : 'unrelated'); return; }
-      m.set(e.key, stepTones[i] || 'pending');
-    });
-    return m;
-  }, [view, traced, edgeStep, stepTones]);
-
-  const nodeTone = useMemo(() => {
-    const m = new Map<string, NodeState>();
-    const curTone: NodeState = stepTones[cursor] || 'current';
-    view.nodeIds.forEach((id) => {
-      if (!traced) { m.set(id, 'ghost'); return; }
-      let past = false;
-      let cur = false;
-      let pend = false;
-      steps.forEach((s, i) => {
-        if (!s.nodes.includes(id)) return;
-        if (i === cursor) cur = true;
-        else if (i < cursor) past = true;
-        else pend = true;
-      });
-      if (cur) m.set(id, curTone);
-      else if (past) m.set(id, 'past');
-      else if (pend) m.set(id, 'pending');
-      else m.set(id, 'unrelated');
-    });
-    return m;
-  }, [view, steps, cursor, stepTones, traced]);
+  // 多任务的自动播放：与单任务同一节奏（每步 2s / 末步 2.4s，末步后回到 ①）
+  useEffect(() => {
+    if (!multi || multiPlay.mode !== 'auto' || multiSpan < 2 || reduced) return undefined;
+    const t = window.setTimeout(() => {
+      setMultiPlay((s) => (s.mode !== 'auto' ? s : { ...s, index: s.index >= multiLast ? 0 : s.index + 1 }));
+    }, multiDelay);
+    return () => window.clearTimeout(t);
+  }, [multi, multiPlay.mode, multiIndex, multiLast, multiSpan, multiDelay, reduced]);
 
   // ---- interaction: manual stepping takes over from autoplay immediately ----
   const canStep = !!traced && stepsLen > 0;
@@ -1693,27 +2090,48 @@ export default function TaskTrajectoryMap({
     setPlay({ id: tracedId, index: Math.min(Math.max(0, i), lastStep), mode: 'manual' });
   };
 
+  // ---- 多任务交互：选择 / 共享播放 / 放大到单任务 ----
+  const toggleMulti = (id: string) => {
+    const base = multiPicked === null ? defaultMultiIds(allTasks) : multiPicked;
+    if (base.includes(id)) {
+      setMultiPicked(base.filter((x) => x !== id));
+      setMultiHint('');
+      return;
+    }
+    if (base.length >= MULTI_MAX) {
+      setMultiHint(`同屏上限 ${MULTI_MAX} 条 · 先取消一条再加入 ${idPrefix(id, 10)}`);
+      return;
+    }
+    setMultiPicked([...base, id]);
+    setMultiHint('');
+  };
+  const multiCanStep = multiRows.length > 0 && multiSpan > 0;
+  const multiCanAuto = multiCanStep && multiSpan >= 2 && !reduced;
+  const applyMulti = (action: StepAction) => {
+    if (!multiCanStep) return;
+    setMultiPlay((s) => nextSharedState(s, action, multiLast, multiCanAuto));
+  };
+  const jumpMulti = (i: number) => {
+    if (!multiCanStep) return;
+    setMultiPlay({ index: clamp(i, 0, multiLast), mode: 'manual' });
+  };
+  /** 放大到单任务：切到该任务的类型页并选中它（多任务 tab 仍可切回） */
+  const focusTask = (id: string, k: ModelKind) => {
+    setKind(k);
+    setSelId(id);
+    setAutoFollow(false);
+  };
+
   // 多任务并发：最近 5–10 分钟窗口 + 调度队列
   const lanes = useMemo(() => buildLanes(Array.isArray(tasks) ? tasks : [], Date.now()), [tasks]);
   const ticks = useMemo(() => [0, 0.25, 0.5, 0.75, 1].map((p) => ({
     p,
     label: hhmm(lanes.windowStart + lanes.spanMs * p),
   })), [lanes.windowStart, lanes.spanMs]);
+  /** 态势条点击：多任务模式下改为「加入 / 移出」同屏对比 */
   const pickTask = (row: LaneRow) => {
-    setKind(row.kind);
-    setSelId(row.id);
-    setAutoFollow(false);
-  };
-
-  const toneClass = (t: Tone) => `tm-edge ${t}`;
-  const labelOf = (id: string): { name: string; id?: string; caption: string } => {
-    if (isJob(id)) {
-      const node = jobNodeOf(id);
-      const job = view.jobs.find((j) => j.id === id);
-      const extra = job && (job.count || 1) > 1 ? ` ×${job.count}` : '';
-      return { name: job?.name ? `…${job.name}` : 'Job', caption: `${node}${extra}` };
-    }
-    return NODE_META[id] || { name: id, caption: '' };
+    if (multi) { toggleMulti(row.id); return; }
+    focusTask(row.id, row.kind);
   };
 
   const totalMs = useMemo(() => {
@@ -1721,40 +2139,63 @@ export default function TaskTrajectoryMap({
     return known.length ? known.reduce((a, b) => a + b, 0) : undefined;
   }, [steps]);
 
-  // only the current step's edges carry the travelling dot
-  const dotEdges = useMemo(() => {
-    if (reduced || !traced || cursor < 0) return [];
-    const cur = steps[cursor];
-    if (!cur) return [];
-    return view.edges.filter((e) => cur.edges.includes(e.key)).slice(0, 3);
-  }, [view, steps, cursor, reduced, traced]);
-
   const curStep = cursor >= 0 ? steps[cursor] : null;
   const hasParallel = useMemo(() => steps.some((st) => !!st.items && st.items.length > 1), [steps]);
-  const allFacts = useMemo(() => (traced ? factsFor(kind, traced) : []), [kind, traced]);
+  const allFacts = useMemo(() => (traced ? factsFor(singleKind, traced) : []), [singleKind, traced]);
   const leadFact = allFacts[0];
   const restFacts = allFacts.slice(1);
-  const dcLive = !!curStep && curStep.nodes.some((n) => DC_NODE_SET.has(n));
+
+  // ---- 底部时序条的取值：多任务时以基准轨迹为刻度，游标即共享进度 ----
+  const tlSteps = multi ? multiRefSteps : steps;
+  const tlCursor = multi ? multiIndex : cursor;
+  const tlMode: PlayMode = multi ? multiPlay.mode : active.mode;
+  const tlCanStep = multi ? multiCanStep : canStep;
+  const tlCanAuto = multi ? multiCanAuto : canAuto;
+  const tlCurStep = multi ? (multiRefSteps[multiIndex] || null) : curStep;
+  const tlHasParallel = multi
+    ? multiRefSteps.some((st) => !!st.items && st.items.length > 1)
+    : hasParallel;
+  const tlTones = useMemo<Tone[]>(() => {
+    if (!multi) return stepTones;
+    return multiRefSteps.map((_, i) => {
+      if (i === tlCursor) return multiRefFailed ? 'failed' : 'current';
+      return i < tlCursor ? 'past' : 'pending';
+    });
+  }, [multi, stepTones, multiRefSteps, tlCursor, multiRefFailed]);
+  const tlTotalMs = multi ? multiTotalMs : totalMs;
+  const onTlReset = () => (multi ? applyMulti('reset') : onReset());
+  const onTlPrev = () => (multi ? applyMulti('prev') : onPrev());
+  const onTlNext = () => (multi ? applyMulti('next') : onNext());
+  const onTlAuto = () => (multi ? applyMulti('auto') : onAuto());
+  const onTlJump = (i: number) => (multi ? jumpMulti(i) : jumpTo(i));
+
   const dcSummary = useMemo(() => {
-    const list = Array.isArray(tasks) ? tasks : [];
     let running = 0;
     let queued = 0;
-    list.forEach((t) => {
+    allTasks.forEach((t) => {
       const st = String(t?.status || '').toLowerCase();
       if (st === 'running') running += 1;
       else if (st === 'queued') queued += 1;
     });
     return { running, queued };
-  }, [tasks]);
+  }, [allTasks]);
+  const multiSelectedIds = useMemo(
+    () => new Set(multiRows.map((r) => String(r.task.id))),
+    [multiRows],
+  );
+  const multiSummary = `${multiRows.length} 条 · 运行中 ${multiRows.filter((r) => String(r.task.status || '') === 'running').length} · 排队 ${multiRows.filter((r) => String(r.task.status || '') === 'queued').length}`;
+
 
   return (
     <section className="card tmap">
       <div className="card-headrow">
         <h3 className="card-title">任务执行轨迹</h3>
         <span className="muted xs mono">
-          {traced
-            ? `${MODEL_LABEL[kind]} · ${shortId(traced.id)} · ${statusLabel(traced.status)}`
-            : `${MODEL_LABEL[kind]} · 标准路径`}
+          {multi
+            ? `多任务 · 已选 ${multiRows.length} 条`
+            : traced
+              ? `${MODEL_LABEL[singleKind]} · ${shortId(traced.id)} · ${statusLabel(traced.status)}`
+              : `${MODEL_LABEL[singleKind]} · 标准路径`}
         </span>
       </div>
 
@@ -1765,6 +2206,20 @@ export default function TaskTrajectoryMap({
 
       <div className="tmap-controls">
         <div className="seg tmap-tabs" role="tablist" aria-label="任务类型">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={multi}
+            className={`seg-btn ${multi ? 'on' : ''}`}
+            onClick={() => setKind(MULTI_TAB)}
+            title="多任务：在同一块画布上同屏对比多条任务的执行轨迹"
+          >
+            <svg className="tmg-glyph" viewBox="0 0 12 12" aria-hidden="true">
+              <rect x="1.4" y="1.4" width="6.4" height="6.4" rx="1" />
+              <rect x="4.2" y="4.2" width="6.4" height="6.4" rx="1" />
+            </svg>
+            多任务
+          </button>
           {MODELS.map((m) => (
             <button
               key={m}
@@ -1782,32 +2237,113 @@ export default function TaskTrajectoryMap({
 
         <div className="tmap-pickrow">
           <span className="eyebrow">任务选择</span>
-          <button
-            type="button"
-            className={`mini ${autoFollow ? 'on' : ''}`}
-            aria-pressed={autoFollow}
-            onClick={() => setAutoFollow((v) => !v)}
-            title="新提交的任务自动成为跟踪目标"
-          >
-            自动跟随最新
-          </button>
-          <select
-            className="tmap-select mono"
-            aria-label="选择要跟踪的任务"
-            value={traced?.id || ''}
-            disabled={!options.length}
-            onChange={(e) => { setSelId(e.target.value); setAutoFollow(false); }}
-          >
-            {options.length === 0 && <option value="">该类型暂无任务记录</option>}
-            {options.map((t) => (
-              <option key={t.id} value={t.id} title={t.id}>{taskOptionLabel(t)}</option>
-            ))}
-          </select>
+          {multi ? (
+            <>
+              <span className="tmg-chips" role="group" aria-label="选择要同屏对比的任务">
+                {multiCand.length === 0 && <i className="tmg-hint">暂无任务可选</i>}
+                {multiCand.map((t) => {
+                  const k = taskKindOf(t);
+                  const on = multiSelectedIds.has(String(t.id));
+                  const full = multiRows.length >= MULTI_MAX;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`tmg-chip ${on ? 'on' : ''} ${!on && full ? 'dim' : ''}`}
+                      aria-pressed={on}
+                      onClick={() => toggleMulti(String(t.id))}
+                      title={`${t.id} · ${MODEL_LABEL[k]} · ${entityName(t.source)} · ${statusLabel(t.status)}`}
+                    >
+                      <i className="tmg-kind" style={{ background: MODEL_COLOR[k] }} />
+                      <b className="tmg-chip-kind">{MODEL_LABEL[k]}</b>
+                      <i className="tmg-chip-id mono">{idPrefix(t.id, 10)}</i>
+                      <span className="tmg-chip-st">{statusLabel(t.status)}</span>
+                    </button>
+                  );
+                })}
+              </span>
+              <span className="tmg-count mono">{`已选 ${multiRows.length}/${MULTI_MAX}`}</span>
+              {multiHint && <i className="tmg-hint">{multiHint}</i>}
+              <button
+                type="button"
+                className="mini"
+                onClick={() => { setMultiPicked(null); setMultiHint(''); }}
+                title={`恢复默认选择：运行中 / 排队优先，最多 ${MULTI_MAX} 条`}
+              >
+                恢复默认
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={`mini ${autoFollow ? 'on' : ''}`}
+                aria-pressed={autoFollow}
+                onClick={() => setAutoFollow((v) => !v)}
+                title="新提交的任务自动成为跟踪目标"
+              >
+                自动跟随最新
+              </button>
+              <select
+                className="tmap-select mono"
+                aria-label="选择要跟踪的任务"
+                value={traced?.id || ''}
+                disabled={!options.length}
+                onChange={(e) => { setSelId(e.target.value); setAutoFollow(false); }}
+              >
+                {options.length === 0 && <option value="">该类型暂无任务记录</option>}
+                {options.map((t) => (
+                  <option key={t.id} value={t.id} title={t.id}>{taskOptionLabel(t)}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
       <div className="tmap-info">
-        {traced ? (
+        {multi ? (
+          allTasks.length === 0 ? (
+            <div className="tmap-none">
+              <b>暂无任务</b>
+              <span>· 显示标准执行路径</span>
+            </div>
+          ) : (
+            <>
+              <div className="tmi-lead">
+                <span className="badge s-multi">多任务</span>
+                <b className="tmi-step">
+                  {!multiRows.length
+                    ? '未选择任务'
+                    : `${circled(multiIndex)} ${multiRefSteps[multiIndex]?.label || '未定位到步骤'}`}
+                </b>
+                <span className="tmi-dur mono">{`已选 ${multiSummary}`}</span>
+                <span className="tmi-lead-fact">
+                  <i className="tmi-k">共享进度</i>
+                  <b className="tmi-v mono">{`${Math.round(multiProg * 100)}%`}</b>
+                </span>
+              </div>
+              <div className="tmi-meta">
+                <span className="tmi-cell">
+                  <i className="tmi-k">同屏任务</i>
+                  <b className="tmi-v mono">{`${multiRows.length} / ${MULTI_MAX} 条`}</b>
+                </span>
+                <span className="tmi-cell">
+                  <i className="tmi-k">共享步进</i>
+                  <b className="tmi-v mono">{tlSteps.length ? `${multiIndex + 1} / ${multiSpan}` : '0 / 0'}</b>
+                </span>
+                <span className="tmi-cell" title="步数最多的任务，作为共享进度的刻度">
+                  <i className="tmi-k">基准任务</i>
+                  <b className="tmi-v mono">{multiRef ? `${idPrefix(multiRef.task.id, 13)} · ${MODEL_LABEL[multiRef.kind]}` : '—'}</b>
+                </span>
+                <span className="tmi-cell">
+                  <i className="tmi-k">任务总数</i>
+                  <b className="tmi-v mono">{`${allTasks.length} 条`}</b>
+                </span>
+              </div>
+            </>
+          )
+        ) : traced ? (
           <>
             <div className="tmi-lead">
               <span className={`badge s-${String(traced.status || '')}`}>{statusLabel(traced.status)}</span>
@@ -1880,7 +2416,7 @@ export default function TaskTrajectoryMap({
               <button
                 key={r.id}
                 type="button"
-                className={`tmc-row ${r.id === tracedId ? 'on' : ''}`}
+                className={`tmc-row ${(multi ? multiSelectedIds.has(String(r.id)) : r.id === tracedId) ? 'on' : ''}`}
                 onClick={() => pickTask(r)}
                 title={`${r.id} · ${MODEL_LABEL[r.kind]} · ${r.sourceName}（${r.source}）· ${statusLabel(r.status)} · P${r.priority}`}
               >
@@ -1924,7 +2460,7 @@ export default function TaskTrajectoryMap({
                 <button
                   key={q.id}
                   type="button"
-                  className={`tmc-q ${q.id === tracedId ? 'on' : ''}`}
+                  className={`tmc-q ${(multi ? multiSelectedIds.has(String(q.id)) : q.id === tracedId) ? 'on' : ''}`}
                   onClick={() => pickTask(q)}
                   title={`${q.id} · ${MODEL_LABEL[q.kind]} · ${q.sourceName}（${q.source}）· P${q.priority}`}
                 >
@@ -1944,192 +2480,79 @@ export default function TaskTrajectoryMap({
         </div>
       </div>
 
-      <div className="tmap-canvas">
-        <svg
-          className="tmap-svg"
-          viewBox={`0 0 ${VB_W} ${VB_H}`}
-          width="100%"
-          role="img"
-          aria-label={`${MODEL_LABEL[kind]} 任务执行轨迹图`}
-        >
-          <title>{`${MODEL_LABEL[kind]} 任务执行轨迹`}</title>
-          <defs>
-            {TONES.map((t) => (
-              <marker
-                key={t}
-                id={`tm-arrow-${t}`}
-                viewBox="0 0 8 8"
-                refX="7"
-                refY="4"
-                markerWidth="7.5"
-                markerHeight="7.5"
-                markerUnits="userSpaceOnUse"
-                orient="auto"
-              >
-                <path className={`tm-arrow ${t}`} d="M0,0.7 L7.6,4 L0,7.3 Z" />
-              </marker>
-            ))}
-          </defs>
-
-          <g className="tm-guides">
-            {/* 数据中心容器：包含 scheduler + medical-server + dc-services + redis；
-                连线垂直穿越其发丝边框，所有折行都落在容器之外。 */}
-            <g className={`tm-dc ${dcLive ? 'live' : ''}`}>
-              <rect
-                className="tm-dc-panel"
-                x={DC_PANEL.x}
-                y={DC_PANEL.y}
-                width={DC_PANEL.w}
-                height={DC_PANEL.h}
-                rx="3"
-              />
-              <rect className="tm-dc-bar" x={DC_PANEL.x} y={DC_PANEL.y} width="3" height={DC_PANEL.h} />
-              <text className="tm-dc-title" x={DC_PANEL.x + 16} y={DC_PANEL.y + 21}>
-                {TIER_TEXT.cloud}
-              </text>
-              <text
-                className="tm-dc-meta mono"
-                x={DC_PANEL.x + DC_PANEL.w - 16}
-                y={DC_PANEL.y + 21}
-                textAnchor="end"
-              >
-                {`组件 ${DC_NODES.length} · 运行中 ${dcSummary.running} · 排队 ${dcSummary.queued}`}
-              </text>
-              <line
-                className="tm-dc-rule"
-                x1={DC_PANEL.x + 14}
-                y1={DC_PANEL.y + 29}
-                x2={DC_PANEL.x + DC_PANEL.w - 14}
-                y2={DC_PANEL.y + 29}
-              />
-            </g>
-            <line className="tm-rule" x1="72" y1="20" x2="72" y2="640" />
-            <line className="tm-sep" x1="72" y1="190" x2={VB_W - 12} y2="190" />
-            <line className="tm-sep" x1="72" y1="424" x2={VB_W - 12} y2="424" />
-            {TIER_LABEL.map((t) => (
-              <text
-                key={t.text}
-                className="tm-tier mono"
-                x="44"
-                y={t.y}
-                textAnchor="middle"
-                transform={`rotate(-90 44 ${t.y})`}
-              >
-                {t.text}
-              </text>
-            ))}
-          </g>
-
-          <g className="tm-edges ghost-layer">
-            {['ghost', 'unrelated', 'pending'].flatMap((tone) => view.edges
-              .filter((e) => edgeTone.get(e.key) === tone)
-              .map((e) => (
-                <g key={`g-${e.key}`} className={toneClass(tone as Tone)}>
-                  <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${tone})`} />
-                  <text
-                    className="tm-edge-label"
-                    x={e.label_at.x}
-                    y={e.label_at.y}
-                    textAnchor={e.label_at.anchor}
-                  >
-                    {e.label}
-                  </text>
-                </g>
-              )))}
-          </g>
-
-          <g className="tm-edges live-layer">
-            {['past', 'current', 'failed'].flatMap((tone) => view.edges
-              .filter((e) => edgeTone.get(e.key) === tone)
-              .map((e) => (
-                <g key={`l-${e.key}`} className={toneClass(tone as Tone)}>
-                  <path className="tm-line" d={e.d} markerEnd={`url(#tm-arrow-${tone})`} />
-                  <text
-                    className="tm-edge-label"
-                    x={e.label_at.x}
-                    y={e.label_at.y}
-                    textAnchor={e.label_at.anchor}
-                  >
-                    {e.label}
-                  </text>
-                </g>
-              )))}
-          </g>
-
-          <g className="tm-dots">
-            {dotEdges.map((e) => (
-              <circle key={`d-${e.key}`} className={`tm-dot ${edgeTone.get(e.key) || 'current'}`} r="3.4">
-                <animateMotion dur="3.2s" repeatCount="indefinite" path={e.d} />
-              </circle>
-            ))}
-          </g>
-
-          <g className="tm-nodes">
-            {view.nodeIds.map((id) => {
-              const b = boxOf(id);
-              if (!b) return null;
-              const meta = labelOf(id);
-              const state = nodeTone.get(id) || 'ghost';
-              const focused = state === 'past' || state === 'current' || state === 'failed';
-              const ringed = state === 'current' || state === 'failed';
-              const job = isJob(id);
-
-              if (job) {
-                const r = b.w / 2;
-                return (
-                  <g key={id} className={['tm-node', 'job', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
-                    <title>{`日常任务 Job · ${meta.name}（${meta.caption}）`}</title>
-                    {ringed && <circle className="tm-ring" cx={b.x} cy={b.y} r={r + 5} />}
-                    <circle className="tm-box job-box" cx={b.x} cy={b.y} r={r} />
-                    <g className="tm-icon tm-icon-sm" transform={`translate(${b.x - 6} ${b.y - 17}) scale(0.5)`}>
-                      {iconShapes('job')}
-                    </g>
-                    <text className="tm-node-name" x={b.x} y={b.y + 8} textAnchor="middle">{meta.name}</text>
-                    <text className="tm-node-cap" x={b.x} y={b.y + 20} textAnchor="middle">{meta.caption}</text>
-                  </g>
-                );
-              }
-
-              const mx = b.x - b.w / 2 + MEDAL_INSET;
-              const tx = b.x - b.w / 2 + TEXT_INSET;
+      <div className={multi ? 'tmap-canvas tmap-multi' : 'tmap-canvas'}>
+        {multi ? (
+          multiRows.length ? (
+            multiRows.map((r) => {
+              const at = multiCursorAt(r.steps.length);
+              const step = r.steps[at];
               return (
-                <g key={id} className={['tm-node', focused ? 'active' : '', state].filter(Boolean).join(' ')}>
-                  <title>{`${meta.name}${meta.id && meta.id !== meta.name ? `（${meta.id}）` : ''} · ${meta.caption}`}</title>
-                  {ringed && <circle className="tm-ring" cx={mx} cy={b.y} r={RING_R} />}
-                  <rect
-                    className={`tm-tier-flag ${tierOf(id)}`}
-                    x={b.x - b.w / 2}
-                    y={b.y - 14}
-                    width="3"
-                    height="28"
-                  />
-                  <circle className="tm-medal" cx={mx} cy={b.y} r={MEDAL_R} />
-                  <g className="tm-icon" transform={`translate(${mx - 12} ${b.y - 12})`}>
-                    {iconShapes(iconKindOf(id))}
-                  </g>
-                  <text className="tm-node-name" x={tx} y={b.y - 3} textAnchor="start">{meta.name}</text>
-                  <text className="tm-node-cap" x={tx} y={b.y + 12} textAnchor="start">{meta.caption}</text>
-                </g>
+                <div className="tmg-row" key={r.task.id}>
+                  <button
+                    type="button"
+                    className="tmg-head"
+                    onClick={() => focusTask(String(r.task.id), r.kind)}
+                    title={`放大到「${idPrefix(r.task.id, 13)}」的单任务轨迹（${MODEL_LABEL[r.kind]}）`}
+                  >
+                    <i className="tmg-kind" style={{ background: MODEL_COLOR[r.kind] }} />
+                    <b className="tmg-kindlab">{MODEL_LABEL[r.kind]}</b>
+                    <i className="tmg-id mono">{idPrefix(r.task.id, 13)}</i>
+                    <span className="tmg-src">{entityName(r.task.source)}</span>
+                    <span className={`badge s-${String(r.task.status || '')}`}>{statusLabel(r.task.status)}</span>
+                    <i className="tmg-dur mono">{durationText(r.task)}</i>
+                    <b className="tmg-cur">{step ? `${circled(at)} ${step.label}` : '未定位到步骤'}</b>
+                  </button>
+                  {/* 每行一个 SVG：几何与单任务完全同源，整体由 viewBox 等比缩小 */}
+                  <div className="tmg-figure" style={{ height: MULTI_ROW_H }}>
+                    <TrajectoryGraph
+                      task={r.task}
+                      kind={r.kind}
+                      cursor={at}
+                      compact
+                      reduced={reduced}
+                      running={dcSummary.running}
+                      queued={dcSummary.queued}
+                    />
+                  </div>
+                </div>
               );
-            })}
-          </g>
-        </svg>
+            })
+          ) : (
+            <div className="tmg-empty xs muted">
+              暂无任务 · 提交任务后可在同一块画布上对比多条执行轨迹
+            </div>
+          )
+        ) : (
+          <TrajectoryGraph
+            task={traced}
+            kind={singleKind}
+            cursor={cursor}
+            reduced={reduced}
+            running={dcSummary.running}
+            queued={dcSummary.queued}
+          />
+        )}
       </div>
 
       <div className="tmap-timeline">
         <div className="tm-tl-head">
           <span className="tm-tl-title">
             <span className="eyebrow">执行时序</span>
-            {active.mode === 'auto' && !reduced && (
+            {tlMode === 'auto' && !reduced && (
               <i className="tm-loop mono">循环演示</i>
+            )}
+            {multi && multiRef && (
+              <i className="tm-tl-base mono" title="步数最多的任务，作为共享进度的刻度">
+                {`基准 ${idPrefix(multiRef.task.id, 13)} · ${multiSpan} 步`}
+              </i>
             )}
           </span>
           <span className="tm-tl-ctl">
             <button
               type="button"
               className="mini"
-              onClick={onReset}
-              disabled={!canStep}
+              onClick={onTlReset}
+              disabled={!tlCanStep}
               title="回到第 ① 步"
             >
               ⏮ 重置
@@ -2137,8 +2560,8 @@ export default function TaskTrajectoryMap({
             <button
               type="button"
               className="mini"
-              onClick={onPrev}
-              disabled={!canStep || cursor <= 0}
+              onClick={onTlPrev}
+              disabled={!tlCanStep || tlCursor <= 0}
               title="上一步（切换到手动）"
             >
               ◀ 上一步
@@ -2146,45 +2569,49 @@ export default function TaskTrajectoryMap({
             <button
               type="button"
               className="mini"
-              onClick={onNext}
-              disabled={!canStep || cursor >= lastStep}
+              onClick={onTlNext}
+              disabled={!tlCanStep || tlCursor >= tlSteps.length - 1}
               title="下一步（切换到手动）"
             >
               下一步 ▶
             </button>
             <button
               type="button"
-              className={`mini ${active.mode === 'auto' ? 'on' : ''}`}
-              onClick={onAuto}
-              disabled={!canStep || stepsLen < 2 || reduced}
-              aria-pressed={active.mode === 'auto'}
+              className={`mini ${tlMode === 'auto' ? 'on' : ''}`}
+              onClick={onTlAuto}
+              disabled={!tlCanStep || tlSteps.length < 2 || reduced}
+              aria-pressed={tlMode === 'auto'}
               title={reduced ? '已启用「减少动态效果」，自动循环关闭' : '自动循环演示（每步 2.5s，末步停留 3s 后回到 ①）'}
             >
-              {active.mode === 'auto' ? '⏸ 暂停自动' : '▶ 自动'}
+              {tlMode === 'auto' ? '⏸ 暂停自动' : '▶ 自动'}
             </button>
           </span>
           <span className="tm-tl-stat mono">
-            {totalMs !== undefined && <i className="tm-tl-total">合计 {fmtMs(totalMs)}</i>}
+            {tlTotalMs !== undefined && (
+              <i className="tm-tl-total">{`${multi ? '基准合计' : '合计'} ${fmtMs(tlTotalMs)}`}</i>
+            )}
             <i className="tm-tl-count">
-              {!stepsLen ? '0/0' : cursor < 0 ? `—/${stepsLen}` : `${cursor + 1}/${stepsLen}`}
+              {!tlSteps.length ? '0/0' : tlCursor < 0 ? `—/${tlSteps.length}` : `${tlCursor + 1}/${tlSteps.length}`}
             </i>
-            <i className={`tm-tl-mode ${active.mode}`}>
-              {active.mode === 'auto' ? '自动' : active.mode === 'manual' ? '手动' : '实时'}
+            <i className={`tm-tl-mode ${tlMode}`}>
+              {tlMode === 'auto' ? '自动' : tlMode === 'manual' ? '手动' : '实时'}
             </i>
           </span>
         </div>
-        {stepsLen ? (
+        {tlSteps.length ? (
           <ol className="tm-tl-steps">
-            {steps.map((s, i) => {
-              const tone: Tone = !traced ? 'ghost' : (stepTones[i] || 'pending');
+            {tlSteps.map((s, i) => {
+              const tone: Tone = multi
+                ? (tlTones[i] || 'pending')
+                : (!traced ? 'ghost' : (stepTones[i] || 'pending'));
               return (
                 <li key={`${s.ref}-${i}`} className={`tm-tl-step ${tone}`}>
                   <button
                     type="button"
                     className="tm-tl-chip"
-                    onClick={() => jumpTo(i)}
-                    disabled={!traced}
-                    aria-current={i === cursor ? 'step' : undefined}
+                    onClick={() => onTlJump(i)}
+                    disabled={multi ? false : !traced}
+                    aria-current={i === tlCursor ? 'step' : undefined}
                     title={`${circled(i)} ${s.label}${s.detail ? ` · ${s.detail}` : ''}${s.durationMs !== undefined ? ` · ${fmtMs(s.durationMs)}` : ''}`}
                   >
                     <span className="tm-tl-no mono">{circled(i)}</span>
@@ -2194,29 +2621,38 @@ export default function TaskTrajectoryMap({
                         ∥{s.items.length}
                       </span>
                     )}
+                    {multi && !!multiHits[i] && (
+                      <span className="tm-tl-hit mono" title={`${multiHits[i]} 条轨迹停在此步`}>
+                        {`${multiHits[i]} 条`}
+                      </span>
+                    )}
                     <span className="tm-tl-meta mono">{stepMeta(s)}</span>
-                    {i === cursor && !reduced && active.mode === 'auto' && (
+                    {i === tlCursor && !reduced && tlMode === 'auto' && (
                       <i
-                        key={`prog-${cursor}`}
+                        key={`prog-${tlCursor}`}
                         className="tm-tl-prog"
-                        style={{ animationDuration: `${autoplayDelay(s, i >= lastStep)}ms` }}
+                        style={{ animationDuration: `${autoplayDelay(s, i >= tlSteps.length - 1)}ms` }}
                       />
                     )}
                   </button>
-                  {i < stepsLen - 1 && <i className={`tm-tl-link ${tone}`} />}
+                  {i < tlSteps.length - 1 && <i className={`tm-tl-link ${tone}`} />}
                 </li>
               );
             })}
           </ol>
         ) : (
-          <div className="tm-tl-empty xs muted">该类型暂无任务 · 选择任务后显示执行时序</div>
+          <div className="tm-tl-empty xs muted">
+            {multi ? '暂无同屏任务 · 请在上方选择要对比的任务' : '该类型暂无任务 · 选择任务后显示执行时序'}
+          </div>
         )}
-        {hasParallel && (
+        {tlHasParallel && (
           <div className="tm-tl-par">
-            {curStep?.items && curStep.items.length > 1 ? (
+            {tlCurStep?.items && tlCurStep.items.length > 1 ? (
               <>
-                <i className="tm-tl-par-tag mono">∥ {curStep.label} · {curStep.items.length} 项并行</i>
-                {curStep.items.map((it) => (
+                <i className="tm-tl-par-tag mono">
+                  {`∥ ${tlCurStep.label} · ${tlCurStep.items.length} 项并行${multi ? ' · 基准任务' : ''}`}
+                </i>
+                {tlCurStep.items.map((it) => (
                   <span className="tm-tl-par-item" key={it.ref}>
                     <b>{it.label}</b>
                     {it.detail && <i className="tm-tl-par-detail">{it.detail}</i>}
@@ -2239,11 +2675,15 @@ export default function TaskTrajectoryMap({
           </span>
         ))}
         <span className="tm-legend-note muted xs">
-          {!traced
-            ? '尚无该类型任务，仅绘制标准路径'
-            : curStep
-              ? `${active.mode === 'auto' ? '循环演示' : active.mode === 'manual' ? '手动逐步' : '跟随实时阶段'} · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
-              : '该任务发起方未知，未绘制实际连线'}
+          {multi
+            ? (multiRows.length
+              ? `${tlMode === 'auto' ? '循环演示' : tlMode === 'manual' ? '手动逐步' : '跟随实时阶段'} · 同屏 ${multiRows.length} 条 · 共享进度 ${Math.round(multiProg * 100)}% · ${circled(multiIndex)} ${multiRefSteps[multiIndex]?.label || '—'}`
+              : '尚无同屏任务，未绘制任何轨迹')
+            : !traced
+              ? '尚无该类型任务，仅绘制标准路径'
+              : curStep
+                ? `${active.mode === 'auto' ? '循环演示' : active.mode === 'manual' ? '手动逐步' : '跟随实时阶段'} · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
+                : '该任务发起方未知，未绘制实际连线'}
         </span>
       </div>
     </section>
@@ -2257,6 +2697,7 @@ export default function TaskTrajectoryMap({
  */
 export const __internals = {
   nextPlayState,
+  nextSharedState,
   iconKindOf,
   buildLanes,
   autoplayDelay,
@@ -2268,4 +2709,12 @@ export const __internals = {
   failureStepIndex,
   initialPlayState,
   CANON,
+  // 多任务同屏对比：候选排序 / 默认选择 / 共享进度换算
+  MULTI_MAX,
+  MULTI_PICK_MAX,
+  taskKindOf,
+  multiCandidates,
+  defaultMultiIds,
+  sharedProgress,
+  sharedCursor,
 };
