@@ -48,7 +48,8 @@
 .up-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; }
 
 /* 唯一的居中列：提交卡与所有记录同宽同列 */
-.up-scroll { flex: 1; overflow-y: auto; padding: 20px 24px 32px; }
+/* 顶部留白：提交卡不贴着页面顶端，整体略向下压 */
+.up-scroll { flex: 1; overflow-y: auto; padding: 64px 24px 40px; }
 .up-col {
   width: 100%; max-width: 880px; margin: 0 auto;
   display: flex; flex-direction: column; gap: 14px;

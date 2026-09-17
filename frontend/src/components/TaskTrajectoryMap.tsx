@@ -1412,7 +1412,7 @@ const MULTI_TAB = 'multi';
 /** 同一张图上同时绘制的任务条数上限 */
 const MULTI_MAX = 4;
 /** 任务选择芯片行的候选条数上限 */
-const MULTI_PICK_MAX = 6;
+const MULTI_PICK_MAX = 8;
 
 /**
  * 每条同屏任务的轨迹色（暖纸墨色系，与四类任务底色谱系相容）：
@@ -1438,20 +1438,38 @@ function multiRank(task: TaskItem): number {
   return 2;
 }
 
-/**
- * 多任务候选：运行中 / 排队优先，其次最近完成（sortTasks 已按开始时间倒序，
- * 稳定排序保证同一权重内仍是最近优先）。
- */
-function multiCandidates(list: TaskItem[]): TaskItem[] {
+/** 候选排序：运行中 → 排队 → 最近完成（同权重内保持「最近优先」）。 */
+function multiRanked(list: TaskItem[]): TaskItem[] {
   const all = (Array.isArray(list) ? list : []).filter((t) => t && t.id);
-  return sortTasks(all)
-    .sort((a, b) => multiRank(a) - multiRank(b))
-    .slice(0, MULTI_PICK_MAX);
+  return sortTasks(all).sort((a, b) => multiRank(a) - multiRank(b));
 }
 
-/** 默认同屏选择：运行中 / 排队优先，取前 MULTI_MAX 条。 */
+/**
+ * 多任务候选芯片：先放默认的四条（每类各一条，顺序固定），
+ * 再补上其余最近的任务，保证「默认四类」始终可选，同时仍能换选别的任务。
+ */
+function multiCandidates(list: TaskItem[]): TaskItem[] {
+  const defaults = defaultMultiTasks(list);
+  const picked = new Set(defaults.map((t) => String(t.id)));
+  const rest = multiRanked(list).filter((t) => !picked.has(String(t.id)));
+  return [...defaults, ...rest].slice(0, MULTI_PICK_MAX);
+}
+
+/**
+ * 默认同屏选择：**每类任务各取一条**（诊断 / 计算 / 通信 / 日常 依次），
+ * 同类内按 运行中 → 排队 → 最近完成 取最优的一条，最多 MULTI_MAX 条。
+ * 这样默认画面同时覆盖四种不同类型的任务，而不是清一色的同一类。
+ */
+function defaultMultiTasks(list: TaskItem[]): TaskItem[] {
+  const ranked = multiRanked(list);
+  return MODELS
+    .map((k) => ranked.find((t) => taskKindOf(t) === k))
+    .filter((t): t is TaskItem => !!t)
+    .slice(0, MULTI_MAX);
+}
+
 function defaultMultiIds(list: TaskItem[]): string[] {
-  return multiCandidates(list).slice(0, MULTI_MAX).map((t) => String(t.id));
+  return defaultMultiTasks(list).map((t) => String(t.id));
 }
 
 /** 共享步进索引 → 归一化进度 0..1（单步任务恒为 0）。 */
@@ -2231,13 +2249,13 @@ export default function TaskTrajectoryMap({
   const multiCand = useMemo(() => multiCandidates(allTasks), [allTasks]);
   // 已选任务：默认取「运行 / 排队优先」，用户点选后完全跟随点选顺序
   const multiSel = useMemo(() => {
-    if (multiPicked === null) return multiCand.slice(0, MULTI_MAX);
+    if (multiPicked === null) return defaultMultiTasks(allTasks);
     const byId = new Map(allTasks.map((t) => [String(t.id), t]));
     return multiPicked
       .map((id) => byId.get(id))
       .filter((t): t is TaskItem => !!t)
       .slice(0, MULTI_MAX);
-  }, [multiPicked, multiCand, allTasks]);
+  }, [multiPicked, allTasks]);
   // 每条轨迹自己的步骤（共享进度的刻度 = 其中最长的一条）
   const multiRows = useMemo<TraceRow[]>(() => multiSel.map((task) => {
     const k = taskKindOf(task);
@@ -2462,7 +2480,7 @@ export default function TaskTrajectoryMap({
                 type="button"
                 className="mini"
                 onClick={() => { setMultiPicked(null); setMultiHint(''); }}
-                title={`恢复默认选择：运行中 / 排队优先，最多 ${MULTI_MAX} 条`}
+                title={`恢复默认选择：四类任务各取一条（同类内 运行中/排队优先），最多 ${MULTI_MAX} 条`}
               >
                 恢复默认
               </button>
