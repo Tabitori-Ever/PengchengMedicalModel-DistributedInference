@@ -9,7 +9,7 @@ import DatasetBrowser from './DatasetBrowser';
  * 提交卡：一张卡的两部分，标题行就是四个任务类型按钮。
  *
  * 上半是横条（诊断 / 计算 / 通信 / 日常），撑满整张卡、等分四格，选中的一格
- * 实底高亮；下半是卡身，只有两件事：选发起方、点「上传」打开数据集目录浏览器。
+ * 实底高亮；下半是卡身，只有两件事：选任务位置、点「上传」打开数据集目录浏览器。
  * 卡身不列任何数据集文件——文件列表只出现在弹窗里，选中后卡身显示文件名与说明。
  */
 export default function TaskForm({
@@ -50,7 +50,7 @@ export default function TaskForm({
 
       <div className="up-card-body">
         <div className="up-field">
-          <label className="up-label" htmlFor="up-source">发起方</label>
+          <label className="up-label" htmlFor="up-source">任务位置</label>
           <select
             id="up-source"
             className="up-select"

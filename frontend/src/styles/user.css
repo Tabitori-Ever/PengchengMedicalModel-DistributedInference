@@ -242,3 +242,20 @@
   .up-tab { font-size: 15px; letter-spacing: 0.08em; }
   .up-modal-mask { padding: 24px 12px; }
 }
+
+/* --------------------------------------------------------------------------
+   数据集弹窗 · 参数说明（解释该任务类型每个参数的含义）
+   -------------------------------------------------------------------------- */
+.up-params {
+  margin-top: 12px; padding: 12px 14px;
+  border: 1px solid var(--line); border-left: 2px solid var(--brass-line);
+  border-radius: var(--r-1); background: var(--panel);
+}
+.up-params-head {
+  font-size: 12px; letter-spacing: 0.16em; color: var(--brass-2);
+  font-weight: 600; margin-bottom: 8px;
+}
+.up-params-list { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.up-params-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.up-params-row dt { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.up-params-row dd { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-3); }

@@ -155,6 +155,21 @@ export default function DatasetBrowser({
                   </button>
                 ))}
               </div>
+
+              {folder.params && folder.params.length > 0 && (
+                <div className="up-params">
+                  <div className="up-params-head">参数说明</div>
+                  <dl className="up-params-list">
+                    {folder.params.map((h) => (
+                      <div className="up-params-row" key={h.k}>
+                        <dt>{h.k}</dt>
+                        <dd>{h.v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
               {folder.files.length > 0 && (
                 <button
                   type="button"

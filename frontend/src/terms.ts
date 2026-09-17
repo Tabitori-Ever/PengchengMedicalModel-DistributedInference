@@ -121,6 +121,6 @@ export function nodeRoleText(role?: string | null, name?: string): string {
 }
 
 /** 平台名称（供登录页 / 侧栏 / 首页使用） */
-export const PLATFORM_NAME = '三级协同医疗推理平台';
+export const PLATFORM_NAME = 'AI诊疗云边端协同应用平台';
 export const PLATFORM_TAGLINE = '数据中心 · 医疗中心 · 医院 协同推理';
 export const PLATFORM_SLOGAN = '数据不出院 · 算力集中化';

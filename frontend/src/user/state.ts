@@ -1,11 +1,11 @@
 /* ===========================================================================
    用户调用平台 · 会话状态（纯函数，便于在无 DOM 环境下验证）
 
-   用户只做两件事：选发起方、在「顶部任务类型 → 对应文件夹」里点选一个数据集
+   用户只做两件事：选任务位置、在「顶部任务类型 → 对应文件夹」里点选一个数据集
    文件。任务类型与全部参数都写在文件名/文件内容里，这里只保存：
 
      kind     顶部横条当前选中的任务类型（诊断 / 计算 / 通信 / 日常）
-     source   发起方（医院 1/2、医疗中心 A/B）
+     source   任务位置（医院 1/2、医疗中心 A/B）
      index    数据集目录（/app/datasets/index.json，进入页面读一次）
      file     当前类型文件夹中已选中的文件（含文件内容 params）
      records  本次会话的提交记录，最新在前（同一列里原地更新）
@@ -23,10 +23,10 @@ import { MODEL_LABEL, MODELS, SOURCES } from '../utils';
 import type { DatasetEntry, DatasetFileMeta, DatasetFolder, DatasetIndex, Submission } from './dataset';
 import { fetchEntry } from './dataset';
 
-/** 默认发起方：医院 1 */
+/** 默认任务位置：医院 1 */
 export const DEFAULT_SOURCE: SourceId = 'clinic-1';
 
-/** 发起方合法值校验（历史任务/文件里可能带来任意字符串） */
+/** 任务位置合法值校验（历史任务/文件里可能带来任意字符串） */
 export function asSource(v?: string | null): SourceId {
   const key = String(v ?? '');
   return SOURCES.includes(key as SourceId) ? (key as SourceId) : DEFAULT_SOURCE;

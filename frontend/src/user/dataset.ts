@@ -24,10 +24,18 @@ export interface DatasetFileMeta {
   bytes?: number;
 }
 
+/** 参数说明：k = 参数名（如「行数」），v = 含义 */
+export interface ParamHelp {
+  k: string;
+  v: string;
+}
+
 export interface DatasetFolder {
   id: string;
   name: string;
   files: DatasetFileMeta[];
+  /** 该任务类型各参数的含义（来自 index.json，用于弹窗里的「参数说明」） */
+  params?: ParamHelp[];
 }
 
 export interface DatasetIndex {
@@ -84,6 +92,9 @@ export async function fetchIndex(): Promise<DatasetIndex> {
         description: String(x?.description || ''),
         bytes: Number.isFinite(Number(x?.bytes)) ? Number(x.bytes) : undefined,
       })),
+      params: (Array.isArray(f?.params) ? f.params : [])
+        .map((x: any) => ({ k: String(x?.k || ''), v: String(x?.v || '') }))
+        .filter((x: ParamHelp) => x.k && x.v),
     })),
   };
 }
@@ -117,7 +128,7 @@ const int = (v: unknown): number | undefined => {
 };
 
 /**
- * 所选文件 + 发起方 → 提交载荷。
+ * 所选文件 + 任务位置 → 提交载荷。
  * 字段名与后端请求体一致，数值全部来自文件内容，界面不做任何改写。
  */
 export function buildSubmission(entry: DatasetEntry, source: SourceId): Submission {

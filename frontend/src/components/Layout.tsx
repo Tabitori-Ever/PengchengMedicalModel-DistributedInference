@@ -4,7 +4,7 @@ import { PLATFORM_NAME, PLATFORM_SLOGAN } from '../terms';
 /** 双环字母标：纯内联 SVG，无外部资源 */
 function Monogram() {
   return (
-    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label="三级协同医疗推理">
+    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label="AI诊疗云边端协同应用平台">
       <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.32" />
       <circle cx="24" cy="24" r="14" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <path d="M24 3v9M24 36v9M3 24h9M36 24h9" stroke="currentColor" strokeWidth="1" opacity="0.45" />

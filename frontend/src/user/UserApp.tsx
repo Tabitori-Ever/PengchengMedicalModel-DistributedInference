@@ -136,7 +136,7 @@ function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => v
           <b>{MODEL_LABEL[record.kind]}</b>
         </span>
         <span className="up-meta-item">
-          <i>发起方</i>
+          <i>任务位置</i>
           <b>{entityName(record.source)}</b>
         </span>
         <span className="up-meta-item">
