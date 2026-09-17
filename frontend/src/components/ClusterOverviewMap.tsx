@@ -621,18 +621,7 @@ export default function ClusterOverviewMap({
     <section className="card lmap">
       <div className="card-headrow">
         <h3 className="card-title">当前集群架构总览</h3>
-        <span className="muted xs mono">
-          {status?.version ? `v${status.version}` : '—'}
-          <i className="arch-meta-sep">·</i>
-          {`${entityCount} 个逻辑实体`}
-          <i className="arch-meta-sep">·</i>
-          {stamp ? `最后更新 ${stamp}` : '尚未更新'}
-        </span>
       </div>
-
-      <p className="eyebrow tmap-caption">
-        逻辑架构视图 —— 按 数据中心 / 医疗中心 / 医院 / 运维 分组，实体带节点归属，状态点为实时采集
-      </p>
 
       {error && <div className="cm-inline-err">集群拓扑接口异常：{error}（保留上次成功数据）</div>}
 

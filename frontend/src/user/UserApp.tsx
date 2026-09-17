@@ -2,15 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
 import type { ModelKind, SourceId, TaskItem } from '../types';
-import { MODEL_LABEL, MODELS, STATUS_LABEL } from '../utils';
+import { MODEL_LABEL, STATUS_LABEL } from '../utils';
 import { PLATFORM_NAME, entityName } from '../terms';
-import type { DatasetEntry, DatasetFileMeta } from './dataset';
+import type { DatasetEntry } from './dataset';
 import { buildSubmission, fetchIndex } from './dataset';
 import type { UserRecord, UserState } from './state';
 import {
-  addRecord, clearFocus, focusTask, folderFor, isPending, loadEntry, newTask, nextId,
+  addRecord, clearFocus, focusTask, isPending, loadEntry, newTask, nextId,
   patchFocus, patchRecord, pickFile, queuedResult, recordStatus, selectKind, selectSource,
-  sendSubmission, initialState, withIndex,
+  sendSubmission, initialState, withIndex, folderFor,
 } from './state';
 import TaskForm from './TaskForm';
 import UserResult from './UserResult';
@@ -27,20 +27,20 @@ const fmtTime = (iso?: string): string => {
 };
 
 /**
- * 用户调用平台（/app/user/）：左侧品牌 + 历史任务，主区顶部任务类型横条，
- * 下方是一条居中列（最大 880px）——提交卡在上，本次会话的记录依次在下。
+ * 用户调用平台（/app/user/）：左侧品牌 + 历史任务，主区是一条居中列
+ * （最大 880px）——提交卡在上（卡内标题行就是四个任务类型按钮），
+ * 本次会话的记录依次在下，全部同宽同列。
  * 没有任何左右分栏的气泡：提交与结果同在一条列里，等宽对齐。
  */
 export interface UserAppViewProps {
   state: UserState;
   busy: boolean;
-  busyPath: string;
   note: string;
   error: string;
   tasks: TaskItem[];
   onKind: (k: ModelKind) => void;
   onSource: (s: SourceId) => void;
-  onPick: (meta: DatasetFileMeta) => void;
+  onPick: (entry: DatasetEntry) => void;
   onSubmit: () => void;
   onNew: () => void;
   onOpenTask: (t: TaskItem) => void;
@@ -49,7 +49,6 @@ export interface UserAppViewProps {
 
 export function UserAppView(props: UserAppViewProps) {
   const { state, tasks } = props;
-  const folder = folderFor(state.index, state.kind);
   const focusId = state.focus?.taskId ?? null;
 
   return (
@@ -89,34 +88,17 @@ export function UserAppView(props: UserAppViewProps) {
       </aside>
 
       <main className="up-main">
-        <header className="up-head">
-          <div className="seg up-bar" role="tablist" aria-label="任务类型">
-            {MODELS.map((k) => (
-              <button
-                key={k}
-                type="button"
-                role="tab"
-                aria-selected={state.kind === k}
-                className={`seg-btn ${state.kind === k ? 'on' : ''}`}
-                onClick={() => props.onKind(k)}
-              >
-                {MODEL_LABEL[k]}
-              </button>
-            ))}
-          </div>
-        </header>
-
         <div className="up-scroll">
           <div className="up-col">
             <TaskForm
               kind={state.kind}
               source={state.source}
-              folder={folder}
+              index={state.index}
               file={state.file}
               busy={props.busy}
-              busyPath={props.busyPath}
               note={props.note}
               error={props.error}
+              onKind={props.onKind}
               onSource={props.onSource}
               onPick={props.onPick}
               onSubmit={props.onSubmit}
@@ -170,11 +152,10 @@ function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => v
   );
 }
 
-/** 容器：读目录 → 选类型/文件 → 提交 → 轮询记录 */
+/** 容器：读目录 → 选类型/上传选文件 → 提交 → 轮询记录 */
 export default function UserApp() {
   const [state, setState] = useState<UserState>(initialState);
   const [busy, setBusy] = useState(false);
-  const [busyPath, setBusyPath] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -189,7 +170,7 @@ export default function UserApp() {
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
-  // 进入页面读一次目录；顶部横条的当前类型据此立即列出对应文件夹
+  // 进入页面读一次目录；弹窗据此直接进入当前类型对应的文件夹
   useEffect(() => {
     let disposed = false;
     fetchIndex()
@@ -226,7 +207,7 @@ export default function UserApp() {
     return () => { disposed = true; window.clearInterval(iv); };
   }, [pendingKey, loadTasks]);
 
-  /** 选中类型：提交卡立刻改列该类型的文件夹（已选文件随文件夹失效） */
+  /** 选中类型：已选文件随之失效（下次上传在弹窗里进入新类型的文件夹） */
   const onKind = (k: ModelKind) => {
     setError('');
     setNote('');
@@ -235,19 +216,11 @@ export default function UserApp() {
 
   const onSource = (s: SourceId) => setState((st) => selectSource(st, s));
 
-  /** 点选文件：只读取这一个文件（fetchEntry），选中后 执行 才可用 */
-  const onPick = async (meta: DatasetFileMeta) => {
-    setBusyPath(meta.path);
+  /** 弹窗里选中文件：文件内容已由 DatasetBrowser 读取，选中后 执行 才可用 */
+  const onPick = (entry: DatasetEntry) => {
     setError('');
     setNote('');
-    try {
-      const entry: DatasetEntry = await loadEntry(meta);
-      setState((s) => pickFile(s, entry));
-    } catch (e: any) {
-      setNote(`读取失败：${String(e?.message || e)}`);
-    } finally {
-      setBusyPath('');
-    }
+    setState((s) => pickFile(s, entry));
   };
 
   /** 提交：按文件自带的类型派发，成功后在列首新增一条记录 */
@@ -306,7 +279,6 @@ export default function UserApp() {
     <UserAppView
       state={state}
       busy={busy}
-      busyPath={busyPath}
       note={note}
       error={error}
       tasks={tasks}

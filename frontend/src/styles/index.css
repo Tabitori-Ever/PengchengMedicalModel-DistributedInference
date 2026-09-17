@@ -1752,12 +1752,6 @@ input[type='file'] { padding: 7px; }
    kind tabs and the task picker. Existing classes are untouched.
    ========================================================================== */
 .tmap .card-headrow { margin-bottom: 10px; }
-.tmap-caption {
-  display: block;
-  margin-bottom: 14px;
-  line-height: 1.75;
-  letter-spacing: 0.1em;
-}
 
 .tmap-controls {
   display: grid;
@@ -2008,7 +2002,6 @@ input[type='file'] { padding: 7px; }
 .tm-legend-line.current { border-top-color: var(--orange); }
 .tm-legend-line.pending { border-top-width: 1px; border-top-color: rgba(148, 107, 60, 0.5); }
 .tm-legend-line.failed { border-top-color: var(--rust); }
-.tm-legend-note { margin-left: auto; }
 
 @media (prefers-reduced-motion: reduce) {
   .tm-edge .tm-line, .tm-ring, .tm-dot, .tmap-row-dot { animation: none !important; }
@@ -2212,16 +2205,6 @@ input[type='file'] { padding: 7px; }
 
 /* ---- playback controls (one row with the chips) ---- */
 .tm-tl-title { display: inline-flex; align-items: center; gap: 10px; }
-.tm-loop {
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  color: #b45f0d;
-  background: rgba(237, 130, 27, 0.09);
-  border: 1px solid rgba(237, 130, 27, 0.45);
-  border-radius: var(--r-1);
-  padding: 1px 6px;
-  animation: pulse 2.4s ease-in-out infinite;
-}
 .tm-tl-stat { display: inline-flex; align-items: center; gap: 10px; }
 .tm-tl-total { font-style: normal; font-size: 10px; letter-spacing: 0.08em; color: var(--grey-2); }
 .tm-tl-count { font-style: normal; font-size: 10px; letter-spacing: 0.1em; color: var(--grey-3); }
@@ -2257,7 +2240,6 @@ input[type='file'] { padding: 7px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tm-loop { animation: none; }
   .tm-tl-prog { display: none; }
 }
 
@@ -2810,7 +2792,6 @@ h4.sub-title { color: var(--ink); }
 .tm-tier { font-size: 11px; letter-spacing: 0.14em; }
 .tm-dc-title { font-size: 10.5px; letter-spacing: 0.14em; }
 .tm-node-cap { font-size: 8.5px; letter-spacing: 0.02em; }
-.tm-loop { font-size: 9.5px; letter-spacing: 0.1em; }
 .tm-tl-mode { font-size: 9.5px; letter-spacing: 0.08em; }
 
 /* 节点资源小框（ClusterOverviewMap 右侧栏） */

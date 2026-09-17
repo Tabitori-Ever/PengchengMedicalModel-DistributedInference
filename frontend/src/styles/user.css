@@ -1,9 +1,10 @@
 /* ==========================================================================
-   用户调用平台（/app/user/）专用样式 · v3.2
+   用户调用平台（/app/user/）专用样式 · v3.1.6
 
-   布局：左侧品牌 + 历史任务，主区顶部「任务类型」横条（沿用管理侧 .seg 的
-   视觉语言），横条下方是一条居中的列（max-width 880px, margin 0 auto）：
+   布局：左侧品牌 + 历史任务，主区是一条居中的列（max-width 880px, margin 0 auto）：
    提交卡在上，本次会话的记录依次在下，全部同宽同列。
+   提交卡是一张卡的两个部分——标题行就是四个任务类型按钮（等分四格、实底高亮），
+   卡身只有「发起方 + 上传」；数据集文件只出现在上传打开的面板里，卡内不列文件。
    没有任何左右分栏的气泡，也不存在左右对齐的行。正文 16px，全部中文。
    ========================================================================== */
 
@@ -45,19 +46,9 @@
 
 /* --------------------------------------------------------------- 主区 */
 .up-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; }
-.up-head { padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--paper); }
-
-/* 顶部任务类型横条：管理侧 .seg 的同一套视觉语言，撑满主区宽度 */
-.up-bar { display: flex; width: 100%; }
-.up-bar .seg-btn {
-  flex: 1 1 0; text-align: center;
-  font-size: 15px; padding: 10px 0; letter-spacing: 0.16em;
-  font-weight: 500;
-}
-
-.up-scroll { flex: 1; overflow-y: auto; padding: 20px 24px 32px; }
 
 /* 唯一的居中列：提交卡与所有记录同宽同列 */
+.up-scroll { flex: 1; overflow-y: auto; padding: 20px 24px 32px; }
 .up-col {
   width: 100%; max-width: 880px; margin: 0 auto;
   display: flex; flex-direction: column; gap: 14px;
@@ -89,36 +80,154 @@
 
 .up-result { border-top: 1px solid var(--line-soft); padding-top: 12px; }
 
-/* ------------------------------------------------------ 提交卡：发起方与文件 */
+/* ------------------------------------------- 提交卡：卡头横条 + 卡身（一张卡） */
+/* 提交卡去掉自身内边距，让四个任务类型按钮成为这张卡真正的标题行 */
+.up-submit { padding: 0; gap: 0; }
+
+/* 任务类型横条：撑满整张卡、四格等分、每格 46px 高 */
+.up-bar {
+  display: flex; width: 100%;
+  background: var(--panel-2);
+  /* 卡头 / 卡身之间的一条 1px 细分隔线 */
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--line);
+  border-radius: calc(var(--r-2) - 1px) calc(var(--r-2) - 1px) 0 0;
+}
+.up-tab {
+  flex: 1 1 0; min-width: 0; height: 46px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent;
+  font-size: 16px; font-weight: 500; letter-spacing: 0.16em; color: var(--grey-3);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.up-tab + .up-tab { border-left: 1px solid var(--line-soft); }
+.up-tab:hover { color: var(--ink); background: rgba(8, 10, 8, 0.035); }
+.up-tab.on { background: var(--brass-2); color: #f4f2ee; font-weight: 600; }
+.up-tab.on:hover { background: var(--brass-2); }
+
+/* 卡身：与横条只隔一条 1px 细分隔线 + 14px 内边距，不出现大片空白 */
+.up-card-body {
+  padding: 14px 18px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* 发起方：中文名 + 小字 mono 技术标识 */
 .up-field { display: flex; align-items: center; gap: 12px; }
 .up-label { flex: 0 0 auto; font-size: 14px; color: var(--grey-3); letter-spacing: 0.1em; }
 .up-select { flex: 1 1 auto; font-size: 16px; padding: 9px 30px 9px 12px; }
+.up-src-id { flex: 0 0 auto; color: var(--grey-2); }
 
-/* 当前类型文件夹里的数据集文件：一行一个，点一下即选中 */
-.up-files { display: flex; flex-direction: column; gap: 6px; }
-.up-file {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline; row-gap: 3px; column-gap: 16px;
-  width: 100%; text-align: left; padding: 11px 14px;
-  background: var(--panel-2); border: 1px solid var(--line);
-  border-left: 2px solid transparent; border-radius: var(--r-1);
-  transition: border-color var(--t-fast), background var(--t-fast);
+/* 上传：数据入口，实心棕铜描边，比一般小按钮更显眼 */
+.up-up-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.up-up {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 22px; font-size: 16px; font-weight: 600; letter-spacing: 0.08em;
+  border: 1px solid var(--brass-line); border-radius: var(--r-1);
+  background: var(--panel-2); color: var(--brass-2);
+  transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
 }
-.up-file:hover:not(:disabled) {
-  border-color: var(--brass-line); border-left-color: var(--brass-2); background: var(--brass-soft);
+.up-up:hover { border-color: var(--brass-2); background: var(--brass-soft); }
+.up-up.on { border-color: var(--brass-2); background: var(--brass-soft); }
+.up-up-glyph { font-size: 15px; line-height: 1; }
+
+/* 已选文件：中文名 + 说明 */
+.up-picked { display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.up-picked-name {
+  font-size: 16px; font-weight: 600; color: var(--ink);
+  letter-spacing: 0.02em; word-break: break-all;
 }
-.up-file.on { border-color: var(--brass-2); border-left-color: var(--brass-2); background: var(--brass-soft); }
-.up-file.busy { opacity: 0.6; }
-.up-file:disabled { opacity: 0.5; }
-.up-file-name { grid-column: 1; font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; word-break: break-all; }
-.up-file-desc { grid-column: 1; font-size: 14px; color: var(--grey-3); }
-.up-file-size { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--grey-2); white-space: nowrap; }
+.up-picked-desc { font-size: 14px; color: var(--grey-3); }
 
 .up-note { font-size: 14px; color: var(--grey-3); }
 .up-note.bad { color: var(--rust); }
 
 /* 执行：整列宽，不做左右对齐 */
 .up-run { width: 100%; margin-top: 2px; font-size: 16px; padding: 11px 16px; letter-spacing: 0.18em; }
+
+/* --------------------------------------- 数据集目录浏览器（上传打开的面板） */
+.up-modal-mask {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(8, 10, 8, 0.34);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 76px 20px 32px; overflow-y: auto;
+}
+.up-modal {
+  width: min(760px, 100%); background: var(--panel);
+  border: 1px solid var(--line-strong); border-radius: var(--r-2);
+  box-shadow: 0 18px 46px rgba(8, 10, 8, 0.24);
+  display: flex; flex-direction: column; max-height: min(74vh, 640px);
+}
+.up-modal-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 16px; border-bottom: 1px solid var(--line);
+}
+.up-crumb { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.up-crumb-btn {
+  border: none; background: none; padding: 0;
+  font-size: 16px; font-weight: 600; color: var(--brass-2); letter-spacing: 0.03em;
+}
+.up-crumb-btn:disabled { color: var(--ink); cursor: default; }
+.up-crumb-btn:not(:disabled):hover { text-decoration: underline; }
+.up-crumb-sep { color: var(--grey-2); font-size: 15px; }
+.up-crumb-cur { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.03em; }
+.up-modal-type { font-size: 12.5px; color: var(--grey-2); letter-spacing: 0.12em; }
+.up-modal-x {
+  margin-left: auto; border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--ink-3); border-radius: var(--r-1); padding: 5px 14px; font-size: 14px;
+  transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+.up-modal-x:hover { border-color: var(--brass-2); color: var(--brass-2); background: var(--brass-soft); }
+.up-modal-body { padding: 14px 16px 16px; overflow-y: auto; }
+
+/* 根层：四个文件夹（含文件数量） */
+.up-browse-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.up-browse-dir {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  text-align: left; padding: 13px 14px; background: var(--panel-2);
+  border: 1px solid var(--line); border-left: 2px solid transparent; border-radius: var(--r-1);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.up-browse-dir:hover { border-color: var(--brass-line); background: var(--brass-soft); }
+.up-browse-dir.on { border-color: var(--brass-line); border-left-color: var(--brass-2); background: var(--brass-soft); }
+.up-browse-ico {
+  width: 22px; height: 16px; border: 1px solid var(--brass-2); border-radius: 1px 3px 3px 3px;
+  position: relative; background: linear-gradient(180deg, var(--brass-soft), transparent);
+}
+.up-browse-ico::before {
+  content: ''; position: absolute; left: -1px; top: -5px; width: 10px; height: 5px;
+  border: 1px solid var(--brass-2); border-bottom: none; border-radius: 2px 2px 0 0;
+  background: var(--panel-2);
+}
+.up-browse-name { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.05em; }
+.up-browse-count { color: var(--grey-3); font-size: 12.5px; }
+
+/* 文件夹内：文件（中文名 + 说明 + 体积 mono） */
+.up-browse-files { display: flex; flex-direction: column; gap: 6px; }
+.up-browse-file {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline;
+  row-gap: 3px; column-gap: 14px; width: 100%;
+  text-align: left; padding: 11px 14px; background: var(--panel-2);
+  border: 1px solid var(--line); border-left: 2px solid transparent; border-radius: var(--r-1);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.up-browse-file:hover:not(:disabled) {
+  border-color: var(--brass-line); border-left-color: var(--brass-2); background: var(--brass-soft);
+}
+.up-browse-file.on { border-color: var(--brass-2); border-left-color: var(--brass-2); }
+.up-browse-file:disabled { opacity: 0.55; }
+.up-browse-file-name {
+  grid-column: 1; font-size: 16px; font-weight: 600; color: var(--ink);
+  letter-spacing: 0.02em; word-break: break-all;
+}
+.up-browse-file-desc { grid-column: 1; font-size: 14px; color: var(--grey-3); }
+.up-browse-file-size { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--grey-2); white-space: nowrap; }
+.up-browse-back {
+  margin-top: 12px; padding-top: 11px; width: 100%; text-align: left;
+  border: none; border-top: 1px solid var(--line); background: none;
+  color: var(--brass-2); font-size: 14.5px; letter-spacing: 0.03em;
+}
+.up-browse-back:hover { color: var(--ink); }
 
 /* --------------------------------------------------------------- 窄屏 */
 @media (max-width: 820px) {
@@ -130,5 +239,6 @@
   .up-history { max-height: 220px; }
   .up-main { height: auto; }
   .up-scroll { overflow: visible; }
-  .up-bar .seg-btn { font-size: 14px; letter-spacing: 0.08em; }
+  .up-tab { font-size: 15px; letter-spacing: 0.08em; }
+  .up-modal-mask { padding: 24px 12px; }
 }

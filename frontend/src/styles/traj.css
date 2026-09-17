@@ -168,14 +168,6 @@
 .tm-legend-trace-kind { font-style: normal; font-size: 11px; color: var(--grey-3); }
 
 /* ---- D) 共享进度的时序条 ---- */
-.tm-tl-base {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--grey-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-1);
-  padding: 0 6px;
-}
 .tm-tl-hit {
   font-size: 9.5px;
   letter-spacing: 0.02em;

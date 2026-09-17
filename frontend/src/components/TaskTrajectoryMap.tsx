@@ -2389,26 +2389,14 @@ export default function TaskTrajectoryMap({
     () => new Set(multiRows.map((r) => String(r.task.id))),
     [multiRows],
   );
-  const multiSummary = `已选 ${multiRows.length} 条 · 运行中 ${multiRows.filter((r) => String(r.task.status || '') === 'running').length} · 排队 ${multiRows.filter((r) => String(r.task.status || '') === 'queued').length} · 共享进度 ${Math.round(multiProg * 100)}%`;
+  const multiSummary = `已选 ${multiRows.length} 条 · 运行中 ${multiRows.filter((r) => String(r.task.status || '') === 'running').length} · 排队 ${multiRows.filter((r) => String(r.task.status || '') === 'queued').length}`;
 
 
   return (
     <section className="card tmap">
       <div className="card-headrow">
         <h3 className="card-title">任务执行轨迹</h3>
-        <span className="muted xs mono">
-          {multi
-            ? `多任务 · 已选 ${multiRows.length} 条`
-            : traced
-              ? `${MODEL_LABEL[singleKind]} · ${shortId(traced.id)} · ${statusLabel(traced.status)}`
-              : `${MODEL_LABEL[singleKind]} · 标准路径`}
-        </span>
       </div>
-
-      <p className="eyebrow tmap-caption">
-        数据中心 / 医疗中心 / 医院 三层拓扑按时间顺序回放 —— 可用「上一步 / 下一步」手动逐步，
-        或「▶ 自动」循环演示；只有当前步骤为橙色高亮，已执行为灰色、待执行为淡灰虚线、无关链路最淡
-      </p>
 
       <div className="tmap-controls">
         <div className="seg tmap-tabs" role="tablist" aria-label="任务类型">
@@ -2524,28 +2512,6 @@ export default function TaskTrajectoryMap({
                     : `${circled(multiIndex)} ${multiRefSteps[multiIndex]?.label || '未定位到步骤'}`}
                 </b>
                 <span className="tmi-dur mono">{multiSummary}</span>
-                <span className="tmi-lead-fact">
-                  <i className="tmi-k">共享步进</i>
-                  <b className="tmi-v mono">{tlSteps.length ? `${multiIndex + 1} / ${multiSpan}` : '0 / 0'}</b>
-                </span>
-              </div>
-              <div className="tmi-meta">
-                <span className="tmi-cell">
-                  <i className="tmi-k">同屏任务</i>
-                  <b className="tmi-v mono">{`${multiRows.length} / ${MULTI_MAX} 条`}</b>
-                </span>
-                <span className="tmi-cell">
-                  <i className="tmi-k">图内轨迹</i>
-                  <b className="tmi-v mono">{`${multiRows.length} 条 / 一张拓扑`}</b>
-                </span>
-                <span className="tmi-cell" title="步数最多的任务，作为共享进度的刻度">
-                  <i className="tmi-k">基准任务</i>
-                  <b className="tmi-v mono">{multiRef ? `${idPrefix(multiRef.task.id, 13)} · ${MODEL_LABEL[multiRef.kind]}` : '—'}</b>
-                </span>
-                <span className="tmi-cell">
-                  <i className="tmi-k">任务总数</i>
-                  <b className="tmi-v mono">{`${allTasks.length} 条`}</b>
-                </span>
               </div>
             </>
           )
@@ -2653,14 +2619,6 @@ export default function TaskTrajectoryMap({
         <div className="tm-tl-head">
           <span className="tm-tl-title">
             <span className="eyebrow">执行时序</span>
-            {tlMode === 'auto' && !reduced && (
-              <i className="tm-loop mono">循环演示</i>
-            )}
-            {multi && multiRef && (
-              <i className="tm-tl-base mono" title="步数最多的任务，作为共享进度的刻度">
-                {`基准 ${idPrefix(multiRef.task.id, 13)} · ${multiSpan} 步`}
-              </i>
-            )}
           </span>
           <span className="tm-tl-ctl">
             <button
@@ -2765,7 +2723,7 @@ export default function TaskTrajectoryMap({
             {tlCurStep?.items && tlCurStep.items.length > 1 ? (
               <>
                 <i className="tm-tl-par-tag mono">
-                  {`∥ ${tlCurStep.label} · ${tlCurStep.items.length} 项并行${multi ? ' · 基准任务' : ''}`}
+                  {`∥ ${tlCurStep.label} · ${tlCurStep.items.length} 项并行`}
                 </i>
                 {tlCurStep.items.map((it) => (
                   <span className="tm-tl-par-item" key={it.ref}>
@@ -2801,17 +2759,6 @@ export default function TaskTrajectoryMap({
             ))}
           </span>
         )}
-        <span className="tm-legend-note muted xs">
-          {multi
-            ? (multiRows.length
-              ? `同一张拓扑 · 已执行为灰 / 待执行为淡灰虚 / 无关最淡；每条任务的色迹 = 它已执行与当前步骤，光环 = 该任务当前停在哪一步 · ${tlMode === 'auto' ? '循环演示' : tlMode === 'manual' ? '手动逐步' : '跟随实时阶段'} · 共享进度 ${Math.round(multiProg * 100)}% · 基准 ${circled(multiIndex)} ${multiRefSteps[multiIndex]?.label || '—'}`
-              : '尚无同屏任务，未绘制任何轨迹')
-            : !traced
-              ? '尚无该类型任务，仅绘制标准路径'
-              : curStep
-                ? `${active.mode === 'auto' ? '循环演示' : active.mode === 'manual' ? '手动逐步' : '跟随实时阶段'} · ${circled(cursor)} ${curStep.label}${curStep.detail ? ` · ${curStep.detail}` : ''}`
-                : '该任务发起方未知，未绘制实际连线'}
-        </span>
       </div>
     </section>
   );
