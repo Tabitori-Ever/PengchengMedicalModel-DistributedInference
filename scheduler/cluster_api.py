@@ -173,7 +173,7 @@ def _live_editable(apps, core, pods_all=None) -> Dict[str, dict]:
 
 
 def _live_readonly(apps, core, pods_all=None) -> List[dict]:
-    """Read-only deployments (medical-server/part2/redis/scheduler/...)."""
+    """Read-only deployments (medical-server/dc-services/redis/scheduler/...)."""
     result: List[dict] = []
     if pods_all is None:
         pods_all = core.list_namespaced_pod(NAMESPACE).items

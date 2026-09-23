@@ -1,0 +1,20 @@
+# ============================================================
+# Routine runner image v1.0 - the workload of an ephemeral 日常 (routine) Job.
+#
+# Why a dedicated image: the collaborative routine pipeline creates one
+# short-lived Job per task, so **container start-up is on the critical path**.
+# Using the full clinic image (219MB: fastapi, uvicorn, prometheus_client, ...)
+# meant every Job paid image verification + a heavier rootfs + unnecessary
+# imports. This image carries only the two stdlib-only files the job needs, so
+# nodes that never ran a clinic pod can start a Job without a 200MB pull.
+#
+# No pip install (this host has no PyPI egress) - the workload is stdlib only.
+# ============================================================
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY clinic/run_routine.py /app/run_routine.py
+COPY common/v3_common.py /app/common/v3_common.py
+
+CMD ["python", "/app/run_routine.py"]

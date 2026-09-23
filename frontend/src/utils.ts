@@ -1,7 +1,7 @@
 // Small shared helpers & lookups (v3.0: four kinds 诊断/计算/通信/日常)
 // 三级命名（数据中心 / 医疗中心 / 医院）统一取自 ./terms。
 
-import type { HealthState, HospitalId, ModelKind, NodeInfo, SourceId } from './types';
+import type { ExecMode, HealthState, HospitalId, ModelKind, NodeInfo, SourceId } from './types';
 import { TIER_LABEL, entityRole, nodeRoleText } from './terms';
 
 // 实体显示名统一从 terms 再导出（含 SOURCE_NAME 别名）
@@ -34,6 +34,15 @@ export const MODEL_COLOR: Record<string, string> = {
 // 发起端：hospital-* = 医疗中心，clinic-* = 医院
 export const SOURCES: SourceId[] = ['hospital-a', 'hospital-b', 'clinic-1', 'clinic-2'];
 export const HOSPITALS: HospitalId[] = ['hospital-a', 'hospital-b'];
+
+// v3.2 执行模式：协同 / 本地 / 自动（提交卡与结果徽标共用）
+export const EXEC_MODES: ExecMode[] = ['collaborative', 'local', 'auto'];
+
+export const EXEC_MODE_LABEL: Record<string, string> = {
+  collaborative: '云边端协同',
+  local: '本地执行',
+  auto: '自动',
+};
 
 /** 发起端 id → 角色名（医疗中心 / 医院） */
 export const SOURCE_ROLE: Record<string, string> = {
@@ -69,8 +78,8 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 
 // Default image tags used by the cluster editor when adding new pods (v3.0)
-export const IMG_CLINIC = '10.29.182.66:5000/k8s-repo/clinic:v3.0';
-export const IMG_HOSPITAL = '10.29.182.66:5000/k8s-repo/hospital:v3.0';
+export const IMG_CLINIC = 'k8s-master:5000/k8s-repo/clinic:v3.0';
+export const IMG_HOSPITAL = 'k8s-master:5000/k8s-repo/hospital:v3.0';
 
 export const KIND_LABEL: Record<string, string> = {
   hospital: TIER_LABEL.medical,
@@ -97,7 +106,6 @@ export const READONLY_LABEL: Record<string, { zh: string; en: string }> = {
   redis: { zh: '队列 / 记录', en: '' },
   scheduler: { zh: '调度', en: '' },
   monitoring: { zh: '指标观测', en: '' },
-  prediction: { zh: '预测服务', en: '' },
 };
 
 /** Stable left-to-right / top-to-bottom node ordering used by map, list, arch. */
@@ -123,7 +131,7 @@ export function nodeRoleLabel(role?: string | null, name?: string): { zh: string
   return { zh: nodeRoleText(role, name), en: '' };
 }
 
-/** `10.29.182.66:5000/k8s-repo/clinic:v3.0` → `clinic:v3.0` (tag only). */
+/** `k8s-master:5000/k8s-repo/clinic:v3.0` → `clinic:v3.0` (tag only). */
 export function imageTag(image?: string): string {
   if (!image) return '—';
   const seg = image.split('/').pop() || image;

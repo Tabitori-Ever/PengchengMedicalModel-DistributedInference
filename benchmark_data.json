@@ -1,0 +1,1140 @@
+{
+  "generated_at": "2026-09-23T08:07:43+00:00",
+  "site": "http://localhost:30082",
+  "scheduler": "http://localhost:30080",
+  "load_axis": {
+    "compute": "算力负载（仪器数 × 行数 × 强度），固定 3 分区",
+    "diagnosis": "单次任务携带的患者数（批量大小）",
+    "sync": "链路带宽与分块大小",
+    "routine": "一次性日常作业的数量"
+  },
+  "cluster": {
+    "nodes": [
+      {
+        "name": "node1",
+        "role": "边缘（医院 A）",
+        "cpu": "8",
+        "memory": "7.5Gi",
+        "pods": "clinic, hospital"
+      },
+      {
+        "name": "node2",
+        "role": "边缘（医院 B）",
+        "cpu": "4",
+        "memory": "7.5Gi",
+        "pods": "clinic, hospital"
+      },
+      {
+        "name": "node3",
+        "role": "云（数据中心）",
+        "cpu": "4",
+        "memory": "7.5Gi",
+        "pods": "dc-services, medical-server, redis, scheduler"
+      },
+      {
+        "name": "desktop-jm5iec6",
+        "role": "控制面 / 运维",
+        "cpu": "4",
+        "memory": "7.7Gi",
+        "pods": "benchmark-site, monitoring, prediction"
+      }
+    ],
+    "images": {
+      "inference-scheduler": "v3.3.14",
+      "hospital": "v3.13",
+      "clinic": "v3.3",
+      "medical-server": "v1.4",
+      "benchmark-site": "v1.10",
+      "dc": "v3.0"
+    },
+    "notes": {
+      "python": "3.11",
+      "platform": "Kubernetes v1.30.14",
+      "measurement": "站点后端墙钟 client_total_ms（跨模式唯一可比口径）"
+    }
+  },
+  "suites": [
+    {
+      "suite_id": "suite-compute-20",
+      "suite_name": "计算标准套件 · 20 任务",
+      "kind": "compute",
+      "source": "clinic-1",
+      "description": "5 档算力负载 × 4 次重复，固定 3 分区",
+      "overall": {
+        "local": {
+          "n": 80,
+          "mean": 973.4,
+          "p50": 580.73,
+          "p95": 2994.02,
+          "min": 21.65,
+          "max": 3070.69,
+          "success": 80,
+          "fail": 0
+        },
+        "collaborative": {
+          "n": 80,
+          "mean": 549.33,
+          "p50": 447.53,
+          "p95": 1266.42,
+          "min": 154.37,
+          "max": 1340.96,
+          "success": 80,
+          "fail": 0
+        }
+      },
+      "configs": [
+        {
+          "spec_key": "58916815674a73ac",
+          "label": "对照",
+          "params": {
+            "instruments": 4,
+            "rows": 512,
+            "intensity": 60,
+            "partition_count": 3,
+            "seed": 1100
+          },
+          "modes": {
+            "local": {
+              "n": 16,
+              "mean": 42.19,
+              "p50": 43.56,
+              "p95": 62.52,
+              "min": 21.65,
+              "max": 66.09,
+              "success": 16,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 16,
+              "mean": 319.77,
+              "p50": 283.43,
+              "p95": 543.83,
+              "min": 154.37,
+              "max": 563.18,
+              "success": 16,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "9abc93692c64ecd8",
+          "label": "中载",
+          "params": {
+            "instruments": 8,
+            "rows": 2048,
+            "intensity": 300,
+            "partition_count": 3,
+            "seed": 1101
+          },
+          "modes": {
+            "local": {
+              "n": 16,
+              "mean": 283.15,
+              "p50": 282.12,
+              "p95": 310.13,
+              "min": 261.04,
+              "max": 315.76,
+              "success": 16,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 16,
+              "mean": 295.31,
+              "p50": 224.57,
+              "p95": 492.04,
+              "min": 178.34,
+              "max": 604.84,
+              "success": 16,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "303033d8a4251355",
+          "label": "重载",
+          "params": {
+            "instruments": 8,
+            "rows": 3072,
+            "intensity": 450,
+            "partition_count": 3,
+            "seed": 1102
+          },
+          "modes": {
+            "local": {
+              "n": 16,
+              "mean": 582.26,
+              "p50": 580.73,
+              "p95": 608.21,
+              "min": 559.77,
+              "max": 611.44,
+              "success": 16,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 16,
+              "mean": 378.33,
+              "p50": 358.25,
+              "p95": 546.95,
+              "min": 291.02,
+              "max": 567.82,
+              "success": 16,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "92427e5cd496e990",
+          "label": "特重",
+          "params": {
+            "instruments": 8,
+            "rows": 4096,
+            "intensity": 600,
+            "partition_count": 3,
+            "seed": 1103
+          },
+          "modes": {
+            "local": {
+              "n": 16,
+              "mean": 1007.69,
+              "p50": 991.78,
+              "p95": 1074.31,
+              "min": 967.46,
+              "max": 1086.73,
+              "success": 16,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 16,
+              "mean": 532.96,
+              "p50": 527.5,
+              "p95": 601.46,
+              "min": 440.62,
+              "max": 617.5,
+              "success": 16,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "2bdbe3f46ce0265a",
+          "label": "极重",
+          "params": {
+            "instruments": 16,
+            "rows": 4096,
+            "intensity": 900,
+            "partition_count": 3,
+            "seed": 1104
+          },
+          "modes": {
+            "local": {
+              "n": 16,
+              "mean": 2951.7,
+              "p50": 2951.98,
+              "p95": 3052.1,
+              "min": 2830.55,
+              "max": 3070.69,
+              "success": 16,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 16,
+              "mean": 1220.28,
+              "p50": 1224.44,
+              "p95": 1313.98,
+              "min": 1111.08,
+              "max": 1340.96,
+              "success": 16,
+              "fail": 0
+            }
+          }
+        }
+      ],
+      "speedup": {
+        "collaborative_mean_ms": 549.33,
+        "local_mean_ms": 973.4,
+        "collaborative_faster_pct": 43.57,
+        "ratio": 1.772
+      },
+      "extra": {
+        "local_parallel_speedup_mean": 0.924,
+        "local_dispatch_wall_ms_mean": 1008.329,
+        "local_compute_ms_total_mean": 980.488,
+        "local_network_ms_total_mean": 0.0,
+        "local_pipeline_speedup_mean": null,
+        "local_streams_mean": null,
+        "collaborative_parallel_speedup_mean": 1.894,
+        "collaborative_dispatch_wall_ms_mean": 462.243,
+        "collaborative_compute_ms_total_mean": 1082.443,
+        "collaborative_network_ms_total_mean": 38.266,
+        "collaborative_pipeline_speedup_mean": null,
+        "collaborative_streams_mean": null
+      },
+      "load_axis": "算力负载（仪器数 × 行数 × 强度），固定 3 分区",
+      "specs": [
+        {
+          "label": "对照",
+          "repeats": 4,
+          "params": {
+            "instruments": 4,
+            "rows": 512,
+            "intensity": 60,
+            "partition_count": 3,
+            "seed": 1100
+          }
+        },
+        {
+          "label": "中载",
+          "repeats": 4,
+          "params": {
+            "instruments": 8,
+            "rows": 2048,
+            "intensity": 300,
+            "partition_count": 3,
+            "seed": 1101
+          }
+        },
+        {
+          "label": "重载",
+          "repeats": 4,
+          "params": {
+            "instruments": 8,
+            "rows": 3072,
+            "intensity": 450,
+            "partition_count": 3,
+            "seed": 1102
+          }
+        },
+        {
+          "label": "特重",
+          "repeats": 4,
+          "params": {
+            "instruments": 8,
+            "rows": 4096,
+            "intensity": 600,
+            "partition_count": 3,
+            "seed": 1103
+          }
+        },
+        {
+          "label": "极重",
+          "repeats": 4,
+          "params": {
+            "instruments": 16,
+            "rows": 4096,
+            "intensity": 900,
+            "partition_count": 3,
+            "seed": 1104
+          }
+        }
+      ]
+    },
+    {
+      "suite_id": "suite-diagnosis-20",
+      "suite_name": "诊断标准套件 · 20 任务",
+      "kind": "diagnosis",
+      "source": "hospital-a",
+      "description": "批量 1/2/4/8 例 × 5 次重复",
+      "overall": {
+        "local": {
+          "n": 200,
+          "mean": 533.06,
+          "p50": 453.64,
+          "p95": 1050.7,
+          "min": 134.09,
+          "max": 2213.7,
+          "success": 200,
+          "fail": 0
+        },
+        "collaborative": {
+          "n": 200,
+          "mean": 1677.61,
+          "p50": 1005.63,
+          "p95": 5930.03,
+          "min": 235.8,
+          "max": 14861.54,
+          "success": 200,
+          "fail": 0
+        }
+      },
+      "configs": [
+        {
+          "spec_key": "dba8c6004acabfee",
+          "label": "1 例",
+          "params": {
+            "patient_ids": [
+              "1404920"
+            ]
+          },
+          "modes": {
+            "local": {
+              "n": 50,
+              "mean": 224.38,
+              "p50": 227.95,
+              "p95": 314.64,
+              "min": 134.09,
+              "max": 355.89,
+              "success": 50,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 50,
+              "mean": 926.9,
+              "p50": 511.51,
+              "p95": 1695.28,
+              "min": 235.8,
+              "max": 6926.71,
+              "success": 50,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "0ecd0848077b5b9f",
+          "label": "2 例",
+          "params": {
+            "patient_ids": [
+              "1404920",
+              "1584882"
+            ]
+          },
+          "modes": {
+            "local": {
+              "n": 50,
+              "mean": 391.18,
+              "p50": 379.38,
+              "p95": 507.88,
+              "min": 232.64,
+              "max": 798.65,
+              "success": 50,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 50,
+              "mean": 1225.81,
+              "p50": 640.34,
+              "p95": 4624.0,
+              "min": 329.86,
+              "max": 8017.95,
+              "success": 50,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "9656f5ec78023bfb",
+          "label": "4 例",
+          "params": {
+            "patient_ids": [
+              "1404920",
+              "1584882",
+              "1661073",
+              "1664718"
+            ]
+          },
+          "modes": {
+            "local": {
+              "n": 50,
+              "mean": 562.28,
+              "p50": 555.68,
+              "p95": 833.41,
+              "min": 401.73,
+              "max": 958.88,
+              "success": 50,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 50,
+              "mean": 1725.33,
+              "p50": 1052.26,
+              "p95": 5276.28,
+              "min": 542.96,
+              "max": 10413.12,
+              "success": 50,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "5332a7dbf5640acf",
+          "label": "8 例",
+          "params": {
+            "patient_ids": [
+              "1404920",
+              "1584882",
+              "1661073",
+              "1664718",
+              "1668124",
+              "1686243",
+              "1727894",
+              "1732297"
+            ]
+          },
+          "modes": {
+            "local": {
+              "n": 50,
+              "mean": 954.41,
+              "p50": 913.19,
+              "p95": 1253.13,
+              "min": 733.06,
+              "max": 2213.7,
+              "success": 50,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 50,
+              "mean": 2832.4,
+              "p50": 1504.14,
+              "p95": 10359.57,
+              "min": 894.38,
+              "max": 14861.54,
+              "success": 50,
+              "fail": 0
+            }
+          }
+        }
+      ],
+      "speedup": {
+        "collaborative_mean_ms": 1677.61,
+        "local_mean_ms": 533.06,
+        "collaborative_faster_pct": -214.71,
+        "ratio": 0.318
+      },
+      "extra": {
+        "local_parallel_speedup_mean": null,
+        "local_dispatch_wall_ms_mean": null,
+        "local_compute_ms_total_mean": 273.454,
+        "local_network_ms_total_mean": 0.0,
+        "local_pipeline_speedup_mean": null,
+        "local_streams_mean": null,
+        "local_batch_size_mean": 3.75,
+        "collaborative_parallel_speedup_mean": null,
+        "collaborative_dispatch_wall_ms_mean": 1207.255,
+        "collaborative_compute_ms_total_mean": 774.216,
+        "collaborative_network_ms_total_mean": 2731.086,
+        "collaborative_pipeline_speedup_mean": 1.861,
+        "collaborative_streams_mean": null,
+        "collaborative_batch_size_mean": 2.675
+      },
+      "load_axis": "单次任务携带的患者数（批量大小）",
+      "specs": [
+        {
+          "label": "1 例",
+          "repeats": 5,
+          "params": {
+            "patient_ids": [
+              "1404920"
+            ]
+          }
+        },
+        {
+          "label": "2 例",
+          "repeats": 5,
+          "params": {
+            "patient_ids": [
+              "1404920",
+              "1584882"
+            ]
+          }
+        },
+        {
+          "label": "4 例",
+          "repeats": 5,
+          "params": {
+            "patient_ids": [
+              "1404920",
+              "1584882",
+              "1661073",
+              "1664718"
+            ]
+          }
+        },
+        {
+          "label": "8 例",
+          "repeats": 5,
+          "params": {
+            "patient_ids": [
+              "1404920",
+              "1584882",
+              "1661073",
+              "1664718",
+              "1668124",
+              "1686243",
+              "1727894",
+              "1732297"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "suite_id": "suite-sync-20",
+      "suite_name": "通信标准套件 · 20 任务",
+      "kind": "sync",
+      "source": "clinic-2",
+      "description": "4 档链路带宽 × 5 次重复",
+      "overall": {
+        "local": {
+          "n": 60,
+          "mean": 16930.1,
+          "p50": 13358.48,
+          "p95": 36305.28,
+          "min": 3661.06,
+          "max": 40661.73,
+          "success": 60,
+          "fail": 0
+        },
+        "collaborative": {
+          "n": 60,
+          "mean": 4918.76,
+          "p50": 4417.98,
+          "p95": 12831.56,
+          "min": 432.42,
+          "max": 13217.78,
+          "success": 60,
+          "fail": 0
+        }
+      },
+      "configs": [
+        {
+          "spec_key": "64274b3d543d799d",
+          "label": "省流 8Mbps",
+          "params": {
+            "bandwidth_mbps": 8.0,
+            "concurrency": 4,
+            "chunk_kb": 4
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 30810.74,
+              "p50": 35446.96,
+              "p95": 40238.99,
+              "min": 18837.19,
+              "max": 40661.73,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 8455.76,
+              "p50": 8117.25,
+              "p95": 13206.01,
+              "min": 4720.25,
+              "max": 13217.78,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "6c952bdae02d9ab3",
+          "label": "普通 20Mbps",
+          "params": {
+            "bandwidth_mbps": 20.0,
+            "concurrency": 4,
+            "chunk_kb": 4
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 17319.73,
+              "p50": 19145.65,
+              "p95": 25120.88,
+              "min": 9726.92,
+              "max": 27687.22,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 4398.58,
+              "p50": 4320.25,
+              "p95": 9667.05,
+              "min": 2108.56,
+              "max": 11756.32,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "b545e593b36422ca",
+          "label": "高速 60Mbps",
+          "params": {
+            "bandwidth_mbps": 60.0,
+            "concurrency": 8,
+            "chunk_kb": 4
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 11268.94,
+              "p50": 12199.11,
+              "p95": 16631.48,
+              "min": 4854.19,
+              "max": 16926.47,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 3023.02,
+              "p50": 1948.58,
+              "p95": 7186.6,
+              "min": 540.97,
+              "max": 9801.74,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "e9b000025b1e733b",
+          "label": "极速 120Mbps",
+          "params": {
+            "bandwidth_mbps": 120.0,
+            "concurrency": 8,
+            "chunk_kb": 16
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 8321.0,
+              "p50": 9989.98,
+              "p95": 10922.05,
+              "min": 3661.06,
+              "max": 11763.44,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 3797.69,
+              "p50": 1849.49,
+              "p95": 10175.89,
+              "min": 432.42,
+              "max": 10342.83,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        }
+      ],
+      "speedup": {
+        "collaborative_mean_ms": 4918.76,
+        "local_mean_ms": 16930.1,
+        "collaborative_faster_pct": 70.95,
+        "ratio": 3.442
+      },
+      "extra": {
+        "local_parallel_speedup_mean": null,
+        "local_dispatch_wall_ms_mean": null,
+        "local_compute_ms_total_mean": 0.0,
+        "local_network_ms_total_mean": 18049.789,
+        "local_pipeline_speedup_mean": null,
+        "local_streams_mean": null,
+        "collaborative_parallel_speedup_mean": null,
+        "collaborative_dispatch_wall_ms_mean": null,
+        "collaborative_compute_ms_total_mean": null,
+        "collaborative_network_ms_total_mean": null,
+        "collaborative_pipeline_speedup_mean": null,
+        "collaborative_streams_mean": 6.0
+      },
+      "load_axis": "链路带宽与分块大小",
+      "specs": [
+        {
+          "label": "省流 8Mbps",
+          "repeats": 5,
+          "params": {
+            "bandwidth_mbps": 8.0,
+            "concurrency": 4,
+            "chunk_kb": 4
+          }
+        },
+        {
+          "label": "普通 20Mbps",
+          "repeats": 5,
+          "params": {
+            "bandwidth_mbps": 20.0,
+            "concurrency": 4,
+            "chunk_kb": 4
+          }
+        },
+        {
+          "label": "高速 60Mbps",
+          "repeats": 5,
+          "params": {
+            "bandwidth_mbps": 60.0,
+            "concurrency": 8,
+            "chunk_kb": 4
+          }
+        },
+        {
+          "label": "极速 120Mbps",
+          "repeats": 5,
+          "params": {
+            "bandwidth_mbps": 120.0,
+            "concurrency": 8,
+            "chunk_kb": 16
+          }
+        }
+      ]
+    },
+    {
+      "suite_id": "suite-routine-20",
+      "suite_name": "日常标准套件 · 20 任务",
+      "kind": "routine",
+      "source": "clinic-1",
+      "description": "2/4/6/8 个一次性作业 × 5 次重复",
+      "overall": {
+        "local": {
+          "n": 60,
+          "mean": 4728.4,
+          "p50": 4861.51,
+          "p95": 7703.81,
+          "min": 1846.04,
+          "max": 7746.17,
+          "success": 60,
+          "fail": 0
+        },
+        "collaborative": {
+          "n": 60,
+          "mean": 2737.53,
+          "p50": 2045.65,
+          "p95": 6744.82,
+          "min": 1012.72,
+          "max": 11954.22,
+          "success": 60,
+          "fail": 0
+        }
+      },
+      "configs": [
+        {
+          "spec_key": "41565fe8ef09e49f",
+          "label": "2 个作业",
+          "params": {
+            "jobs": 2,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2102
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 1944.96,
+              "p50": 1872.11,
+              "p95": 2189.52,
+              "min": 1846.04,
+              "max": 2213.99,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 1402.16,
+              "p50": 1073.5,
+              "p95": 2603.46,
+              "min": 1012.72,
+              "max": 5947.41,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "a2cf430b886bb219",
+          "label": "4 个作业",
+          "params": {
+            "jobs": 4,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2104
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 3808.58,
+              "p50": 3744.09,
+              "p95": 4077.35,
+              "min": 3650.92,
+              "max": 4228.73,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 4301.02,
+              "p50": 1397.51,
+              "p95": 11820.18,
+              "min": 1209.07,
+              "max": 11954.22,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "055cd54da024a881",
+          "label": "6 个作业",
+          "params": {
+            "jobs": 6,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2106
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 5630.1,
+              "p50": 5591.61,
+              "p95": 5857.95,
+              "min": 5494.3,
+              "max": 6048.49,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 2586.33,
+              "p50": 2047.28,
+              "p95": 5925.02,
+              "min": 1958.29,
+              "max": 6248.28,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        },
+        {
+          "spec_key": "33bc1081297cf13f",
+          "label": "8 个作业",
+          "params": {
+            "jobs": 8,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2108
+          },
+          "modes": {
+            "local": {
+              "n": 15,
+              "mean": 7529.96,
+              "p50": 7482.75,
+              "p95": 7740.28,
+              "min": 7304.4,
+              "max": 7746.17,
+              "success": 15,
+              "fail": 0
+            },
+            "collaborative": {
+              "n": 15,
+              "mean": 2660.59,
+              "p50": 2475.43,
+              "p95": 3686.03,
+              "min": 2166.96,
+              "max": 5822.23,
+              "success": 15,
+              "fail": 0
+            }
+          }
+        }
+      ],
+      "speedup": {
+        "collaborative_mean_ms": 2737.53,
+        "local_mean_ms": 4728.4,
+        "collaborative_faster_pct": 42.1,
+        "ratio": 1.727
+      },
+      "extra": {
+        "local_parallel_speedup_mean": null,
+        "local_dispatch_wall_ms_mean": null,
+        "local_compute_ms_total_mean": 4994.322,
+        "local_network_ms_total_mean": 0.0,
+        "local_pipeline_speedup_mean": null,
+        "local_streams_mean": null,
+        "collaborative_parallel_speedup_mean": null,
+        "collaborative_dispatch_wall_ms_mean": 2801.19,
+        "collaborative_compute_ms_total_mean": 7677.483,
+        "collaborative_network_ms_total_mean": 521.365,
+        "collaborative_pipeline_speedup_mean": null,
+        "collaborative_streams_mean": null
+      },
+      "load_axis": "一次性日常作业的数量",
+      "specs": [
+        {
+          "label": "2 个作业",
+          "repeats": 5,
+          "params": {
+            "jobs": 2,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2102
+          }
+        },
+        {
+          "label": "4 个作业",
+          "repeats": 5,
+          "params": {
+            "jobs": 4,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2104
+          }
+        },
+        {
+          "label": "6 个作业",
+          "repeats": 5,
+          "params": {
+            "jobs": 6,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2106
+          }
+        },
+        {
+          "label": "8 个作业",
+          "repeats": 5,
+          "params": {
+            "jobs": 8,
+            "rows": 8192,
+            "intensity": 2400,
+            "seed": 2108
+          }
+        }
+      ]
+    }
+  ],
+  "split_analysis": {
+    "input_mb": 0.4,
+    "full_ms": 263.1,
+    "rows": [
+      {
+        "point": "不拆分（本地执行）",
+        "intermediate_mb": null,
+        "ratio": null,
+        "edge_ms": 263.1,
+        "cloud_ms": 0.0
+      },
+      {
+        "point": "conv1+maxpool 之后（v3.3 旧实现）",
+        "intermediate_mb": 1.61,
+        "ratio": 4.0,
+        "edge_ms": 21.5,
+        "cloud_ms": 241.6
+      },
+      {
+        "point": "layer1 之后",
+        "intermediate_mb": 1.61,
+        "ratio": 4.0,
+        "edge_ms": 51.1,
+        "cloud_ms": 212.1
+      },
+      {
+        "point": "layer2 之后",
+        "intermediate_mb": 0.8,
+        "ratio": 2.0,
+        "edge_ms": 75.1,
+        "cloud_ms": 188.1
+      },
+      {
+        "point": "layer3 之后（v3.4 现行实现）",
+        "intermediate_mb": 0.4,
+        "ratio": 1.0,
+        "edge_ms": 98.9,
+        "cloud_ms": 164.2
+      }
+    ],
+    "conclusion": "v3.3 的切分点（conv1+maxpool 之后）让中间特征膨胀到输入的 4 倍，而端侧只卸下 8% 的算力——拆分歧形同纯亏。v3.4 把切分点下移到 layer3 之后：中间特征从 1.61MB 降到 0.401MB（= 输入大小，容器内实测），端侧算力份额升到 38%，两段更均衡，且 bpCR 逐位不变（0.442733）。即便如此，串行拆分在端侧算力充裕时仍无法胜过本地：中间特征搬运 + 云端后端段 + 编排之和（约 600ms）已超过本地整段计算（约 77–123ms）。协同要靠**批量流水线**（多例重叠）才能把两侧算力同时用起来，见下一节。 v3.5 进一步把**数据面从控制面拆出**：调度器只下发「谁执行哪几个患者」的计划，输入由站点直投执行者（绕开调度器中转）。诊断套件差距 −353.9% → **−251.0%**，批量 2 例档位已接近持平（p50 640ms vs 本地 381ms），但端侧空闲时仍由本地占优——原因是数据中心节点（node3，与调度器/redis/患者库共处 4 核）每例算力约为医院的一半，且逐患者请求带来每请求 42ms 的固定开销。"
+  },
+  "edge_constraint": {
+    "network_note": "医院 Pod(node1) → 数据中心(node3) 实测：逐请求建连时有效吞吐 3.2–4.8 MB/s 且每请求固定开销 42ms；改用长连接 + 原始 float32 后，大载荷渐近吞吐 11.3 MB/s（32MB 实测）。",
+    "rows": [
+      {
+        "load": "0（空闲）",
+        "edge_cores": "≈4 核（1.0×）",
+        "local_ms": 477,
+        "collaborative_ms": 1430,
+        "gain_pct": -199.7
+      },
+      {
+        "load": "4 个竞争进程",
+        "edge_cores": "≈1.0 核（1/4）",
+        "local_ms": 1475,
+        "collaborative_ms": 3486,
+        "gain_pct": -136.3
+      },
+      {
+        "load": "6 个竞争进程",
+        "edge_cores": "≈0.7 核（1/6）",
+        "local_ms": 3784,
+        "collaborative_ms": 3292,
+        "gain_pct": 13.0
+      },
+      {
+        "load": "10 个竞争进程",
+        "edge_cores": "≈0.4 核（1/10）",
+        "local_ms": 7559,
+        "collaborative_ms": 3676,
+        "gain_pct": 51.4
+      }
+    ],
+    "baseline": {
+      "label": "对照：改造前（v3.3 · conv1+maxpool 切分、base64 传输、转发持锁串行）",
+      "rows": [
+        {
+          "load": "0（空闲）",
+          "edge_cores": "≈4 核（1.0×）",
+          "local_ms": 487,
+          "collaborative_ms": 4597,
+          "gain_pct": -843.1
+        },
+        {
+          "load": "14 个竞争进程",
+          "edge_cores": "≈0.23 核（1/17）",
+          "local_ms": 8372,
+          "collaborative_ms": 9558,
+          "gain_pct": -14.2
+        },
+        {
+          "load": "40 个竞争进程",
+          "edge_cores": "≈0.16 核（1/25）",
+          "local_ms": 12200,
+          "collaborative_ms": 9893,
+          "gain_pct": 18.9
+        }
+      ]
+    },
+    "conclusion": "交叉点从改造前的「端侧需弱 17–20 倍」前移到「端侧需弱约 5–6 倍」：端侧弱 6 倍时协同快 13.0%（9 次大样本），弱 10 倍时快 51.4%；端侧空闲时仍由本地占优（协同慢 122–200%）。「端侧弱 5–6 倍」对应的是**被其它业务占满的边缘节点或轻量端设备**——这是边缘计算里的常态工况，而不是需要极端条件的特例。这说明云边端协同在诊断类任务上的收益**有条件成立**：端侧算力受限时协同占优（此时协同把算力从单端聚合为端+云两端），端侧算力充裕时本地占优（同一份计算再额外搬运中间特征，纯属负担）。"
+  },
+  "diagnosis_ab": {
+    "rows": [
+      {
+        "batch": 2,
+        "local_mean": 356,
+        "local_p50": 342,
+        "collab_mean": 558,
+        "collab_p50": 573,
+        "gain_mean": -56.8,
+        "gain_p50": -67.4
+      },
+      {
+        "batch": 4,
+        "local_mean": 529,
+        "local_p50": 498,
+        "collab_mean": 680,
+        "collab_p50": 642,
+        "gain_mean": -28.5,
+        "gain_p50": -28.9
+      },
+      {
+        "batch": 8,
+        "local_mean": 1128,
+        "local_p50": 1068,
+        "collab_mean": 1170,
+        "collab_p50": 1070,
+        "gain_mean": -3.7,
+        "gain_p50": -0.1
+      }
+    ],
+    "conclusion": "去掉测量工具后，诊断类的差距明显小于经站点的数字：批量 8 例已**收敛到持平**（mean 差 3.7%、p50 差 0.1%），批量 2/4 例仍分别慢 57%/28%。原因是协同路径的控制面往返、每请求 42 ms 固定开销与输入双份下发在批量下被摊薄。**诊断类在端侧空闲时只能做到持平，做不到快 10%**——两端做的是同一份推理，协同只是把算力搬过去、再额外背上数据与编排，而本地只需一次调用、一份数据、零编排。协同在诊断上的稳定收益出现在端侧算力受限工况（端侧弱 6 倍 +13.0%、弱 10 倍 +51.4%，见上一节）。"
+  }
+}

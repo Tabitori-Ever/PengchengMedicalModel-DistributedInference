@@ -50,7 +50,7 @@ inference_latency = Histogram(
 # ---- Per-Stage Latency ----
 stage_latency = Histogram(
     "inference_stage_latency_seconds",
-    "Per-stage inference latency (part1/part2/worker/server)",
+    "Per-stage inference latency (worker/server)",
     ["model", "stage"],
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0]
 )

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#e8e5e1" />
+    <title>测试与性能对比平台 · 云边端协同推理</title>
+    <style>
+      :root {
+        --paper: #e8e5e1; --panel: #efedea; --panel-2: #f3f1ed;
+        --ink: #080a08; --ink-2: #171713; --ink-3: #3b3c30;
+        --grey-2: #8e897b; --grey-3: #776f60;
+        --brass-2: #946b3c; --brass-line: rgba(148, 107, 60, 0.42);
+        --line: rgba(8, 10, 8, 0.14);
+        --sans: 'MiSans', 'Mi Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+          'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body, #root { height: 100%; }
+      body {
+        font-family: var(--sans); font-size: 16px; line-height: 1.7;
+        color: var(--ink-2); background-color: var(--paper);
+        background-image: radial-gradient(rgba(8, 10, 8, 0.055) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+      .boot { padding: 64px 8vw; color: var(--grey-3); }
+      .boot h1 { font-size: 32px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink); }
+      .boot p { margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot">
+        <h1>测试与性能对比平台</h1>
+        <p>正在加载站点…（若长时间停留在此，请检查站点后端 /api/health 是否可用）</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

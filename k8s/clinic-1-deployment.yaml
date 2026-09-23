@@ -1,6 +1,13 @@
 # ==========================================================================
-# Clinic-1 Pod (v2.0) - memory-monitor task, co-located with hospital-a
-# on node1. Uses the clinic ServiceAccount (defined in clinic-rbac.yaml).
+# clinic-1 Pod (v3.2) - terminal/edge initiator, pinned to node1.
+#
+# v3.2 adds local execution (/local/*): this pod can take over the data-center
+# scheduler's orchestration role and run compute / sync / routine itself, and
+# for diagnosis it forwards one hop to the nearest hospital (no model here).
+#
+# Resource bump vs v3.0: local execution burns CPU in-pod (serial partitions /
+# inlined routine jobs), so limits go from 500m/512Mi to 1500m/2Gi. The
+# /data/local-results hostPath keeps local results across pod restarts.
 # ==========================================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -36,12 +43,16 @@ spec:
 
       containers:
       - name: clinic
-        image: 10.29.182.66:5000/k8s-repo/clinic:v3.0
+        image: k8s-master:5000/k8s-repo/clinic:v3.3
         imagePullPolicy: IfNotPresent
 
         env:
         - name: CLINIC_NAME
           value: "clinic-1"
+        - name: ENTITY_NAME
+          value: "clinic-1"
+        - name: ENTITY_KIND
+          value: "clinic"
         - name: POD_NAME
           valueFrom:
             fieldRef:
@@ -54,6 +65,16 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        # data-center scheduler address used by /local/health reachability probe
+        - name: SCHEDULER_URL
+          value: "http://scheduler-service:8000"
+        - name: DC_SERVICES_URL
+          value: "http://dc-services:8010"
+        # local-execution queue / storage
+        - name: LOCAL_WORKERS
+          value: "2"
+        - name: LOCAL_QUEUE_CAPACITY
+          value: "8"
 
         - name: DB_VERSION
           value: "v3-db-1"
@@ -61,10 +82,7 @@ spec:
           value: "64"
         - name: CHUNK_KB
           value: "4"
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
+
         ports:
         - name: http
           containerPort: 8007
@@ -76,18 +94,31 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
 
+        # local execution can keep a worker thread busy; keep the probe
+        # generous so a legitimately busy pod is not restarted mid-task
         livenessProbe:
           httpGet:
             path: /health
             port: 8007
-          initialDelaySeconds: 10
+          initialDelaySeconds: 15
           periodSeconds: 20
-          failureThreshold: 3
+          timeoutSeconds: 5
+          failureThreshold: 5
 
         resources:
           requests:
-            cpu: "100m"
-            memory: "128Mi"
-          limits:
-            cpu: "500m"
+            cpu: "300m"
             memory: "512Mi"
+          limits:
+            cpu: "1500m"
+            memory: "2Gi"
+
+        volumeMounts:
+        - name: local-results
+          mountPath: /data/local-results
+
+      volumes:
+      - name: local-results
+        hostPath:
+          path: /data/local-results
+          type: DirectoryOrCreate

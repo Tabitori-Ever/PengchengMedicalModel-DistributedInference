@@ -30,7 +30,7 @@ spec:
 
       containers:
       - name: dc
-        image: 10.29.182.66:5000/k8s-repo/dc:v3.0
+        image: k8s-master:5000/k8s-repo/dc:v3.0
         imagePullPolicy: IfNotPresent
 
         env:

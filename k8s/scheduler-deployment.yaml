@@ -28,7 +28,7 @@ spec:
 
       containers:
       - name: scheduler
-        image: 10.29.182.66:5000/k8s-repo/inference-scheduler:v3.1.8
+        image: k8s-master:5000/k8s-repo/inference-scheduler:v3.3.14
         imagePullPolicy: IfNotPresent
 
         env:
@@ -54,7 +54,11 @@ spec:
           value: "6379"
         # Routine Jobs: image that carries /app/run_routine.py
         - name: ROUTINE_IMAGE
-          value: "10.29.182.66:5000/k8s-repo/clinic:v3.0"
+          value: "k8s-master:5000/k8s-repo/routine-runner:v1.0"
+        # v3.2 execution modes: local/degraded tasks are delegated to the
+        # initiating pod's /local/execute and can run longer than one hop.
+        - name: LOCAL_EXEC_TIMEOUT
+          value: "900"
         # Concurrency
         - name: MAX_CONCURRENT
           value: "4"

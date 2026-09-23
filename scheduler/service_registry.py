@@ -18,6 +18,10 @@ HOSPITAL_SERVICES: Dict[str, str] = {
 CLINIC_SERVICES: Dict[str, str] = {
     "clinic-1": os.getenv("CLINIC_1_URL", "http://clinic-1-service:8007"),
     "clinic-2": os.getenv("CLINIC_2_URL", "http://clinic-2-service:8007"),
+    # v3.2: clinic-3/4 were added through the cluster editor and were missing
+    # here, which made every task initiated from them fail inside the scheduler.
+    "clinic-3": os.getenv("CLINIC_3_URL", "http://clinic-3-service:8007"),
+    "clinic-4": os.getenv("CLINIC_4_URL", "http://clinic-4-service:8007"),
 }
 
 MEDICAL_SERVER_URL = os.getenv(

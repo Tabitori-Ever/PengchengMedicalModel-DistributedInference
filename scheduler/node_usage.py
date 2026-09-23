@@ -1,10 +1,16 @@
-"""Node free-resource utility (v3.0).
+"""Node free-resource utility (v3.0, non-blocking since v3.3).
 
 Loads node CPU/memory usage from the Kubernetes metrics-server and computes
 free-capacity scores. Used by the data-center scheduler to pick hospital
 targets (diagnosis forwarding), compute partition workers and routine Job
-nodes. Fast single aggregated API call; degrades to defaults when
-metrics-server is unavailable.
+nodes.
+
+v3.3 fix - the lookup used to be performed **synchronously on the request
+path** with a 3s TTL: every clinic-originated task that fell outside the cache
+window paid a full metrics-API + node-list round trip (~4s in this cluster),
+which silently dominated the measured task latency and made collaborative runs
+look far worse than they are. The refresh now happens in a background thread
+and callers only ever read the cached snapshot.
 """
 import json
 import os
@@ -65,23 +71,48 @@ def _kube_api_get(path: str, timeout: float = 5.0):
     req = urllib.request.Request("https://kubernetes.default.svc" + path)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/json")
-    with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
 
 
 _lock = threading.Lock()
 _cache: Dict = {}
 _cache_ts = 0.0
-_TTL = 3.0
+# how often the background thread refreshes; callers never block on it
+_REFRESH_S = float(os.environ.get("NODE_USAGE_REFRESH_S", "10"))
+# node allocatable barely changes - cache it much longer than the live usage
+_ALLOC_TTL = float(os.environ.get("NODE_USAGE_ALLOC_TTL_S", "300"))
+_alloc_cache: Dict[str, dict] = {}
+_alloc_ts = 0.0
+_started = False
 
 
-def node_loads(force: bool = False) -> Dict[str, dict]:
-    """{node: {cpu, memory (0..1 usage), free_score (0..1)}}."""
-    global _cache_ts, _cache
+def _allocatable() -> Dict[str, dict]:
+    """{node: {cpu, memory}} from the node list (long-lived cache)."""
+    global _alloc_ts
     now = time.time()
-    with _lock:
-        if not force and _cache and now - _cache_ts < _TTL:
-            return dict(_cache)
+    if _alloc_cache and now - _alloc_ts < _ALLOC_TTL:
+        return dict(_alloc_cache)
+    out: Dict[str, dict] = {}
+    try:
+        for item in _kube_api_get("/api/v1/nodes").get("items", []):
+            a = ((item.get("status") or {}).get("allocatable") or {})
+            out[item["metadata"]["name"]] = {
+                "cpu": _parse_cpu_cores(a.get("cpu")),
+                "memory": _parse_mem_bytes(a.get("memory")),
+            }
+    except Exception:  # noqa: BLE001
+        return dict(_alloc_cache)
+    _alloc_cache.clear()
+    _alloc_cache.update(out)
+    _alloc_ts = now
+    return dict(out)
+
+
+def refresh() -> Dict[str, dict]:
+    """One synchronous refresh (used by the background thread and force=True)."""
+    global _cache_ts, _cache
     out: Dict[str, dict] = {}
     try:
         usage_by_node = {}
@@ -92,33 +123,56 @@ def node_loads(force: bool = False) -> Dict[str, dict]:
             if cpu is not None and mem is not None:
                 usage_by_node[item["metadata"]["name"]] = (cpu, mem)
 
-        try:
-            from kubernetes import client, config  # noqa
-            try:
-                config.load_incluster_config()
-            except Exception:
-                config.load_kube_config()
-            for n in client.CoreV1Api().list_node().items:
-                a = n.status.allocatable or {}
-                name = n.metadata.name
-                u = usage_by_node.get(name)
-                if not u:
-                    continue
-                ca = _parse_cpu_cores(a.get("cpu"))
-                ma = _parse_mem_bytes(a.get("memory"))
-                cpu_u = max(0.0, min(1.0, (u[0] / ca) if ca else 0.0))
-                mem_u = max(0.0, min(1.0, (u[1] / ma) if ma else 0.0))
-                free = 0.5 * (1 - cpu_u) + 0.5 * (1 - mem_u)
-                out[name] = {"cpu": round(cpu_u, 3), "memory": round(mem_u, 3),
-                             "free": round(free, 3)}
-        except Exception:
-            pass
-    except Exception:
-        pass
+        for name, alloc in _allocatable().items():
+            u = usage_by_node.get(name)
+            if not u:
+                continue
+            ca, ma = alloc.get("cpu"), alloc.get("memory")
+            cpu_u = max(0.0, min(1.0, (u[0] / ca) if ca else 0.0))
+            mem_u = max(0.0, min(1.0, (u[1] / ma) if ma else 0.0))
+            free = 0.5 * (1 - cpu_u) + 0.5 * (1 - mem_u)
+            out[name] = {"cpu": round(cpu_u, 3), "memory": round(mem_u, 3),
+                         "free": round(free, 3)}
+    except Exception:  # noqa: BLE001
+        return dict(_cache)
     with _lock:
         _cache = out
         _cache_ts = time.time()
     return dict(out)
+
+
+def _loop() -> None:
+    while True:
+        try:
+            refresh()
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(_REFRESH_S)
+
+
+def _ensure_started() -> None:
+    """Start the background refresher once, off the request path."""
+    global _started
+    with _lock:
+        if _started:
+            return
+        _started = True
+    t = threading.Thread(target=_loop, name="node-usage", daemon=True)
+    t.start()
+
+
+def node_loads(force: bool = False) -> Dict[str, dict]:
+    """{node: {cpu, memory (0..1 usage), free_score (0..1)}} - never blocks.
+
+    The first call starts the background refresher and may return `{}` until the
+    first snapshot lands; `free_edge_nodes()` tolerates that (it falls back to a
+    neutral score).
+    """
+    _ensure_started()
+    if force:
+        return refresh()
+    with _lock:
+        return dict(_cache)
 
 
 def free_edge_nodes() -> list:

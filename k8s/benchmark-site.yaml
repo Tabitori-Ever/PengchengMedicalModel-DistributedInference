@@ -1,0 +1,136 @@
+# ==========================================================================
+# benchmark-site (v1.0) - 测试下发 / 性能对比站点
+#
+# 独立于 scheduler 部署：这是"调度器掉线仍能完成任务"这一验证的前提——
+# 站点自带前端、数据与降级路由，不依赖 scheduler Pod 存活。
+#
+# 位置：desktop-jm5iec6（控制面 / 运维平面），远离 node1-3 的边缘与云端负载，
+# 避免本机实验流量与被测 Pod 抢资源；SQLite 落在 hostPath 上，Pod 重建不丢数据。
+# 访问：http://<任一节点IP>:30082/
+# ==========================================================================
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: benchmark-site
+  labels:
+    app: benchmark-site
+    component: ops
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: benchmark-site
+
+  template:
+    metadata:
+      labels:
+        app: benchmark-site
+        component: ops
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: desktop-jm5iec6
+
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+
+      containers:
+      - name: benchmark-site
+        image: k8s-master:5000/k8s-repo/benchmark-site:v1.11
+        imagePullPolicy: IfNotPresent
+
+        env:
+        # --- scheduler: collaborative path + degradation target of the probe ---
+        - name: SCHEDULER_URL
+          value: "http://scheduler-service:8000"
+        # --- entity endpoints used by the local / degraded path ---
+        - name: HOSPITAL_A_URL
+          value: "http://hospital-a-service:8006"
+        - name: HOSPITAL_B_URL
+          value: "http://hospital-b-service:8006"
+        - name: CLINIC_1_URL
+          value: "http://clinic-1-service:8007"
+        - name: CLINIC_2_URL
+          value: "http://clinic-2-service:8007"
+        - name: CLINIC_3_URL
+          value: "http://clinic-3-service:8007"
+        - name: CLINIC_4_URL
+          value: "http://clinic-4-service:8007"
+        # --- storage / bundled patient inputs (offline degradation) ---
+        - name: DB_PATH
+          value: "/data/bench/bench.db"
+        - name: PATIENTS_PATH
+          value: "/app/patients.json"
+        - name: STATIC_DIR
+          value: "/app/static"
+        - name: PROBE_TIMEOUT_MS
+          value: "1500"
+        - name: AUTO_DEGRADE
+          value: "true"
+
+        ports:
+        - name: http
+          containerPort: 8090
+
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8090
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8090
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+
+        resources:
+          # 测量仪器本身不能被饿着：每次 attempt 都要对 0.5–2MB 的载荷做 JSON
+          # 编解码与统计，1 核会让站点自身成为被测时延的一部分。
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+
+        volumeMounts:
+        - name: bench-data
+          mountPath: /data/bench
+
+      volumes:
+      - name: bench-data
+        hostPath:
+          path: /data/bench
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: benchmark-site-service
+  labels:
+    app: benchmark-site
+
+spec:
+  selector:
+    app: benchmark-site
+
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8090
+    targetPort: 8090
+    nodePort: 30082
+
+  type: NodePort

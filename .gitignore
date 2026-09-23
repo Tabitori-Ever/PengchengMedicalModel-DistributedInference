@@ -3,6 +3,15 @@ frontend/node_modules/
 frontend/dist/
 frontend/*.tsbuildinfo
 
+# ---------- Benchmark site (v3.2) ----------
+# 站点前端依赖复用 platforms 前端的 node_modules（本机无 npm 外网出口）：
+#   cp -r frontend/node_modules benchmark/frontend/node_modules
+benchmark/frontend/node_modules/
+benchmark/frontend/dist/
+benchmark/frontend/*.tsbuildinfo
+# 站点镜像内构建生成（benchmark/tools/make_patients.py），不入库
+benchmark/patients.json
+
 # ---------- Python ----------
 __pycache__/
 *.py[cod]
@@ -15,13 +24,12 @@ venv/
 .env
 .npm-cache/
 .docker-cfg/
+# 站点 bench.db 的本地只读副本（test/rebuild_report_data.py 等生成的临时库）
+.bench_ro.db
+*.sqlite3
 
 # ---------- Large binary / external artifacts ----------
-# 原始鹏城医疗模型代码（含 123MB+ 权重与样例影像），
-# 请从集群 /data/medical-model/weights、Harbor 镜像或本地归档恢复
-z-鹏城医疗模型代码/
-common/part2.pt
-common/part1.pt
+# 已清理：z-鹏城医疗模型代码/（原始模型与权重）、参考/、common/part*.pt、
+# prediction/、medical-worker/。全量重建所需权重请从集群
+# /data/medical-model/weights、Harbor 镜像或本地归档恢复。
 scheduler/latency_model.json
-prediction/latency_model.json
-参考/

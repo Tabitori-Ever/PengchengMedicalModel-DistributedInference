@@ -18,7 +18,7 @@
 import { api } from '../api';
 import type { ComputeBody, DiagnosisBody, RoutineBody, SyncBody } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
-import type { ModelKind, SourceId, TaskItem, TaskResult } from '../types';
+import type { ExecMode, ModelKind, SourceId, TaskItem, TaskResult } from '../types';
 import { MODEL_LABEL, MODELS, SOURCES } from '../utils';
 import type { DatasetEntry, DatasetFileMeta, DatasetFolder, DatasetIndex, Submission } from './dataset';
 import { fetchEntry } from './dataset';
@@ -49,6 +49,10 @@ export interface UserRecord {
 export interface UserState {
   kind: ModelKind;
   source: SourceId;
+  /** v3.2 执行模式：云边端协同 / 本地执行 / 自动 */
+  mode: ExecMode;
+  /** 强制降级开关（受控实验用；优先级高于 mode） */
+  forceDegraded: boolean;
   index: DatasetIndex | null;
   file: DatasetEntry | null;
   records: UserRecord[];
@@ -62,6 +66,8 @@ export function initialState(): UserState {
   return {
     kind: MODELS[0],
     source: DEFAULT_SOURCE,
+    mode: 'collaborative',
+    forceDegraded: false,
     index: null,
     file: null,
     records: [],
@@ -85,6 +91,16 @@ export function selectKind(s: UserState, kind: ModelKind): UserState {
 
 export function selectSource(s: UserState, source: SourceId): UserState {
   return { ...s, source };
+}
+
+/** v3.2：切换执行模式（云边端协同 / 本地执行 / 自动） */
+export function selectMode(s: UserState, mode: ExecMode): UserState {
+  return { ...s, mode };
+}
+
+/** v3.2：强制降级开关 */
+export function setForceDegraded(s: UserState, forceDegraded: boolean): UserState {
+  return { ...s, forceDegraded };
 }
 
 export function withIndex(s: UserState, index: DatasetIndex): UserState {

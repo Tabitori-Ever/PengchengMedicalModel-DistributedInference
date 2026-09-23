@@ -3,6 +3,14 @@
 
 export type ModelKind = 'diagnosis' | 'compute' | 'sync' | 'routine';
 
+/**
+ * v3.2 执行模式：
+ *   collaborative 云边端协同（数据中心编排多角色协作，默认）
+ *   local         本地执行（由发起 Pod 自行编排、就地优先执行）
+ *   auto          自动（依赖/调度器不可用时自动降级为本地执行）
+ */
+export type ExecMode = 'collaborative' | 'local' | 'auto';
+
 export type SourceId = 'hospital-a' | 'hospital-b' | 'clinic-1' | 'clinic-2';
 export type HospitalId = 'hospital-a' | 'hospital-b';
 

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, HealthMap,
+  ApplyResult, ClusterDefault, ClusterStatus, ClusterSummary, ExecMode, HealthMap,
   HospitalId, Patient, SourceId, TaskItem, TaskResult, TaskStats, ValidateResp,
 } from './types';
 
@@ -22,10 +22,19 @@ http.interceptors.response.use(undefined, async (error: any) => {
 export interface SubmitResp {
   task_id: string;
   status: string;
+  mode?: ExecMode;
+}
+
+/** v3.2：所有提交接口都接受执行模式（见 调度模式与降级-设计方案.md） */
+export interface ModeOptions {
+  /** 执行模式：云边端协同 / 本地执行 / 自动 */
+  mode?: ExecMode;
+  /** 强制降级为本地执行（受控实验开关，优先级高于 mode） */
+  force_degraded?: boolean;
 }
 
 /** Body accepted by POST /schedule/diagnosis */
-export interface DiagnosisBody {
+export interface DiagnosisBody extends ModeOptions {
   source: SourceId;
   patient_id?: string;
   target_hospital?: HospitalId | 'auto' | null;
@@ -34,18 +43,20 @@ export interface DiagnosisBody {
 }
 
 /** Body accepted by POST /schedule/compute */
-export interface ComputeBody {
+export interface ComputeBody extends ModeOptions {
   source: SourceId;
   instruments?: number;
   rows?: number;
   intensity?: number;
   partition_count?: number;
+  /** 固定随机种子 → 本地/协同结果（checksum）可直接比对 */
+  seed?: number;
   priority?: number;
   deadline?: string;
 }
 
 /** Body accepted by POST /schedule/sync */
-export interface SyncBody {
+export interface SyncBody extends ModeOptions {
   source: SourceId;
   bandwidth_mbps?: number;
   concurrency?: number;
@@ -55,11 +66,12 @@ export interface SyncBody {
 }
 
 /** Body accepted by POST /schedule/routine */
-export interface RoutineBody {
+export interface RoutineBody extends ModeOptions {
   source: SourceId;
   jobs?: number;
   rows?: number;
   intensity?: number;
+  seed?: number;
   priority?: number;
   deadline?: string;
 }

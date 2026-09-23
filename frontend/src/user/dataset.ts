@@ -9,8 +9,8 @@
    - <文件夹>/<文件名>.json  单个文件内容，仅在被选中时读取
    =========================================================================== */
 
-import type { ComputeBody, DiagnosisBody, RoutineBody, SyncBody } from '../api';
-import type { ModelKind, SourceId } from '../types';
+import type { ComputeBody, DiagnosisBody, ModeOptions, RoutineBody, SyncBody } from '../api';
+import type { ExecMode, ModelKind, SourceId } from '../types';
 
 export type DatasetKind = ModelKind;
 
@@ -130,9 +130,17 @@ const int = (v: unknown): number | undefined => {
 /**
  * 所选文件 + 任务位置 → 提交载荷。
  * 字段名与后端请求体一致，数值全部来自文件内容，界面不做任何改写。
+ * v3.2：执行模式（协同/本地/自动）与强制降级是界面级选择，附加在载荷上。
  */
-export function buildSubmission(entry: DatasetEntry, source: SourceId): Submission {
+export function buildSubmission(
+  entry: DatasetEntry,
+  source: SourceId,
+  opts: { mode?: ExecMode; forceDegraded?: boolean } = {},
+): Submission {
   const p = entry.params as Record<string, unknown>;
+  const mode: ModeOptions = {};
+  if (opts.mode) mode.mode = opts.mode;
+  if (opts.forceDegraded) mode.force_degraded = true;
   switch (entry.kind) {
     case 'compute':
       return {
@@ -143,6 +151,7 @@ export function buildSubmission(entry: DatasetEntry, source: SourceId): Submissi
           rows: int(p.rows),
           intensity: int(p.intensity),
           partition_count: int(p.partition_count),
+          ...mode,
         },
       };
     case 'sync':
@@ -153,6 +162,7 @@ export function buildSubmission(entry: DatasetEntry, source: SourceId): Submissi
           bandwidth_mbps: int(p.bandwidth_mbps),
           concurrency: int(p.concurrency),
           chunk_kb: int(p.chunk_kb),
+          ...mode,
         },
       };
     case 'routine':
@@ -163,6 +173,7 @@ export function buildSubmission(entry: DatasetEntry, source: SourceId): Submissi
           jobs: int(p.jobs),
           rows: int(p.rows),
           intensity: int(p.intensity),
+          ...mode,
         },
       };
     default:
@@ -176,6 +187,7 @@ export function buildSubmission(entry: DatasetEntry, source: SourceId): Submissi
           target_hospital: p.target_hospital === undefined || p.target_hospital === null
             ? undefined
             : String(p.target_hospital) as DiagnosisBody['target_hospital'],
+          ...mode,
         },
       };
   }

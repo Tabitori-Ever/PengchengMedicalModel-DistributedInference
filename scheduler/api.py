@@ -58,6 +58,14 @@ TEST_DATASET_PATH = os.getenv(
 scheduler = InferenceScheduler(max_concurrent=MAX_CONCURRENT,
                                max_queue=MAX_QUEUE_SIZE)
 
+# v3.3: warm the node-load cache in a background thread at startup so no task
+# ever pays the Kubernetes API round trip on its critical path.
+try:
+    from .node_usage import node_loads as _warm_node_loads
+    _warm_node_loads()
+except Exception:
+    pass
+
 # ------------------------------ test dataset -------------------------------
 _test_dataset_cache: Optional[List[dict]] = None
 _test_dataset_mtime: float = 0
@@ -89,10 +97,19 @@ class BaseSchedule(BaseModel):
     source: str = "hospital-a"
     priority: int = 5
     deadline: str = "120s"
+    # v3.2 execution-mode selection (see 调度模式与降级-设计方案.md):
+    #   collaborative | local | auto
+    mode: str = "collaborative"
+    force_degraded: bool = False
 
 
 class DiagnosisRequest(BaseSchedule):
     patient_id: Optional[str] = None
+    # v3.3 批量诊断：患者列表（按 id 从测试数据集解析）或直接给 batch 输入
+    patient_ids: Optional[List[str]] = None
+    # v3.5 控制面/数据面分离：deliver="direct" 时调度器只返回执行计划，
+    # 输入数据由调用方直投执行者（数据面绕开控制面）
+    deliver: Optional[str] = None
     target_hospital: Optional[str] = None   # clinic 发起时可选转诊目标
     input: Dict = {}
 
@@ -102,6 +119,7 @@ class ComputeRequest(BaseSchedule):
     rows: int = 256
     intensity: int = 40
     partition_count: int = 3
+    seed: Optional[int] = None              # 固定种子 → 本地/协同结果可比对
 
 
 class SyncRequest(BaseSchedule):
@@ -114,6 +132,11 @@ class RoutineRequest(BaseSchedule):
     jobs: int = 2
     rows: int = 128
     intensity: int = 30
+    seed: Optional[int] = None
+    # v3.3 日常任务的两种执行器：
+    #   warm（默认）把作业并发派发到空闲节点上已运行的 Pod（"按节点空闲调度"）
+    #   job        为每个作业创建一次性 Kubernetes Job（serverless 式，有冷启动）
+    executor: Optional[str] = None
 
 
 # ------------------------------ background workers --------------------------
@@ -122,7 +145,11 @@ def scheduler_worker(worker_id: int):
         try:
             task_id = dequeue_task()
             if not task_id:
-                time.sleep(0.2)
+                # v3.3: shorter poll so the async queue adds ~25ms average
+                # latency instead of ~100ms (only the collaborative path has a
+                # queue; local execution starts immediately, so this is part of
+                # the honest architecture comparison).
+                time.sleep(0.05)
                 continue
             scheduler.dispatch_task({"id": task_id})
             update_metrics()
@@ -166,7 +193,9 @@ def _do_submit(model: str, req: BaseSchedule, input_data: dict):
         result = scheduler.submit_task(model=model, source=req.source,
                                        priority=req.priority,
                                        input_data=input_data,
-                                       deadline=req.deadline)
+                                       deadline=req.deadline,
+                                       mode=getattr(req, "mode", "collaborative"),
+                                       force_degraded=getattr(req, "force_degraded", False))
         update_metrics()
         return result
     except RuntimeError as e:
@@ -178,10 +207,41 @@ def _do_submit(model: str, req: BaseSchedule, input_data: dict):
 
 
 # ------------------------------ schedule endpoints --------------------------
+def _batch_from_ids(ids: List[str]):
+    """Resolve patient ids into one batch payload (list of per-patient inputs)."""
+    batch = []
+    for pid in ids:
+        patient = _get_patient_by_id(pid)
+        if not patient:
+            raise HTTPException(status_code=404,
+                                detail=f"患者 {pid} 不在测试数据集")
+        item = dict(patient.get("input", {}))
+        item["patient_id"] = pid
+        item.setdefault("patient_ids", [pid])
+        batch.append(item)
+    return batch
+
+
 @app.post("/schedule/diagnosis")
 def schedule_diagnosis(req: DiagnosisRequest):
-    """诊断：hospital 发起直接执行；clinic 发起会转诊给 hospital。"""
+    """诊断：hospital 发起直接执行；clinic 发起会转诊给 hospital。
+
+    给 `patient_ids` 即批量诊断（协同侧走边端前端 / 云侧后端两段流水线）。"""
     inp = dict(req.input) if isinstance(req.input, dict) else {}
+    if (req.deliver or "").lower() == "direct" and req.patient_ids \
+            and (req.mode or "") != "local":
+        try:
+            return scheduler.plan_diagnosis(
+                source=req.source, patient_ids=list(req.patient_ids),
+                priority=req.priority, deadline=req.deadline,
+                mode=req.mode or "collaborative")
+        except RuntimeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    if req.patient_ids:
+        inp["batch"] = _batch_from_ids(list(req.patient_ids))
+        inp["patient_ids"] = list(req.patient_ids)
+        inp["target_hospital"] = req.target_hospital
+        return _do_submit("diagnosis", req, inp)
     if req.patient_id:
         patient = _get_patient_by_id(req.patient_id)
         if not patient:
@@ -195,10 +255,11 @@ def schedule_diagnosis(req: DiagnosisRequest):
 
 @app.post("/schedule/compute")
 def schedule_compute(req: ComputeRequest):
-    return _do_submit("compute", req, {
-        "instruments": req.instruments, "rows": req.rows,
-        "intensity": req.intensity, "partition_count": req.partition_count,
-    })
+    data = {"instruments": req.instruments, "rows": req.rows,
+            "intensity": req.intensity, "partition_count": req.partition_count}
+    if req.seed is not None:
+        data["seed"] = req.seed
+    return _do_submit("compute", req, data)
 
 
 @app.post("/schedule/sync")
@@ -211,9 +272,26 @@ def schedule_sync(req: SyncRequest):
 
 @app.post("/schedule/routine")
 def schedule_routine(req: RoutineRequest):
-    return _do_submit("routine", req, {
-        "jobs": req.jobs, "rows": req.rows, "intensity": req.intensity,
-    })
+    data = {"jobs": req.jobs, "rows": req.rows, "intensity": req.intensity}
+    if req.seed is not None:
+        data["seed"] = req.seed
+    if req.executor:
+        data["executor"] = req.executor
+    return _do_submit("routine", req, data)
+
+
+class DirectReportRequest(BaseModel):
+    results: List[Dict] = []
+    client_total_ms: Optional[float] = None
+
+
+@app.post("/task/{task_id}/report")
+def report_direct_result(task_id: str, req: DirectReportRequest):
+    """直投模式的记账入口：调用方把各执行者的结果回传，调度器归档并统计。"""
+    out = scheduler.report_diagnosis(task_id, req.model_dump())
+    if out.get("status") == "not_found":
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    return out
 
 
 # ------------------------------ result / tasks ------------------------------
@@ -248,16 +326,25 @@ def _slim_task(t: dict) -> dict:
     """Trim a stored task to what live dashboards need (tiny JSON)."""
     out = {k: t.get(k) for k in (
         "id", "model", "source", "priority", "status", "stage", "node",
-        "progress", "start_time", "end_time", "duration_ms", "error")}
+        "progress", "start_time", "end_time", "duration_ms", "error",
+        "mode", "force_degraded")}
     res = t.get("result") or {}
     if not res:
         return out
     rd = res.get("result_detail") or {}
     slim: dict = {
+        # v3.2 execution-mode bookkeeping (collaborative / local / degraded)
+        "mode": res.get("mode"),
+        "mode_requested": res.get("mode_requested"),
+        "degraded": res.get("degraded"),
+        "degrade_reason": res.get("degrade_reason"),
+        "orchestrator": res.get("orchestrator"),
+        "executor": res.get("executor"),
         "initiator": res.get("initiator"),
         "forwarded_to": res.get("forwarded_to"),
-        "stages": [{k: s.get(k) for k in ("name", "actor", "node", "ms")}
-                   for s in (res.get("stages") or [])],
+        "stages": [{k: s.get(k) for k in (
+            "name", "actor", "node", "ms", "detail", "compute_ms", "network_ms")}
+            for s in (res.get("stages") or [])],
         "metrics": {k: v for k, v in (res.get("metrics") or {}).items()
                     if isinstance(v, (int, float))},
     }

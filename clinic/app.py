@@ -14,9 +14,9 @@ import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 sys.path.insert(0, "/app")
 _ROOT = Path(__file__).resolve().parent.parent
@@ -24,6 +24,7 @@ if str(_ROOT) not in sys.path and Path(_ROOT).is_dir():
     sys.path.insert(0, str(_ROOT))
 
 from common import v3_common as v3           # noqa: E402
+from common import local_exec as lx          # noqa: E402
 
 CLINIC_NAME = os.environ.get("CLINIC_NAME", "clinic-1")
 NODE_NAME = os.environ.get("NODE_NAME", "unknown")
@@ -41,6 +42,19 @@ compute_requests = Counter("v3_compute_requests_total", "v3 compute partitions",
 sync_requests = Counter("v3_sync_requests_total", "v3 sync calls", ["entity"])
 
 _accepted: set = set()
+
+# ====================== v3.2 local execution runtime ========================
+# A clinic has no PyTorch / no weights, so "local" for diagnosis means this pod
+# drives the pipeline and takes the shortest hop: the nearest hospital runs the
+# full model in place. compute / sync / routine run entirely on this pod.
+local_store = lx.ResultStore()
+local_exec_requests = Counter("local_exec_requests_total",
+                              "local executions", ["entity", "kind"])
+local_exec_latency = Histogram("local_exec_latency_seconds",
+                               "local execution latency", ["kind"])
+
+local_runner = lx.queue_runner_factory(local_store)   # diagnosis -> forward
+local_queue = lx.LocalQueue(local_runner, store=local_store)
 
 
 # ----------------------------- memory (ops tool) ----------------------------
@@ -94,7 +108,8 @@ def root():
 @app.get("/health")
 def health_check():
     return {"service": "clinic", "clinic": CLINIC_NAME, "node": NODE_NAME,
-            "pod": POD_NAME, "status": "ok"}
+            "pod": POD_NAME, "status": "ok",
+            "capabilities": lx.capabilities("clinic"), "local_mode": True}
 
 
 @app.post("/v3/compute")
@@ -142,6 +157,90 @@ def v3_sync_chunk(item_id: str):
     meta = v3.item_meta(item_id, blob)
     return {"id": item_id, "size": meta["size"], "hash": meta["hash"],
             "blob": blob, "peer": CLINIC_NAME}
+
+
+# ====================== v3.2 local execution endpoints ======================
+class LocalExecuteRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    task_id: str
+    kind: str = "compute"
+    source: Optional[str] = None
+    params: Dict = {}
+    input: Dict = {}
+    degraded: bool = False
+    degrade_reason: Optional[str] = None
+    mode_requested: str = "local"
+    is_async: bool = Field(default=False, alias="async")
+
+
+class LocalDiagnosisRequest(BaseModel):
+    task_id: str
+    input: Dict = {}
+    params: Dict = {}
+    source: Optional[str] = None
+    degraded: bool = False
+    degrade_reason: Optional[str] = None
+    mode_requested: str = "local"
+
+
+def _run_local(kind: str, req) -> dict:
+    try:
+        res = lx.run_local_request(
+            kind, req.task_id, getattr(req, "params", {}) or {},
+            getattr(req, "input", {}) or {}, source=req.source,
+            degraded=req.degraded, degrade_reason=req.degrade_reason,
+            mode_requested=req.mode_requested,
+            is_async=getattr(req, "is_async", False),
+            store=local_store, queue=local_queue, runner=local_runner)
+    except lx.QueueFull as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    local_exec_requests.labels(entity=CLINIC_NAME, kind=kind).inc()
+    ms = ((res.get("metrics") or {}).get("pipeline_total_ms") or 0) / 1000.0
+    if ms:
+        local_exec_latency.labels(kind=kind).observe(ms)
+    return res
+
+
+@app.post("/local/execute")
+def local_execute(req: LocalExecuteRequest):
+    """Local execution / degraded execution entry point (see 调度模式与降级-设计方案.md §4)."""
+    return _run_local(req.kind, req)
+
+
+@app.post("/local/diagnosis")
+def local_diagnosis(req: LocalDiagnosisRequest):
+    """Clinic-side diagnosis: capability=forward - this pod orchestrates, the
+    nearest hospital executes the full model in place."""
+    return _run_local("diagnosis", req)
+
+
+@app.get("/local/result/{task_id}")
+def local_result(task_id: str):
+    env = local_store.get(task_id)
+    if env is not None:
+        return env
+    state = local_queue.state(task_id)
+    if state:
+        return {"task_id": task_id, "status": state, "local": True}
+    raise HTTPException(status_code=404, detail=f"本地任务 {task_id} 不存在")
+
+
+@app.get("/local/results")
+def local_results(limit: int = 50):
+    return local_store.recent(limit=max(1, min(int(limit), 200)))
+
+
+@app.get("/local/queue")
+def local_queue_status():
+    return local_queue.status()
+
+
+@app.get("/local/health")
+def local_health():
+    return lx.health_payload(local_store, local_queue)
 
 
 @app.get("/metrics")

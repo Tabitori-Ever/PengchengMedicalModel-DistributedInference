@@ -16,7 +16,7 @@ import { iconShapes, type IconKind } from './TaskTrajectoryMap';
      数据中心   scheduler · medical-server · dc-services · redis   (node3)
      医疗中心   hospital-a · hospital-b                             (node1 / node2)
      医院       clinic-1 · clinic-2 (+ clinic-N)                    (node1 / node2)
-     运维       monitoring · prediction                             (desktop)
+     运维       monitoring                                   (desktop)
 
    Entities are borderless icon medallions + name + one short Chinese caption +
    live state (health probe / pod readiness / node CPU·内存). Group relations
@@ -233,7 +233,7 @@ const CLOUD_TILES: { name: string; icon: IconKind; keys: string[] }[] = [
   { name: 'redis', icon: 'cache', keys: ['redis'] },
 ];
 
-const OPS_FALLBACK = ['monitoring', 'prediction'];
+const OPS_FALLBACK = ['monitoring'];
 
 const CAPTION_BY_KIND: Record<'hospital' | 'clinic', string> = {
   hospital: entityCaption('hospital-a'),

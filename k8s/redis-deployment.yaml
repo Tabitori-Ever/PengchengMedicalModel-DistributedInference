@@ -27,7 +27,7 @@ spec:
       containers:
       - name: redis
         # Use internal Harbor image (nodes have no egress to docker.io)
-        image: 10.29.182.66:5000/k8s-repo/redis:6-alpine
+        image: k8s-master:5000/k8s-repo/redis:6-alpine
         imagePullPolicy: IfNotPresent
 
         # Persist task history / profiling data: AOF (appendfsync everysec)

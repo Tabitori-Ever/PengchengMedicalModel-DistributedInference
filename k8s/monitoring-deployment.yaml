@@ -29,7 +29,7 @@ spec:
 
       containers:
       - name: monitoring
-        image: 10.29.182.66:5000/k8s-repo/inference-monitoring:v1.0
+        image: k8s-master:5000/k8s-repo/inference-monitoring:v1.0
         imagePullPolicy: IfNotPresent
 
         env:

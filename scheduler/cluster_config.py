@@ -24,7 +24,7 @@ from typing import Dict, Any, List, Optional
 
 VERSION = "3.0"
 NAMESPACE = "default"
-REGISTRY = "10.29.182.66:5000/k8s-repo"
+REGISTRY = "k8s-master:5000/k8s-repo"
 
 EDGE_NODES = ["node1", "node2"]
 FIXED_NODES_READONLY = ["node3", "desktop-jm5iec6"]
@@ -87,9 +87,9 @@ DEFAULT_EDITABLE: Dict[str, dict] = {
 }
 
 # Read-only deployments shown on the cluster map (not editable)
-# v3.0: part2 removed; data center services listed under readonly.
+# v3.0: part2 removed; 运维/数据中心服务统一列为 readonly。
 READONLY_APPS = ["medical-server", "dc-services", "redis", "scheduler",
-                 "monitoring", "prediction"]
+                 "monitoring"]
 
 SELECTOR_LABELS = {
     "hospital": {"app": "hospital"},

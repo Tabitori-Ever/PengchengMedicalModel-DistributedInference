@@ -9,7 +9,7 @@ metadata:
     stage: server
 
 spec:
-  # node3 (4C/8Gi) hosts 1 medical-server + 1 part2 (per layout change);
+  # node3 (4C/8Gi) hosts 1 medical-server (per layout change);
   # a 2nd server replica would not fit node3, keep it at 1.
   replicas: 1
 
@@ -31,7 +31,7 @@ spec:
 
       containers:
       - name: medical-server
-        image: 10.29.182.66:5000/k8s-repo/medical-server:v1.0
+        image: k8s-master:5000/k8s-repo/medical-server:v1.4
         imagePullPolicy: IfNotPresent
 
         env:

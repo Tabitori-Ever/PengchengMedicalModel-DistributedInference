@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# Build-context filter for the v3.2 incremental image builds.
+#
+# The v3.2 Dockerfiles only copy application code (scheduler/, hospital/,
+# clinic/, common/, frontend/dist, test/test_dataset.json, benchmark/), so the
+# heavy research artifacts are excluded to keep `docker build` fast.
+#
+# NOTE: the from-scratch Dockerfile.full variants need the DoubleTower model
+# weights, which are no longer in the repo - restore them from the cluster
+# (/data/medical-model/weights), Harbor or a local archive before a full rebuild.
+# ---------------------------------------------------------------------------
+
+# VCS / tooling / test scratch
+.git
+.gitignore
+.lx-test
+.docker-cfg
+.npm-cache
+.claude
+__pycache__
+**/__pycache__
+*.py[cod]
+*.log
+**/*.log
+
+# Node deps: builds use the pre-built frontend/dist, never node_modules
+node_modules
+**/node_modules
+frontend/*.tsbuildinfo
+
+# Research / reference material not needed by any image
+*.docx
+*.doc
+*.pdf
+*.zip

@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
-import type { ModelKind, SourceId, TaskItem } from '../types';
-import { MODEL_LABEL, STATUS_LABEL } from '../utils';
+import type { ExecMode, ModelKind, SourceId, TaskItem } from '../types';
+import { EXEC_MODE_LABEL, MODEL_LABEL, STATUS_LABEL } from '../utils';
 import { PLATFORM_NAME, entityName } from '../terms';
 import type { DatasetEntry } from './dataset';
 import { buildSubmission, fetchIndex } from './dataset';
 import type { UserRecord, UserState } from './state';
 import {
   addRecord, clearFocus, focusTask, isPending, loadEntry, newTask, nextId,
-  patchFocus, patchRecord, pickFile, queuedResult, recordStatus, selectKind, selectSource,
+  patchFocus, patchRecord, pickFile, queuedResult, recordStatus, selectKind,
+  selectMode, selectSource, setForceDegraded,
   sendSubmission, initialState, withIndex, folderFor,
 } from './state';
 import TaskForm from './TaskForm';
@@ -40,6 +41,9 @@ export interface UserAppViewProps {
   tasks: TaskItem[];
   onKind: (k: ModelKind) => void;
   onSource: (s: SourceId) => void;
+  /** v3.2 执行模式 */
+  onMode: (m: ExecMode) => void;
+  onForceDegraded: (v: boolean) => void;
   onPick: (entry: DatasetEntry) => void;
   onSubmit: () => void;
   onNew: () => void;
@@ -93,6 +97,8 @@ export function UserAppView(props: UserAppViewProps) {
             <TaskForm
               kind={state.kind}
               source={state.source}
+              mode={state.mode}
+              forceDegraded={state.forceDegraded}
               index={state.index}
               file={state.file}
               busy={props.busy}
@@ -100,6 +106,8 @@ export function UserAppView(props: UserAppViewProps) {
               error={props.error}
               onKind={props.onKind}
               onSource={props.onSource}
+              onMode={props.onMode}
+              onForceDegraded={props.onForceDegraded}
               onPick={props.onPick}
               onSubmit={props.onSubmit}
             />
@@ -118,6 +126,10 @@ export function UserAppView(props: UserAppViewProps) {
 /** 一条记录：提交卡同宽同列，标题是数据集文件名，状态在旁边，结论用 UserResult */
 function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => void }) {
   const status = recordStatus(record);
+  // v3.2：结果里带上实际使用的执行模式与降级标记
+  const res: any = (record.live as any)?.result || (record.task?.result as any) || null;
+  const modeUsed: string | undefined = res?.mode;
+  const degraded: boolean = res?.degraded === true;
   return (
     <article className={`up-card up-record ${record.history ? 'hist' : ''}`} data-task={record.taskId}>
       <header className="up-card-head">
@@ -143,6 +155,13 @@ function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => v
           <i>状态</i>
           <b className={`up-st s-${status}`}>{STATUS_LABEL[status] || status}</b>
         </span>
+        {modeUsed && (
+          <span className="up-meta-item">
+            <i>执行</i>
+            <b>{EXEC_MODE_LABEL[modeUsed] || modeUsed}</b>
+            {degraded && <em className="up-degraded" title="调度降级：由发起 Pod 本地执行">降级</em>}
+          </span>
+        )}
       </div>
 
       <div className="up-result">
@@ -216,6 +235,12 @@ export default function UserApp() {
 
   const onSource = (s: SourceId) => setState((st) => selectSource(st, s));
 
+  /** v3.2：执行模式（云边端协同 / 本地执行 / 自动） */
+  const onMode = (m: ExecMode) => setState((st) => selectMode(st, m));
+
+  /** v3.2：强制降级开关 */
+  const onForceDegraded = (v: boolean) => setState((st) => setForceDegraded(st, v));
+
   /** 弹窗里选中文件：文件内容已由 DatasetBrowser 读取，选中后 执行 才可用 */
   const onPick = (entry: DatasetEntry) => {
     setError('');
@@ -231,7 +256,10 @@ export default function UserApp() {
     setBusy(true);
     setError('');
     try {
-      const sub = buildSubmission(entry, s.source);
+      const sub = buildSubmission(entry, s.source, {
+        mode: s.mode,
+        forceDegraded: s.forceDegraded,
+      });
       const taskId = await sendSubmission(sub);
       const rec: UserRecord = {
         id: nextId(),
@@ -286,6 +314,8 @@ export default function UserApp() {
       onSource={onSource}
       onPick={onPick}
       onSubmit={onSubmit}
+      onMode={onMode}
+      onForceDegraded={onForceDegraded}
       onNew={onNew}
       onOpenTask={onOpenTask}
       onCloseFocus={() => setState((s) => clearFocus(s))}
@@ -295,7 +325,8 @@ export default function UserApp() {
 
 /** 测试钩子：纯状态迁移，便于在无 DOM 环境下验证交互逻辑 */
 export const __userInternals = {
-  folderFor, selectKind, selectSource, withIndex, pickFile, addRecord, patchRecord,
+  folderFor, selectKind, selectSource, selectMode, setForceDegraded,
+  withIndex, pickFile, addRecord, patchRecord,
   focusTask, patchFocus, clearFocus, newTask, recordStatus, isPending, loadEntry,
   sendSubmission, queuedResult, buildSubmission,
 };

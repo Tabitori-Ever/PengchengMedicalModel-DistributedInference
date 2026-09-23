@@ -1,7 +1,7 @@
 # ==========================================================================
-# Hospital-a Pod (v2.0)
-# Merges the old medical-worker (DoubleTower front-end) + AlexNet part1
-# (Conv1-Conv5) into one pod pinned to node1.
+# Hospital-a Pod (v3.0)
+# DoubleTower 诊断 worker 前端 + v3 协同计算/P2P peer，固定 node1。
+# （v2.0 合并的 medical-worker 与 AlexNet part1 已移除）
 # Raw patient data never leaves this hospital pod.
 # ==========================================================================
 apiVersion: apps/v1
@@ -37,12 +37,33 @@ spec:
 
       containers:
       - name: hospital
-        image: 10.29.182.66:5000/k8s-repo/hospital:v3.0
+        image: k8s-master:5000/k8s-repo/hospital:v3.13
         imagePullPolicy: IfNotPresent
 
         env:
         - name: HOSPITAL_NAME
           value: "hospital-a"
+        - name: ENTITY_NAME
+          value: "hospital-a"
+        - name: ENTITY_KIND
+          value: "hospital"
+        # data-center scheduler address used by /local/health reachability probe
+        - name: SCHEDULER_URL
+          value: "http://scheduler-service:8000"
+        # v3.3 边端→云端后端的直连地址（数据面一跳，不再经调度器中转）
+        - name: MEDICAL_SERVER_URL
+          value: "http://medical-server-service:9001"
+        - name: DC_SERVICES_URL
+          value: "http://dc-services:8010"
+        - name: LOCAL_WORKERS
+          value: "2"
+        # 本地批量诊断的并发度。实测 4 路并发反而更慢（批量 8 例：920ms → 2117ms）：
+        # 4 路 × 每路 4 线程在 4 核配额上严重超订，线程争抢拖慢每一次推理。
+        # 因此本地策略的最优实现是串行（1），对比也以它的最优为准。
+        - name: LOCAL_BATCH_PARALLEL
+          value: "1"
+        - name: LOCAL_QUEUE_CAPACITY
+          value: "8"
         - name: NODE_NAME
           valueFrom:
             fieldRef:
@@ -78,12 +99,26 @@ spec:
             port: 8006
           initialDelaySeconds: 240
           periodSeconds: 30
+          timeoutSeconds: 10
           failureThreshold: 5
 
         resources:
           requests:
+            # node1/node2 are 8C/4C; keep the CPU request at the v3.0 level so
+            # the second hospital pod still fits, memory request covers the
+            # resident full DoubleTower used by local execution.
             cpu: "1500m"
-            memory: "2Gi"
+            memory: "3Gi"
           limits:
             cpu: "4"
             memory: "6Gi"
+
+        volumeMounts:
+        - name: local-results
+          mountPath: /data/local-results
+
+      volumes:
+      - name: local-results
+        hostPath:
+          path: /data/local-results
+          type: DirectoryOrCreate

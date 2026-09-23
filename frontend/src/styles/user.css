@@ -119,6 +119,21 @@
 .up-select { flex: 1 1 auto; font-size: 16px; padding: 9px 30px 9px 12px; }
 .up-src-id { flex: 0 0 auto; color: var(--grey-2); }
 
+/* v3.2 执行模式：下拉 + 强制降级开关（沿用同一行样式，卡片仍是两行结构） */
+.up-check {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; color: var(--grey-3); letter-spacing: 0.06em; cursor: pointer;
+}
+.up-check input { accent-color: var(--brass-2); width: 15px; height: 15px; cursor: pointer; }
+.up-check:hover { color: var(--brass-2); }
+
+/* 结果里的降级徽标 */
+.up-degraded {
+  margin-left: 8px; padding: 1px 7px; font-style: normal; font-size: 12px;
+  letter-spacing: 0.08em; color: var(--warn, #a4562a);
+  border: 1px solid currentColor; border-radius: var(--r-1);
+}
+
 /* 上传：数据入口，实心棕铜描边，比一般小按钮更显眼 */
 .up-up-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .up-up {

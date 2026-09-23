@@ -40,7 +40,7 @@ def create_routine_job(name: str, node: str, args: dict,
     if not c.get("batch"):
         return None
     image = image or os.environ.get("ROUTINE_IMAGE",
-                                    "10.29.182.66:5000/k8s-repo/clinic:v3.0")
+                                    "k8s-master:5000/k8s-repo/clinic:v3.0")
     body = {
         "apiVersion": "batch/v1",
         "kind": "Job",

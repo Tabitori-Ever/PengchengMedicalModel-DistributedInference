@@ -1,0 +1,48 @@
+# ============================================================
+# Hospital Pod image v3.0 (edge)
+# DoubleTower medical worker front-end + v3 compute/sync peers.
+# AlexNet part1 was removed in v3.0.
+# Deployed as hospital-a on node1, hospital-b on node2.
+# ============================================================
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch CPU-only to keep image smaller
+RUN pip install --no-cache-dir \
+    torch --index-url https://download.pytorch.org/whl/cpu \
+    torchvision --index-url https://download.pytorch.org/whl/cpu
+
+COPY hospital/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --- runtime stage: drop gcc/g++ ---
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Application code: hospital app + DoubleTower (medical) + v3 shared helpers
+# DoubleTower 代码与 medical-server 服务端逐字节相同，统一从 medical-server/ 取；
+# medical-worker/ 已在清理中移除（不再作为独立服务存在）。
+COPY hospital/app.py /app/
+COPY medical-server/models_my.py /app/
+COPY medical-server/models/ /app/models/
+COPY common/v3_common.py /app/common/v3_common.py
+COPY common/local_exec.py /app/common/local_exec.py
+
+# Medical DoubleTower weights (123MB) - data does not leave the hospital pod
+# 权重已不在仓库内，全量重建时从集群 /data/medical-model/weights、Harbor 或本地归档
+# 恢复后用 --build-arg WEIGHTS=<path> 指过来。
+ARG WEIGHTS=weights/best_model_fold1.pth
+COPY ${WEIGHTS} /app/weights/best_model_fold1.pth
+
+EXPOSE 8006
+
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8006", "--no-access-log"]

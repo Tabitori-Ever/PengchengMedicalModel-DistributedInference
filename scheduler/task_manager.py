@@ -9,7 +9,8 @@ from .redis_client import save_task, get_task, get_tasks, redis_delete, REDIS_AV
 
 
 def create_task(model: str, source: str, priority: int = 5, input_data: dict = None,
-                resource_requirement: dict = None, deadline: str = "5s") -> dict:
+                resource_requirement: dict = None, deadline: str = "5s",
+                extra: dict = None) -> dict:
     """Create a new task with enhanced multi-model schema."""
     task_id = datetime.now().strftime("%Y%m%d%H%M%S") + str(uuid.uuid4())[:4]
 
@@ -30,6 +31,8 @@ def create_task(model: str, source: str, priority: int = 5, input_data: dict = N
         "queued_at": now_iso,
         "metrics": {}
     }
+    if extra:
+        task.update(extra)
     save_task(task)
     return task
 
