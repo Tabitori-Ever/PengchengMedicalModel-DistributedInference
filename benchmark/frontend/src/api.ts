@@ -1,13 +1,16 @@
 import axios from 'axios';
 import type {
-  ApiMessage, Attempt, CompareGroup, CompareResp, CreateRunResp, GroupCorrectness,
-  Kind, MatrixRow, Patient, ReqMode, Run, RunProgress, RunSpec, SiteConfig, SiteHealth,
-  Stage, SuiteAgg, SuiteCompareResp, SuiteConfigRow, SuiteInfo, SuiteSpeedup,
+  ApiMessage, Attempt, CompareGroup, CompareResp, CreatePlanRunBody, CreateRunResp,
+  GroupCorrectness, Kind, MatrixRow, Patient, PlanInfo, PlanRun, PlanRunBrief,
+  ReqMode, Run, RunProgress, RunSpec, SiteConfig, SiteHealth, Stage, SuiteAgg,
+  SuiteCompareResp, SuiteConfigRow, SuiteInfo, SuiteSpeedup,
 } from './types';
 
 /** 便于页面从一个地方拿到契约类型 */
 export type {
-  Attempt, CompareGroup, CompareResp, CreateRunResp, GroupCorrectness, MatrixRow,
+  Attempt, CompareGroup, CompareResp, CreatePlanRunBody, CreateRunResp,
+  GroupCorrectness, MatrixRow, PlanCompareEntry, PlanComparison, PlanCriterion,
+  PlanCriterionResult, PlanInfo, PlanPhaseStats, PlanRun, PlanRunBrief, PlanRunChild,
   Run, RunProgress, RunSpec, RunSummary, Stage, SuiteAgg, SuiteCompareResp,
   SuiteConfigRow, SuiteInfo, SuiteSpeedup,
 } from './types';
@@ -75,6 +78,33 @@ export const api = {
   /** PUT /api/config */
   updateConfig: async (body: SiteConfig): Promise<SiteConfig> =>
     (await http.put('/config', body)).data,
+
+  // ---- 测试方案（测试大纲 §5.4 / §5.5） ----
+  /** GET /api/plans —— 方案目录，含完整实验配置（任务数/参数/时长/策略/评判） */
+  plans: async (): Promise<PlanInfo[]> => {
+    const data = (await http.get('/plans')).data;
+    if (Array.isArray(data)) return data as PlanInfo[];
+    return (data?.plans ?? []) as PlanInfo[];
+  },
+
+  /** POST /api/plans/runs —— 下发一次方案运行（可带 overrides 自定义配置） */
+  createPlanRun: async (body: CreatePlanRunBody): Promise<PlanRun> =>
+    (await httpLong.post('/plans/runs', body)).data,
+
+  /** GET /api/plans/runs?limit= */
+  listPlanRuns: async (limit = 30): Promise<PlanRunBrief[]> => {
+    const data = (await http.get('/plans/runs', { params: { limit } })).data;
+    if (Array.isArray(data)) return data as PlanRunBrief[];
+    return (data?.plan_runs ?? []) as PlanRunBrief[];
+  },
+
+  /** GET /api/plans/runs/{plan_run_id} —— 配置快照 + 阶段汇总 + 逐类对比 + 判定 */
+  planRun: async (planRunId: string): Promise<PlanRun> =>
+    (await http.get(`/plans/runs/${planRunId}`)).data,
+
+  /** DELETE /api/plans/runs/{plan_run_id} */
+  deletePlanRun: async (planRunId: string): Promise<ApiMessage> =>
+    (await http.delete(`/plans/runs/${planRunId}`)).data,
 
   // ---- 固定套件 ----
   /** GET /api/suites —— 冻结的测试套件（含档位清单） */

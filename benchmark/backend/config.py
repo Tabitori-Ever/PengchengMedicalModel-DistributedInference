@@ -109,6 +109,11 @@ SCHEMA: Dict[str, Any] = {
     "task_timeout_ms": "int",       # overall wait budget for one attempt
     "poll_interval_ms": "int",      # poll period
     "local_async": "bool",          # submit pod tasks with async=true + poll
+    # --- 任务保障：失败自动重传（要求成功率 100%）---
+    "attempt_retries": "int",       # 单个任务最多重传几次（不含首次）
+    "retry_backoff_ms": "int",      # 每次重传前的退避
+    # --- 测试方案运行 ---
+    "plan_unit_concurrency": "int", # 每个「设备 × 任务类型」执行单元的并发
 }
 
 INT_BOUNDS: Dict[str, tuple] = {
@@ -119,6 +124,9 @@ INT_BOUNDS: Dict[str, tuple] = {
     "poll_interval_ms": (50, 10000),
     "concurrency": (1, 32),
     "default_repeats": (1, 1000),
+    "attempt_retries": (0, 10),
+    "retry_backoff_ms": (0, 60000),
+    "plan_unit_concurrency": (1, 32),
 }
 
 
@@ -137,6 +145,10 @@ def env_defaults() -> Dict[str, Any]:
         "task_timeout_ms": _env_int("TASK_TIMEOUT_MS", 600000),
         "poll_interval_ms": _env_int("POLL_INTERVAL_MS", 250),
         "local_async": _env_bool("LOCAL_ASYNC", False),
+        # 失败任务自动重传：默认重传 3 次（首次 + 3 = 最多 4 次尝试）
+        "attempt_retries": _env_int("ATTEMPT_RETRIES", 3),
+        "retry_backoff_ms": _env_int("RETRY_BACKOFF_MS", 500),
+        "plan_unit_concurrency": _env_int("PLAN_UNIT_CONCURRENCY", 1),
     }
 
 

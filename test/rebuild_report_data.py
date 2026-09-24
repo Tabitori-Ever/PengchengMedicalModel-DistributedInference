@@ -69,7 +69,7 @@ def select_runs(con, suite_ids: List[str], latest: int,
                 """SELECT run_id FROM runs WHERE suite_id=? AND status IN
                    ('completed','failed')
                    ORDER BY created_at DESC LIMIT ?""", (sid, latest)).fetchall()
-        out[sid] = [r["run_id"] for r in rows]
+        out[sid] = sorted(r["run_id"] for r in rows)  # run_id 前缀含时间戳，升序即时间序
     return out
 
 

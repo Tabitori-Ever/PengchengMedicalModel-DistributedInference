@@ -832,28 +832,67 @@ def compare_table(rows):
 # --------------------------------------------------------------------------- #
 # 数据推导的小结
 # --------------------------------------------------------------------------- #
-def neg_reason(kind, row):
-    """协同更慢的档位的机制解释（结合该档参数，不照抄机制结论）。"""
-    params = fmt_params(row["params"], limit=4)
-    common = ""
+def _workload_proxy(kind, params):
+    """该档“工作量”的可比代理指标（越小 = 任务越轻），用于档位排名。"""
+    p = as_dict(params)
     if kind == "compute":
-        common = ("该档算力负载最小，协同新增的编排与分区结果汇聚开销"
-                  "无法被并行收益摊薄，出现“开销淹没收益”")
-    elif kind == "diagnosis":
-        common = ("该档批量最小，两段流水线几乎没有可重叠的空间，"
-                  "跨节点往返反而叠加到关键路径上")
-    elif kind == "sync":
-        common = ("该档数据量/带宽下，分块并行流的建立与归属表维护开销"
-                  "高于单流顺序拉取节省的时间")
-    elif kind == "routine":
-        common = ("该档一次性作业数最少，每个 Job 真实的容器启动开销与调度往返"
-                  "没有足够作业数去摊薄")
-    else:
-        common = "协同新增的编排与传输开销在该档工作量下无法被摊薄"
+        vals = [num(p.get(k)) for k in ("instruments", "rows", "intensity")]
+        return vals[0] * vals[1] * vals[2] if all(v is not None for v in vals) else None
+    if kind == "diagnosis":
+        ids = p.get("patient_ids")
+        return len(ids) if isinstance(ids, list) else None
+    if kind == "sync":
+        return num(p.get("bandwidth_mbps"))
+    if kind == "routine":
+        return num(p.get("jobs"))
+    return None
+
+
+def _rank_phrase(kind, row, rows):
+    """按工作量代理指标给出该档在全部档位中的位置（不照抄类别套话）。"""
+    proxies = [(r, _workload_proxy(kind, r.get("params"))) for r in (rows or [])]
+    proxies = [(r, v) for r, v in proxies if v is not None]
+    mine = _workload_proxy(kind, row.get("params"))
+    if mine is None or len(proxies) < 2:
+        return "该档工作量偏小"
+    proxies.sort(key=lambda t: t[1])
+    total = len(proxies)
+    shared = [i for i, (_, v) in enumerate(proxies) if v == mine]
+    lo, hi = min(shared) + 1, max(shared) + 1
+    if hi == 1:
+        return f"该档工作量在全部 {total} 档中最小"
+    if lo == total:
+        return f"该档工作量在全部 {total} 档中最大"
+    if lo == hi:
+        return f"该档工作量在全部 {total} 档中排第 {lo} 小"
+    return f"该档工作量在全部 {total} 档中并列第 {lo}–{hi} 小"
+
+
+def _neg_mechanism(kind):
+    """协同更慢时该类任务的机制（按类别固定，位置信息由 _rank_phrase 提供）。"""
+    if kind == "compute":
+        return ("协同新增的派发、分区结果汇聚与编排开销无法被并行收益摊薄，"
+                "出现“固定开销淹没并行收益”")
+    if kind == "diagnosis":
+        return ("协同的关键路径是“切片 → 跨节点下发 → 远端执行 → 结果回传”，"
+                "本地则是一次调用、一次数据拷贝、零编排；"
+                "本档并行收益不足以抵消这笔固定的控制面往返")
+    if kind == "sync":
+        return "分块并行流的建立与归属表维护开销高于单流顺序拉取节省的时间"
+    if kind == "routine":
+        return "每个 Job 真实的容器启动开销与调度往返没有足够作业数去摊薄"
+    return "协同新增的编排与传输开销在该档工作量下无法被摊薄"
+
+
+def neg_reason(kind, row, rows=None):
+    """协同更慢的档位的机制解释（结合该档参数与档位排名，不照抄机制结论）。"""
+    params = fmt_params(row["params"], limit=4)
+    rank = _rank_phrase(kind, row, rows)
+    mech = _neg_mechanism(kind)
     return (f"{row['label']} 档：协同 {ms(row['collab_mean'])} 慢于本地 "
             f"{ms(row['local_mean'])}（{pct_signed(row['gain'])}，"
             f"协同为本地耗时的 {(row['collab_mean'] / row['local_mean']):.2f}×）；"
-            f"{common}。该档参数：{params}。")
+            f"{rank}，{mech}。该档参数：{params}。")
 
 
 def kind_insights(suite, target=GAIN_TARGET):
@@ -930,7 +969,7 @@ def kind_insights(suite, target=GAIN_TARGET):
         slower = [r for r in both if r["gain"] < 0]
         if slower:
             worst_neg = min(slower, key=lambda r: r["gain"])
-            items.append("如实指出协同反而更慢的档位：" + neg_reason(kind, worst_neg))
+            items.append("如实指出协同反而更慢的档位：" + neg_reason(kind, worst_neg, rows))
         else:
             items.append(
                 "本类所有可比档位协同均不慢于本地，未出现增益为负的档位"
@@ -941,7 +980,22 @@ def kind_insights(suite, target=GAIN_TARGET):
     l_par = num(extra.get("local_parallel_speedup_mean"))
     c_disp = num(extra.get("collaborative_dispatch_wall_ms_mean"))
     l_disp = num(extra.get("local_dispatch_wall_ms_mean"))
+    c_comp = num(extra.get("collaborative_compute_ms_total_mean"))
+    l_comp = num(extra.get("local_compute_ms_total_mean"))
+    c_net = num(extra.get("collaborative_network_ms_total_mean"))
+    l_net = num(extra.get("local_network_ms_total_mean"))
     evidence = []
+    if (c_comp or 0) > 0 or (l_comp or 0) > 0:
+        evidence.append("平均累计计算时间（<code>extra.compute_ms_total</code>，"
+                        "协同为<b>两侧分段之和</b>，本地为单侧一次推理）"
+                        + ("协同 " + (ms(c_comp) if c_comp is not None else DASH))
+                        + "、"
+                        + ("本地 " + (ms(l_comp) if l_comp is not None else DASH)))
+    if (c_net is not None and c_net > 0) or (l_net is not None and l_net > 0):
+        evidence.append("平均累计网络时间（<code>extra.network_ms_total</code>）"
+                        + ("协同 " + (ms(c_net) if c_net is not None else DASH))
+                        + "、"
+                        + ("本地 " + (ms(l_net) if l_net is not None else DASH)))
     if c_par is not None or l_par is not None:
         evidence.append("平均调度并行加速比（<code>extra.parallel_speedup</code>）"
                         + ("协同 " + (f"{c_par:.2f}×" if c_par is not None else DASH))
@@ -977,6 +1031,20 @@ def kind_insights(suite, target=GAIN_TARGET):
                 tail += (f"协同的派发墙钟反而只有本地 {ratio:.2f}×"
                          f"（{ms(c_disp)} vs {ms(l_disp)}），"
                          "本类没有出现“编排开销反超”的迹象。")
+        if (kind == "diagnosis" and c_par is None and l_par is None
+                and c_comp is not None and l_comp not in (None, 0)):
+            if c_comp > l_comp * 1.3:
+                tail += (f"该类没有记录并行加速比；可比的只有分段计时："
+                         f"协同两侧累计计算时间为本地的 {c_comp / l_comp:.2f}×"
+                         f"（{ms(c_comp)} vs {ms(l_comp)}）。"
+                         "协同把一次推理拆成两段、两侧各自计时，相加后必然高于单侧一次推理，"
+                         "这正是拆分带来的固有代价；"
+                         "在边缘不缺算力时，这笔代价无法由并行收益抵消。")
+            else:
+                tail += (f"该类没有记录并行加速比；分段计时显示协同两侧累计计算时间为"
+                         f"本地的 {c_comp / l_comp:.2f}×"
+                         f"（{ms(c_comp)} vs {ms(l_comp)}），本身不足以解释本类差异，"
+                         "须结合逐档时延与传输开销判断。")
         items.append("调度侧证据：" + "；".join(evidence) + "。" + tail)
     else:
         items.append("该套件未提供 <code>extra</code>（并行加速比 / 派发墙钟），"
@@ -1244,6 +1312,8 @@ def render_method(data, suites, target):
         "<li><b>重复与种子</b>：每档重复若干次，且每档固定 seed，"
         "保证协同与本地在同一档位上产出可逐项比对的结果。</li>"
         "<li><b>报告只读数据</b>：渲染脚本不重算统计量，直接呈现 JSON 中的聚合值；"
+        "聚合值本身由 <code>test/rebuild_report_data.py</code> 从站点数据库按指定 run 集合离线重算"
+        "（见 2.4），与站点后端同口径；"
         "若某档缺一侧数据则标记为不可比，不做外推。</li>"
         "</ul>")
     if samples:
@@ -1254,6 +1324,38 @@ def render_method(data, suites, target):
                      "<th>协同样本 n</th><th>本地样本 n</th><th>档位数</th>"
                      "<th>每档重复次数</th></tr></thead><tbody>"
                      + "".join(samples) + "</tbody></table></div>")
+    # 数据来源可追溯：本报告只统计下列运行
+    prov_rows = []
+    for suite in suites:
+        runs = [str(r) for r in as_list(suite.get("run_ids")) if r]
+        scope = str(suite.get("scope") or "")
+        if runs:
+            scope_txt = ("本轮采集的指定运行（协同 / 本地各一次）"
+                         if scope == "explicit-runs"
+                         else f"范围标记：{scope or '未标记'}")
+            run_html = "<br>".join(f"<code>{esc(r)}</code>" for r in runs)
+        else:
+            scope_txt = "（数据文件未记录运行 ID）"
+            run_html = DASH
+        prov_rows.append(
+            f'<tr><td>{esc(suite_title(suite))}</td>'
+            f'<td class="wrapcell">{esc(scope_txt)}</td>'
+            f'<td class="wrapcell">{run_html}</td></tr>')
+    if prov_rows:
+        parts.append(
+            "<h3>2.4 数据来源（本次统计范围）</h3>"
+            "<p class=\"note\">对比站点会长期累积历史运行；若按“该套件全部历史”聚合，"
+            "旧构建（例如诊断早期的切分点、旧传输路径）的结果会混入统计。"
+            "因此本报告按<b>显式运行的 run_id 集合</b>重算统计量，"
+            "每个套件只含本轮同一构建下的协同与本地两次运行，"
+            "口径与站点后端 <code>engine.suite_compare</code> 一致（同样的分位数插值、"
+            "同样的成功/失败判定、同样的档位标签匹配）。</p>"
+            '<div class="tbl-wrap"><table>'
+            "<caption>复现命令："
+            "<code>python test/rebuild_report_data.py --db bench.db --runs &lt;run_id,...&gt;</code>"
+            "</caption><thead><tr><th>套件</th><th>统计范围</th>"
+            '<th class="wrapcell">运行 ID</th></tr></thead><tbody>'
+            + "".join(prov_rows) + "</tbody></table></div>")
     if note_rows:
         parts.append('<div class="tbl-wrap"><table>'
                      "<caption>数据文件 <code>notes</code> 字段原样呈现。</caption>"
@@ -1452,7 +1554,7 @@ def render_assumptions():
         "<b>模拟模型</b>（<code>common/v3_common.py</code>），"
         "并非真实医疗数据的吞吐测量；本报告度量的是<b>调度策略的相对差异</b>，"
         "不能当作临床吞吐或生产容量规划的依据。</li>"
-        "<li><b>不做的推断</b>：报告不重算统计量、不填补缺失字段、不做外推；"
+        "<li><b>不做的推断</b>：渲染脚本不重算统计量、不填补缺失字段、不做外推；"
         "缺数据一律记作“数据不足”，缺一侧的档位一律记作“不可比”。</li>"
         "</ol></div>")
 
@@ -1610,9 +1712,11 @@ def render_limitations(suites, target):
     items = []
     slower = []
     for suite in suites:
-        for row in suite_rows(suite):
+        rows = suite_rows(suite)
+        for row in rows:
             if row["gain"] is not None and row["gain"] < 0:
-                slower.append((kind_label(suite.get("kind")), suite_title(suite), row))
+                slower.append((str(suite.get("kind") or ""), kind_label(suite.get("kind")),
+                               suite_title(suite), row, rows))
     items.append("<b>单集群 · 单次测量</b>：全部数据来自一套 Kubernetes 集群、"
                  "每种配置重复有限次；报告未给出置信区间与显著性检验，"
                  "档位间的轻微差异可能落在测量噪声内。")
@@ -1625,17 +1729,17 @@ def render_limitations(suites, target):
                  "当单档工作量小于该固定成本时，协同必然更慢——"
                  "这不是策略缺陷，而是<b>适用边界</b>。")
     if slower:
-        ordered = sorted(slower, key=lambda t: t[2]["gain"])
+        ordered = sorted(slower, key=lambda t: t[3]["gain"])
         shown = ordered[:4]
         head = f"本数据集里共有 {len(slower)} 个这样的档位"
         head += f"，下列最严重的 {len(shown)} 个：" if len(ordered) > len(shown) else "："
         items.append("<b>反例（需在论文中如实报告）</b>。" + head)
-        for kind, suite_name, row in shown:
+        for kind, kind_cn, suite_name, row, rows in shown:
             items.append(
-                f"{esc(kind)} · {esc(suite_name)} · "
+                f"{esc(kind_cn)} · {esc(suite_name)} · "
                 f"{esc(row['label'])} 档：协同 {ms(row['collab_mean'])} 反而慢于本地 "
                 f"{ms(row['local_mean'])}（{pct_signed(row['gain'])}）；"
-                f"原因与该档工作量过小、固定开销无法摊薄一致"
+                f"{_rank_phrase(kind, row, rows)}，{_neg_mechanism(kind)}"
                 f"（参数：{esc(fmt_params(row['params'], limit=4))}）。")
     else:
         items.append("<b>反例</b>：本数据集中没有出现协同更慢的档位；"

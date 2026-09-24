@@ -33,3 +33,10 @@ venv/
 # prediction/、medical-worker/。全量重建所需权重请从集群
 # /data/medical-model/weights、Harbor 镜像或本地归档恢复。
 scheduler/latency_model.json
+
+# ---------- 测试/构建辅助产物（v3.6）----------
+# 本机 ~/.docker 只读，构建镜像时把 DOCKER_CONFIG 指到仓库内
+.docker/
+# 前端渲染自检抓取的站点真实响应，以及 esbuild 临时产物
+.ssrcheck/
+benchmark/frontend/.ssr-build/

@@ -213,7 +213,12 @@ interface SuiteBarRow {
  * 固定套件的分档位分组柱状图：每个档位两根柱子（云边端协同 / 本地执行）的 mean，
  * 带 p95 标记线。手写 SVG，不引入任何图表库。
  */
-export function SuiteBars({ configs }: { configs: SuiteConfigRow[] }) {
+export function SuiteBars({ configs, ariaLabel, emptyText }: {
+  configs: SuiteConfigRow[];
+  /** 图表的无障碍说明；固定套件与测试方案两种页面各自传自己的口径 */
+  ariaLabel?: string;
+  emptyText?: string;
+}) {
   const rows: SuiteBarRow[] = configs.map((c, i) => ({
     key: String(c.spec_key || `${c.label || 'cfg'}-${i}`),
     label: String(c.label || `档位 ${i + 1}`),
@@ -226,7 +231,7 @@ export function SuiteBars({ configs }: { configs: SuiteConfigRow[] }) {
     .flatMap((r) => [aggNum(r.collab?.mean), aggNum(r.local?.mean), aggNum(r.collab?.p95), aggNum(r.local?.p95)])
     .filter(isNum);
   if (rows.length === 0 || values.length === 0) {
-    return <div className="empty">暂无数据，两种策略各跑一次套件后即可对比</div>;
+    return <div className="empty">{emptyText || '暂无数据，两种策略各跑一次后即可对比'}</div>;
   }
 
   const W = 780;
@@ -253,7 +258,8 @@ export function SuiteBars({ configs }: { configs: SuiteConfigRow[] }) {
   return (
     <div className="chart-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img"
-        aria-label="固定套件分档位：协同与本地执行 client_total_ms 的 mean 对比">
+        aria-label={ariaLabel
+          || '分档位对比：协同与本地执行 client_total_ms 的 mean 对比'}>
         {ticks.map((t, i) => (
           <g key={i}>
             <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} className="grid" />

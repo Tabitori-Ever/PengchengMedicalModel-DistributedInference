@@ -42,11 +42,12 @@ from pydantic import BaseModel, ConfigDict  # noqa: E402
 import config  # noqa: E402
 import db  # noqa: E402
 import engine  # noqa: E402
+import plans as plans_mod  # noqa: E402
 import stats  # noqa: E402
 import suites as suites_mod  # noqa: E402
 
-SERVICE = "benchmark-site-backend"
-VERSION = "1.0"
+SERVICE = engine.SITE_SERVICE + "-backend"
+VERSION = engine.SITE_VERSION
 DB_PATH = os.getenv("DB_PATH", "/data/bench/bench.db")
 
 
@@ -166,6 +167,74 @@ def api_list_suites():
     """固定测试套件（同一套 20 个任务，便于反复对比）。"""
     items = suites_mod.list_suites()
     return {"count": len(items), "suites": items}
+
+
+# --------------------------------------------------------------------------- #
+# 测试方案（测试大纲 §5.4 / §5.5）                                              #
+# --------------------------------------------------------------------------- #
+@app.get("/api/plans")
+def api_list_plans():
+    """测试方案目录：点开即显示完整实验配置（任务数、参数、时长、策略…）。"""
+    items = plans_mod.list_plans()
+    return {"count": len(items), "plans": items}
+
+
+@app.post("/api/plans/runs", status_code=201)
+def api_create_plan_run(body: dict):
+    """下发一次方案运行：按调度策略分阶段顺序执行（先本地、后协同）。"""
+    try:
+        return engine.create_plan_run(body or {})
+    except engine.RunError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/plans/runs")
+def api_list_plan_runs(limit: int = Query(30, ge=1, le=500)):
+    runs = db.list_plan_runs(limit=_limit(limit, 30, 500))
+    return {"count": len(runs), "plan_runs": [
+        {"plan_run_id": r["plan_run_id"], "plan_id": r["plan_id"],
+         "plan_name": r["plan_name"], "label": r.get("label"),
+         "status": r.get("status"), "current_phase": r.get("current_phase"),
+         "strategies": r.get("strategies"), "created_at": r.get("created_at"),
+         "finished_at": r.get("finished_at")} for r in runs]}
+
+
+@app.get("/api/plans/{plan_id}")
+def api_get_plan(plan_id: str):
+    try:
+        plan = plans_mod.get_plan(plan_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return plans_mod.catalog_entry(plan)
+
+
+@app.get("/api/plans/runs/{plan_run_id}")
+def api_get_plan_run(plan_run_id: str):
+    out = engine.plan_run_public(plan_run_id)
+    if out is None:
+        raise HTTPException(status_code=404, detail=f"plan run {plan_run_id} not found")
+    return out
+
+
+@app.post("/api/plans/runs/{plan_run_id}/cancel")
+def api_cancel_plan_run(plan_run_id: str):
+    out = engine.cancel_plan_run(plan_run_id)
+    if out is None:
+        raise HTTPException(status_code=404, detail=f"plan run {plan_run_id} not found")
+    return out
+
+
+@app.delete("/api/plans/runs/{plan_run_id}")
+def api_delete_plan_run(plan_run_id: str):
+    plan_run = db.get_plan_run(plan_run_id)
+    if plan_run is None:
+        raise HTTPException(status_code=404, detail=f"plan run {plan_run_id} not found")
+    deleted = 0
+    for run in db.runs_for_plan(plan_run_id):
+        deleted += db.delete_run(run["run_id"])
+    with db.connect() as con:
+        con.execute("DELETE FROM plan_runs WHERE plan_run_id=?", (plan_run_id,))
+    return {"plan_run_id": plan_run_id, "deleted_runs": deleted}
 
 
 @app.get("/api/compare/suite")

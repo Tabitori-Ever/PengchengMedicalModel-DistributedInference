@@ -490,3 +490,219 @@ export function statusZh(s?: string | null): string {
   if (!s) return '—';
   return STATUS_ZH[s] || s;
 }
+
+/* ------------------------------------------------------------------ 测试方案 */
+/* 对应《测试大纲》§5.4 / §5.5 的方案目录与方案运行（GET/POST /api/plans*）。   */
+
+/** 方案里的一条任务类型配置：每台设备的任务数 + 该类任务的任务参数 */
+export interface PlanKindCfg {
+  kind: Kind;
+  label: string;
+  outline_name: string;
+  per_device: number;
+  params: Record<string, number | boolean | string | null>;
+  param_note: string;
+}
+
+/** 大纲里的「微型台式电子计算机 B / C」↔ 平台的端侧发起方 */
+export interface PlanDevice {
+  id: string;
+  name: string;
+  source: string;
+}
+
+export type PlanCriterionType = 'gain_gt' | 'complete_gt' | 'complete_gte' | 'external';
+
+export interface PlanCriterion {
+  id: string;
+  type: PlanCriterionType;
+  value: number;
+  unit: string;
+  label: string;
+  source: string;
+}
+
+/** 5.5 的测试仪 / 损伤仪：由外部仪表验证，平台只记录配置 */
+export interface PlanAttachment {
+  id: string;
+  name: string;
+  detail: string;
+  verified_by: string;
+  [k: string]: unknown;
+}
+
+export interface PlanInfo {
+  plan_id: string;
+  name: string;
+  outline_ref: string;
+  outline_title: string;
+  test_object: string;
+  purpose: string;
+  objective: string;
+  duration_min: number;
+  generate_window_min: number;
+  /** 失败自动重传额度（首次之外） */
+  retries?: number;
+  retry_backoff_s?: number;
+  devices: PlanDevice[];
+  kinds: PlanKindCfg[];
+  strategies: ReqMode[];
+  total_tasks: number;
+  total_tasks_expanded: number;
+  total_tasks_mismatch: boolean;
+  kind_count: number;
+  device_count: number;
+  per_device_per_kind: number;
+  preconditions: string[];
+  steps: string[];
+  criteria: PlanCriterion[];
+  attachments: PlanAttachment[];
+  notes?: string[];
+  customized?: boolean;
+  label?: string;
+  [k: string]: unknown;
+}
+
+/** 一个阶段（一种调度策略跑一遍）的实测汇总 */
+export interface PlanPhaseStats {
+  phase: string;
+  tasks_total: number;
+  completed: number;
+  failed: number;
+  pending: number;
+  completion_pct: number | null;
+  total_wall_ms: number | null;
+  latency: SuiteAgg;
+  /** 失败重传记账 */
+  retries?: number;
+  retried_tasks?: number;
+  retry_ms_total?: number;
+  exec_ms?: number;
+  processing_ms?: number;
+  units?: unknown[];
+}
+
+export interface PlanKindMode {
+  n: number;
+  completed: number;
+  total_client_ms: number | null;
+  mean: number | null;
+  p50?: number | null;
+  p95?: number | null;
+  min?: number | null;
+  max?: number | null;
+  /** 失败重传次数（任务保障） */
+  retries?: number;
+  retried_tasks?: number;
+  /** 失败尝试累计浪费的墙钟 */
+  retry_ms_total?: number;
+  /** 含重传代价的处理总用时（判定口径） */
+  processing_ms?: number;
+}
+
+/** 逐类对比：同一类任务在两种策略下的表现 */
+export interface PlanCompareEntry {
+  kind: Kind;
+  modes: Record<string, PlanKindMode | undefined>;
+  gain_pct: number | null;
+}
+
+export interface PlanCriterionResult extends PlanCriterion {
+  verdict: 'pass' | 'fail' | 'pending';
+  measured: number | null;
+  measured_wall_gain_pct?: number | null;
+  measured_retries?: number | null;
+  note?: string;
+}
+
+export interface PlanComparison {
+  per_kind: PlanCompareEntry[];
+  totals: Record<string, PlanPhaseStats | undefined>;
+  overall: {
+    local_wall_ms: number | null;
+    collaborative_wall_ms: number | null;
+    wall_gain_pct: number | null;
+    /** 只算成功那一次执行 */
+    local_exec_ms: number | null;
+    collaborative_exec_ms: number | null;
+    /** 含重传代价（判定口径） */
+    local_processing_ms: number | null;
+    collaborative_processing_ms: number | null;
+    processing_gain_pct: number | null;
+    retries_local: number | null;
+    retries_collaborative: number | null;
+  };
+  criteria: PlanCriterionResult[];
+}
+
+export interface PlanRunChild {
+  run_id: string;
+  phase: string;
+  unit: string;
+  kind: Kind;
+  source: string;
+  status: string;
+  repeats: number;
+}
+
+export interface PlanRunByKind {
+  kind: Kind;
+  phase: string;
+  unit_id: string;
+  total: number;
+  ok: number;
+  fail: number;
+  retries?: number;
+  retry_ms_total?: number;
+  latency: SuiteAgg;
+}
+
+/** 一次方案运行：配置快照 + 进度 + 各阶段汇总 + 逐类对比 + 判定 */
+export interface PlanRun {
+  plan_run_id: string;
+  plan_id: string;
+  plan_name: string;
+  label?: string | null;
+  status: string;
+  current_phase: string | null;
+  error?: string | null;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  strategies: ReqMode[];
+  config: PlanInfo;
+  total_tasks_per_phase: number;
+  phases: PlanPhaseStats[];
+  progress: Record<string, RunProgress | undefined>;
+  runs: PlanRunChild[];
+  live: boolean;
+  by_kind: PlanRunByKind[];
+  comparison: PlanComparison;
+}
+
+export interface PlanRunBrief {
+  plan_run_id: string;
+  plan_id: string;
+  plan_name: string;
+  label?: string | null;
+  status: string;
+  current_phase: string | null;
+  strategies: ReqMode[];
+  created_at: string;
+  finished_at?: string | null;
+}
+
+/** POST /api/plans/runs：可覆盖方案的任意配置项 */
+export interface CreatePlanRunBody {
+  plan_id: string;
+  label?: string;
+  overrides?: {
+    devices?: { id?: string; name?: string; source: string }[];
+    kinds?: Record<string, { per_device?: number; params?: Record<string, unknown> }>;
+    generate_window_min?: number;
+    duration_min?: number;
+    strategies?: ReqMode[];
+    name?: string;
+    retries?: number;
+  };
+}

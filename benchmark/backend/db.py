@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS runs (
     label           TEXT,
     force_degraded  INTEGER NOT NULL DEFAULT 0,
     suite_id        TEXT,
+    plan_run_id     TEXT,
+    plan_phase      TEXT,
+    plan_unit       TEXT,
     params_json     TEXT,
     status          TEXT NOT NULL DEFAULT 'queued',
     error           TEXT,
@@ -85,6 +88,11 @@ CREATE TABLE IF NOT EXISTS attempts (
     envelope_json       TEXT,
     metrics_source      TEXT,
     detail_json         TEXT,
+    not_before          TEXT,
+    -- 任务保障：失败自动重传的记账（§ 成功率 100% 要求）------------------
+    retry_count         INTEGER NOT NULL DEFAULT 0,  -- 该任务已重传几次
+    retry_ms_total      REAL,                        -- 失败尝试累计浪费的墙钟
+    retry_errors_json   TEXT,                        -- 每次失败的原因与耗时
     started_at          TEXT,
     updated_at          TEXT
 );
@@ -94,6 +102,30 @@ CREATE INDEX IF NOT EXISTS idx_attempts_status   ON attempts(status);
 CREATE INDEX IF NOT EXISTS idx_attempts_kind     ON attempts(kind, source, mode_used, degraded);
 CREATE INDEX IF NOT EXISTS idx_attempts_spec     ON attempts(spec_key);
 CREATE INDEX IF NOT EXISTS idx_attempts_created  ON attempts(created_at);
+
+-- 注意：idx_runs_plan 建在 runs.plan_run_id 上，而老库的 runs 表还没有这一列。
+-- 它必须放在 _migrate() 里、ALTER TABLE 之后建，否则 executescript(SCHEMA)
+-- 会在升级既有数据库时抛 "no such column: plan_run_id"。
+
+-- 测试方案运行（测试大纲 §5.4 / §5.5）：一次方案运行 = 若干子 run，
+-- 按调度策略分阶段顺序执行（先本地、后协同），阶段内按时间窗随机产生任务。
+CREATE TABLE IF NOT EXISTS plan_runs (
+    plan_run_id     TEXT PRIMARY KEY,
+    plan_id         TEXT NOT NULL,
+    plan_name       TEXT,
+    snapshot_json   TEXT,
+    strategies_json TEXT,
+    status          TEXT NOT NULL DEFAULT 'queued',
+    current_phase   TEXT,
+    phases_json     TEXT,
+    error           TEXT,
+    label           TEXT,
+    created_at      TEXT,
+    started_at      TEXT,
+    finished_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_plan_runs_created ON plan_runs(created_at);
 
 CREATE TABLE IF NOT EXISTS settings (
     key         TEXT PRIMARY KEY,
@@ -169,13 +201,45 @@ def init(path: Optional[str] = None) -> str:
 
 
 def _migrate(con: sqlite3.Connection) -> None:
-    """Additive migrations for databases created by an earlier version."""
+    """把既有数据库补到当前 SCHEMA（幂等、附列式升级）。
+
+    做法：先在内存库里按当前 SCHEMA 建一份"应有结构"，再比出真实库缺哪些列。
+    这样迁移列表**不可能与 SCHEMA 漂移**——手写列清单一旦漏一列，老库升级后
+    就会在 INSERT/UPDATE 时抛 `table attempts has no column named X`
+    （或索引建在还不存在的列上，启动直接失败）。
+    """
     try:
-        cols = {r["name"] for r in con.execute("PRAGMA table_info(runs)")}
-        if "suite_id" not in cols:
-            con.execute("ALTER TABLE runs ADD COLUMN suite_id TEXT")
+        ref = sqlite3.connect(":memory:")
+        ref.row_factory = sqlite3.Row
+        ref.executescript(SCHEMA)
+        for table in ("runs", "attempts"):
+            have = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
+            if not have:
+                continue                      # 表本身由 SCHEMA 新建，无需补列
+            for row in ref.execute(f"PRAGMA table_info({table})"):
+                name, decl = row["name"], (row["type"] or "TEXT")
+                if name in have or name == "id":
+                    continue                  # id 是主键，ALTER 不能补
+                ddl = decl
+                if row["notnull"] and row["dflt_value"] is None:
+                    ddl += " DEFAULT ''" if "INT" not in decl.upper() else " DEFAULT 0"
+                try:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+                except sqlite3.Error:
+                    pass
+        ref.close()
     except sqlite3.Error:
         pass
+
+    # 索引一律在补列之后建：老库的 runs 原本没有 plan_run_id，
+    # 建在 SCHEMA 里的索引会让 executescript 在升级既有库时直接失败。
+    for stmt in ("CREATE INDEX IF NOT EXISTS idx_runs_plan ON runs(plan_run_id)",
+                 "CREATE INDEX IF NOT EXISTS idx_plan_runs_created ON plan_runs(created_at)",
+                 "CREATE INDEX IF NOT EXISTS idx_attempts_created ON attempts(created_at)"):
+        try:
+            con.execute(stmt)
+        except sqlite3.Error:
+            pass
 
 
 def _json_loads(raw: Any, default: Any = None) -> Any:
@@ -199,6 +263,7 @@ def row_attempt(row: sqlite3.Row, parse: bool = True) -> Dict[str, Any]:
         d["envelope"] = _json_loads(d.get("envelope_json"), None)
         d["params"] = _json_loads(d.get("params_json"), {}) or {}
         d["detail"] = _json_loads(d.get("detail_json"), {}) or {}
+        d["retry_errors"] = _json_loads(d.get("retry_errors_json"), []) or []
     return d
 
 
@@ -218,13 +283,15 @@ def create_run(run: Dict[str, Any]) -> Dict[str, Any]:
         con.execute(
             """INSERT INTO runs (run_id, kind, source, mode, repeats, concurrency,
                                  label, force_degraded, params_json, suite_id,
+                                 plan_run_id, plan_phase, plan_unit,
                                  status, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (run["run_id"], run["kind"], run["source"], run["mode"],
              int(run["repeats"]), int(run["concurrency"]), run.get("label"),
              1 if run.get("force_degraded") else 0,
              json.dumps(run.get("params") or {}, ensure_ascii=False),
-             run.get("suite_id"), run.get("status", "queued"), now()))
+             run.get("suite_id"), run.get("plan_run_id"), run.get("plan_phase"),
+             run.get("plan_unit"), run.get("status", "queued"), now()))
     return get_run(run["run_id"], parse=False)  # type: ignore[return-value]
 
 
@@ -259,27 +326,108 @@ def delete_run(run_id: str) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# plan runs (测试方案 · 测试大纲 §5.4 / §5.5)                                   #
+# --------------------------------------------------------------------------- #
+def new_plan_run_id() -> str:
+    return ("plan-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            + "-" + uuid.uuid4().hex[:6])
+
+
+def row_plan_run(row: sqlite3.Row, parse: bool = True) -> Dict[str, Any]:
+    d = dict(row)
+    if parse:
+        d["snapshot"] = _json_loads(d.pop("snapshot_json", None), {}) or {}
+        d["strategies"] = _json_loads(d.pop("strategies_json", None), []) or []
+        d["phases"] = _json_loads(d.pop("phases_json", None), []) or []
+    return d
+
+
+def create_plan_run(plan: Dict[str, Any]) -> Dict[str, Any]:
+    with connect() as con:
+        con.execute(
+            """INSERT INTO plan_runs (plan_run_id, plan_id, plan_name,
+                                      snapshot_json, strategies_json, status,
+                                      current_phase, phases_json, label,
+                                      created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (plan["plan_run_id"], plan["plan_id"], plan.get("plan_name"),
+             json.dumps(plan.get("snapshot") or {}, ensure_ascii=False),
+             json.dumps(plan.get("strategies") or [], ensure_ascii=False),
+             plan.get("status", "queued"), plan.get("current_phase"),
+             json.dumps(plan.get("phases") or [], ensure_ascii=False),
+             plan.get("label"), now()))
+    return get_plan_run(plan["plan_run_id"])  # type: ignore[return-value]
+
+
+def get_plan_run(plan_run_id: str, parse: bool = True) -> Optional[Dict[str, Any]]:
+    with connect() as con:
+        row = con.execute("SELECT * FROM plan_runs WHERE plan_run_id=?",
+                          (plan_run_id,)).fetchone()
+    return row_plan_run(row, parse) if row else None
+
+
+def update_plan_run(plan_run_id: str, fields: Dict[str, Any]) -> None:
+    if not fields:
+        return
+    fields = dict(fields)
+    for key in ("snapshot", "strategies", "phases"):
+        if key in fields:
+            fields[f"{key}_json"] = json.dumps(fields.pop(key), ensure_ascii=False)
+    cols = ", ".join(f"{k}=?" for k in fields)
+    with connect() as con:
+        con.execute(f"UPDATE plan_runs SET {cols} WHERE plan_run_id=?",
+                    list(fields.values()) + [plan_run_id])
+
+
+def list_plan_runs(limit: int = 50) -> List[Dict[str, Any]]:
+    with connect() as con:
+        rows = con.execute(
+            "SELECT * FROM plan_runs ORDER BY created_at DESC LIMIT ?",
+            (max(1, int(limit)),)).fetchall()
+    return [row_plan_run(r) for r in rows]
+
+
+def runs_for_plan(plan_run_id: str) -> List[Dict[str, Any]]:
+    with connect() as con:
+        rows = con.execute(
+            """SELECT * FROM runs WHERE plan_run_id=?
+               ORDER BY plan_phase, kind, source""", (plan_run_id,)).fetchall()
+    return [row_run(r) for r in rows]
+
+
+# --------------------------------------------------------------------------- #
 # attempts                                                                    #
 # --------------------------------------------------------------------------- #
-def create_attempts(run_id: str, count: int, base: Dict[str, Any]) -> int:
+def create_attempts(run_id: str, count: int, base: Dict[str, Any],
+                    not_before: Optional[List[str]] = None) -> int:
+    """Create `count` pending attempts; `not_before[i]` delays the i-th one.
+
+    Test-plan runs (§5.4/§5.5) require tasks to be *produced randomly inside a
+    time window* rather than all at once, so each attempt carries the earliest
+    wall-clock instant at which a worker may claim it.
+    """
     ts = now()
     rows = []
     for i in range(int(count)):
+        due = None
+        if not_before is not None and i < len(not_before):
+            due = not_before[i]
         rows.append((run_id, i, base.get("kind"), base.get("source"),
                      base.get("mode_requested"), base.get("spec_key"),
                      json.dumps(base.get("params") or {}, ensure_ascii=False),
-                     base.get("bpcr_expected"), ts, ts))
+                     base.get("bpcr_expected"), ts, ts, due))
     with connect() as con:
         con.executemany(
             """INSERT INTO attempts (run_id, attempt_index, kind, source,
                                      mode_requested, spec_key, params_json,
                                      bpcr_expected, created_at, updated_at,
-                                     status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,'pending')""", rows)
+                                     not_before, status)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending')""", rows)
     return len(rows)
 
 
-def create_attempt_plan(run_id: str, items: List[Dict[str, Any]]) -> int:
+def create_attempt_plan(run_id: str, items: List[Dict[str, Any]],
+                        not_before: Optional[List[str]] = None) -> int:
     """Create attempts that each carry their *own* params (fixed-suite runs).
 
     `create_attempts` repeats one spec N times; a suite run needs the 20 frozen
@@ -288,17 +436,20 @@ def create_attempt_plan(run_id: str, items: List[Dict[str, Any]]) -> int:
     ts = now()
     rows = []
     for i, item in enumerate(items):
+        due = None
+        if not_before is not None and i < len(not_before):
+            due = not_before[i]
         rows.append((run_id, i, item.get("kind"), item.get("source"),
                      item.get("mode_requested"), item.get("spec_key"),
                      json.dumps(item.get("params") or {}, ensure_ascii=False),
-                     item.get("bpcr_expected"), ts, ts))
+                     item.get("bpcr_expected"), ts, ts, due))
     with connect() as con:
         con.executemany(
             """INSERT INTO attempts (run_id, attempt_index, kind, source,
                                      mode_requested, spec_key, params_json,
                                      bpcr_expected, created_at, updated_at,
-                                     status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,'pending')""", rows)
+                                     not_before, status)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending')""", rows)
     return len(rows)
 
 
@@ -325,7 +476,12 @@ def attempts_for_runs(run_ids: List[str], limit: int = 4000) -> List[Dict[str, A
 
 
 def claim_next_attempt(run_id: str) -> Optional[Dict[str, Any]]:
-    """Atomically move the oldest pending attempt of a live run to 'running'."""
+    """Atomically move the oldest *due* pending attempt of a live run to 'running'.
+
+    Attempts created by a test-plan run carry `not_before` (the instant at which
+    the task is "produced"); ones still in the future are skipped so the worker
+    keeps waiting instead of draining the run.
+    """
     con = sqlite3.connect(_DB_PATH, timeout=20.0, isolation_level=None)
     con.row_factory = sqlite3.Row
     try:
@@ -337,7 +493,8 @@ def claim_next_attempt(run_id: str) -> Optional[Dict[str, Any]]:
             return None
         row = con.execute(
             """SELECT * FROM attempts WHERE run_id=? AND status='pending'
-               ORDER BY attempt_index LIMIT 1""", (run_id,)).fetchone()
+                 AND (not_before IS NULL OR not_before<=?)
+               ORDER BY attempt_index LIMIT 1""", (run_id, now())).fetchone()
         if row is None:
             con.execute("COMMIT")
             return None
@@ -358,6 +515,41 @@ def claim_next_attempt(run_id: str) -> Optional[Dict[str, Any]]:
         raise
     finally:
         con.close()
+
+
+def requeue_attempt(attempt_id: int, retry_count: int, retry_ms_total: float,
+                    retry_errors_json: str, not_before: Optional[str] = None) -> int:
+    """把一次失败的任务放回 pending 以便重传。
+
+    保留同一行（同一个 attempt_index = 同一个逻辑任务），只累加重传计数与
+    失败耗时，并把 `not_before` 推到退避之后；这样：
+      * 任务成功率按"任务"而不是"尝试"统计，重传后成功仍算成功；
+      * 失败尝试浪费的时间记在 `retry_ms_total` 里，不会被悄悄抹掉。
+    """
+    fields = ["status='pending'", "retry_count=?", "retry_ms_total=?",
+              "retry_errors_json=?", "error=NULL", "started_at=NULL",
+              "finished_at=NULL", "updated_at=?"]
+    values: List[Any] = [int(retry_count), float(retry_ms_total or 0.0),
+                         retry_errors_json, now()]
+    if not_before:
+        fields.append("not_before=?")
+        values.append(not_before)
+    values.append(int(attempt_id))
+    with connect() as con:
+        cur = con.execute(
+            f"UPDATE attempts SET {', '.join(fields)} WHERE id=?", values)
+        return cur.rowcount or 0
+
+
+def count_waiting_attempts(run_id: str) -> int:
+    """Pending attempts whose `not_before` is still in the future."""
+    with connect() as con:
+        row = con.execute(
+            """SELECT COUNT(*) AS c FROM attempts
+               WHERE run_id=? AND status='pending'
+                 AND not_before IS NOT NULL AND not_before>?""",
+            (run_id, now())).fetchone()
+    return int(row["c"] or 0)
 
 
 def finish_attempt(attempt_id: int, fields: Dict[str, Any]) -> int:

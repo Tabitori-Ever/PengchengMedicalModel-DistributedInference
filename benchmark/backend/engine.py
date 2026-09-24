@@ -18,6 +18,7 @@ import array
 import base64
 import json
 import os
+import random
 import sys
 import threading
 import time
@@ -31,10 +32,15 @@ from requests.adapters import HTTPAdapter
 
 import config
 import db
+import plans as plans_mod
 import suites as suites_mod
 
 KINDS: Tuple[str, ...] = ("diagnosis", "compute", "sync", "routine")
 MODES: Tuple[str, ...] = ("collaborative", "local", "auto")
+
+# 站点版本单一来源：app.py 也引用它，避免 /api/health 与 /openapi 各报一个版本
+SITE_VERSION = "1.1"
+SITE_SERVICE = "benchmark-site"
 
 DEFAULT_MODE = "auto"
 MAX_REPEATS = 500
@@ -1085,6 +1091,555 @@ def _percentile(sorted_values: List[float], pct: float) -> float:
     return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (k - lo)
 
 
+# --------------------------------------------------------------------------- #
+# 测试方案运行（测试大纲 §5.4 / §5.5）                                          #
+#                                                                             #
+# 一次方案运行 = 若干子 run，按调度策略分阶段**顺序**执行：                     #
+#   阶段 1「本地执行」(未调度) → 全部子 run 跑完 → 记录阶段总用时；             #
+#   阶段 2「云边端协同」→ 同样的任务需求再产生一遍 → 记录阶段总用时。           #
+# 阶段内每个任务的产生时刻在 `generate_window_s` 内按种子随机分布，             #
+# 对应大纲「在 5 分钟内由不同端侧医疗设备随机产生」。                           #
+# --------------------------------------------------------------------------- #
+_PLAN_LOCK = threading.Lock()
+_PLAN_WORKERS: Dict[str, threading.Thread] = {}
+_PLAN_POLL_S = 1.0
+
+
+def _iso_after(seconds: float) -> str:
+    from datetime import timedelta
+    return (datetime.now(timezone.utc) + timedelta(seconds=max(0.0, float(seconds)))
+            ).isoformat(timespec="milliseconds")
+
+
+def _plan_offsets(count: int, window_s: float, rng) -> List[float]:
+    """在 [0, window_s] 内随机产生 count 个任务时刻（升序，便于按序领取）。"""
+    count = max(0, int(count))
+    if count == 0:
+        return []
+    if window_s <= 0:
+        return [0.0] * count
+    return sorted(rng.uniform(0.0, float(window_s)) for _ in range(count))
+
+
+def _deal_offsets(units: List[Dict[str, Any]], window_s: float,
+                  rng) -> List[List[float]]:
+    """把「整个阶段的任务产生时刻」摊到各执行单元上。
+
+    大纲的窗口是**阶段级**的（B、C 两台设备的全部任务在 5 分钟内随机产生），
+    所以先在整个阶段的任务总数上抽样，再轮流发给各单元；单元内部仍按时刻升序
+    领取。若按单元各自抽样，"每单元只有 1 个任务"时窗口会退化成 0。
+    """
+    counts = [max(0, int(u.get("repeats") or 0)) for u in units]
+    total = sum(counts)
+    if total == 0 or not units:
+        return [[] for _ in units]
+    pool = _plan_offsets(total, window_s, rng)
+    buckets: List[List[float]] = [[] for _ in units]
+    for idx, when in enumerate(pool):
+        buckets[idx % len(units)].append(when)   # 轮流发放，避免同一时刻挤在一台设备
+    for bucket, want in zip(buckets, counts):
+        if len(bucket) != want:                  # 轮询分配必定等长，防御性兜底
+            bucket[:] = (bucket + [0.0] * want)[:want]
+        bucket.sort()
+    return buckets
+
+
+def _plan_patient_batches(kind: str, params: Dict[str, Any], count: int,
+                          offset: int = 0) -> Optional[List[List[str]]]:
+    """诊断类任务：给每个任务分配 `batch` 位患者（按数据集轮换）。
+
+    返回长度为 count 的列表，每项是该任务的患者 id 列表。
+    `offset` 让同一阶段内多个诊断单元**接着往下轮换**，避免两台设备都从
+    第一位患者开始、同一患者被反复推理。
+    """
+    if kind != "diagnosis":
+        return None
+    if not params.get("patient_cycle"):
+        return None
+    batch = max(1, int(params.get("batch") or 1))
+    try:
+        rows = db.list_patients(limit=500)
+    except Exception:  # noqa: BLE001
+        rows = []
+    ids = [str(r["patient_id"]) for r in rows if r.get("patient_id")]
+    if not ids:
+        return None
+    flat = [ids[(offset + i) % len(ids)] for i in range(count * batch)]
+    return [flat[i * batch:(i + 1) * batch] for i in range(count)]
+
+
+def _create_plan_unit_run(plan_run_id: str, phase: str, unit: Dict[str, Any],
+                          offsets: List[float], cfg: Dict[str, Any],
+                          concurrency: int, patient_offset: int = 0,
+                          retries_override: Optional[int] = None) -> Dict[str, Any]:
+    """为一个执行单元（设备 × 任务类）建一个子 run，任务按 offsets 产生。"""
+    kind = str(unit["kind"])
+    source = str(unit["source"])
+    pod_urls = cfg.get("pod_urls") or {}
+    if source not in pod_urls:
+        raise RunError(f"unknown source '{source}'; known entities: {sorted(pod_urls)}")
+    if kind not in KINDS:
+        raise RunError(f"kind must be one of {list(KINDS)}")
+    mode = "local" if phase == "local" else "collaborative"
+
+    params = dict(unit.get("params") or {})
+    repeats = int(unit.get("repeats") or 0)
+    run_id = db.new_run_id()
+    batches = _plan_patient_batches(kind, params, repeats, patient_offset)
+
+    # 诊断类：每个任务带自己的患者 → 每 attempt 自己的参数
+    items: List[Dict[str, Any]] = []
+    if batches is not None:
+        db_params = {k: v for k, v in params.items() if k != "patient_cycle"}
+        db_params["task_patient_batches"] = batches
+        for pids in batches:
+            ip = ({"patient_id": pids[0]} if len(pids) == 1
+                  else {"patient_ids": list(pids)})
+            items.append({
+                "kind": kind, "source": source, "mode_requested": mode,
+                "params": ip, "spec_key": _spec_key(kind, ip), "bpcr_expected": None,
+            })
+    else:
+        db_params = {k: v for k, v in params.items() if k != "patient_cycle"}
+    # 方案声明的重传额度随子 run 一起下发，_requeue_for_retry 优先采用它
+    if retries_override is not None:
+        db_params["_retries"] = int(retries_override)
+
+    db.create_run({"run_id": run_id, "kind": kind, "source": source, "mode": mode,
+                   "repeats": repeats, "concurrency": concurrency,
+                   "label": f"{phase} · {unit.get('unit_id')}",
+                   "force_degraded": False, "params": db_params,
+                   "plan_run_id": plan_run_id, "plan_phase": phase,
+                   "plan_unit": unit.get("unit_id"), "status": "queued"})
+
+    not_before = [_iso_after(s) for s in offsets]
+    if items:
+        db.create_attempt_plan(run_id, items, not_before=not_before)
+    else:
+        db.create_attempts(run_id, repeats, {
+            "kind": kind, "source": source, "mode_requested": mode,
+            "spec_key": _spec_key(kind, db_params), "params": db_params,
+            "bpcr_expected": None,
+        }, not_before=not_before)
+    _spawn_workers(run_id, concurrency)
+    return {"run_id": run_id, "unit_id": unit.get("unit_id"), "phase": phase,
+            "kind": kind, "source": source, "device": unit.get("device_name"),
+            "repeats": repeats, "concurrency": concurrency,
+            "first_task_in_s": round(min(offsets), 3) if offsets else 0.0,
+            "last_task_in_s": round(max(offsets), 3) if offsets else 0.0}
+
+
+def _plan_phase_stats(plan_run_id: str, phase: str) -> Dict[str, Any]:
+    """一个阶段的实测汇总：总用时、完成率、逐次时延统计。"""
+    rows = db.attempts_for_runs(
+        [r["run_id"] for r in db.runs_for_plan(plan_run_id)
+         if r.get("plan_phase") == phase], limit=20000)
+    done = [r for r in rows if r.get("status") not in ("pending", "running")]
+    ok = [r for r in done if r.get("status") == "completed"]
+    lat = sorted(float(r["client_total_ms"]) for r in done
+                 if isinstance(r.get("client_total_ms"), (int, float)))
+    starts = [r["created_at"] for r in rows if r.get("created_at")]
+    finishes = [r["finished_at"] for r in done if r.get("finished_at")]
+    span = None
+    if starts and finishes:
+        try:
+            t0 = min(datetime.fromisoformat(s.replace("Z", "+00:00")) for s in starts)
+            t1 = max(datetime.fromisoformat(s.replace("Z", "+00:00")) for s in finishes)
+            span = round((t1 - t0).total_seconds() * 1000.0, 2)
+        except ValueError:
+            span = None
+
+    def stat(vals: List[float]) -> Dict[str, Any]:
+        if not vals:
+            return {"n": 0, "mean": None, "p50": None, "p95": None,
+                    "min": None, "max": None}
+        return {"n": len(vals), "mean": round(sum(vals) / len(vals), 2),
+                "p50": round(_percentile(vals, 50), 2),
+                "p95": round(_percentile(vals, 95), 2),
+                "min": round(vals[0], 2), "max": round(vals[-1], 2)}
+
+    total = len(rows)
+    # 任务保障记账：重传次数 + 失败尝试浪费的墙钟。
+    # 判定的"任务处理总用时"用 exec + retry（含重传代价），不把失败时间藏起来。
+    retries = sum(int(r.get("retry_count") or 0) for r in rows)
+    retry_ms = sum(float(r.get("retry_ms_total") or 0.0) for r in rows
+                   if isinstance(r.get("retry_ms_total"), (int, float)))
+    retried = len([r for r in rows if int(r.get("retry_count") or 0) > 0])
+    exec_ms = round(sum(lat), 2) if lat else 0.0
+    return {
+        "phase": phase,
+        "tasks_total": total,
+        "completed": len(ok),
+        "failed": len([r for r in done if r.get("status") != "completed"]),
+        "pending": len([r for r in rows if r.get("status") in ("pending", "running")]),
+        "completion_pct": round(100.0 * len(ok) / total, 2) if total else None,
+        "total_wall_ms": span,
+        "latency": stat(lat),
+        "retries": retries,
+        "retried_tasks": retried,
+        "retry_ms_total": round(retry_ms, 2),
+        "exec_ms": exec_ms,
+        "processing_ms": round(exec_ms + retry_ms, 2),
+    }
+
+
+def _plan_by_kind(plan_run_id: str) -> List[Dict[str, Any]]:
+    child = db.runs_for_plan(plan_run_id)
+    phase_of = {r["run_id"]: r.get("plan_phase") for r in child}
+    rows = db.attempts_for_runs([r["run_id"] for r in child], limit=20000)
+    buckets: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for r in rows:
+        phase = phase_of.get(r.get("run_id"))
+        key = (str(r.get("kind")), str(phase))
+        b = buckets.setdefault(key, {"kind": r.get("kind"), "phase": phase,
+                                     "lat": [], "ok": 0, "fail": 0, "total": 0})
+        b["total"] += 1
+        if r.get("status") == "completed":
+            b["ok"] += 1
+        elif r.get("status") not in ("pending", "running"):
+            b["fail"] += 1
+        if isinstance(r.get("client_total_ms"), (int, float)):
+            b["lat"].append(float(r["client_total_ms"]))
+    out = []
+    for (kind, phase), b in buckets.items():
+        lat = sorted(b.pop("lat"))
+        b["unit_id"] = f"{kind}/{phase}"
+        b["latency"] = ({"n": len(lat), "mean": round(sum(lat) / len(lat), 2),
+                         "p50": round(_percentile(lat, 50), 2),
+                         "p95": round(_percentile(lat, 95), 2)}
+                        if lat else {"n": 0, "mean": None, "p50": None, "p95": None})
+        out.append(b)
+    order = {k: i for i, k in enumerate(KINDS)}
+    out.sort(key=lambda x: (order.get(str(x["kind"]), 9), str(x["phase"])))
+    return out
+
+
+def _plan_coordinator(plan_run_id: str) -> None:
+    """按策略分阶段顺序执行整个方案，并记录每阶段的实测汇总。"""
+    try:
+        plan_run = db.get_plan_run(plan_run_id)
+        if plan_run is None:
+            return
+        snapshot = plan_run.get("snapshot") or {}
+        strategies = plan_run.get("strategies") or ["local", "collaborative"]
+        window_s = float(snapshot.get("generate_window_min") or 0) * 60.0
+        units = plans_mod.expand_units(snapshot)
+        cfg = config.current()
+        concurrency = max(1, min(int(cfg.get("plan_unit_concurrency") or 1),
+                                 MAX_CONCURRENCY))
+        plan_retries = snapshot.get("retries")
+        if plan_retries is None:
+            plan_retries = cfg.get("attempt_retries")
+
+        db.update_plan_run(plan_run_id, {"status": "running",
+                                         "started_at": _now()})
+        phases: List[Dict[str, Any]] = []
+        for phase in strategies:
+            # 每开一个新阶段前确认方案运行仍处于活动状态：否则"取消"之后
+            # 协调器还会继续把后面几个阶段跑完（实测踩过）。
+            current = db.get_plan_run(plan_run_id, parse=False)
+            if current is None or current["status"] not in ("queued", "running"):
+                _finalize_cancelled_plan(plan_run_id, strategy)
+                return
+            db.update_plan_run(plan_run_id, {"current_phase": phase})
+            rng = random.Random(f"{plan_run_id}:{phase}")
+            buckets = _deal_offsets(units, window_s, rng)
+            child: List[Dict[str, Any]] = []
+            patient_cursor = 0
+            for unit, offsets in zip(units, buckets):
+                child.append(_create_plan_unit_run(
+                    plan_run_id, phase, unit, offsets, cfg, concurrency,
+                    patient_offset=patient_cursor,
+                    retries_override=plan_retries))
+                if str(unit.get("kind")) == "diagnosis":
+                    batch = max(1, int((unit.get("params") or {}).get("batch") or 1))
+                    patient_cursor += int(unit.get("repeats") or 0) * batch
+            # 等本阶段所有子 run 结束（方案要求"跑完本地、再切换到协同"）
+            deadline = time.perf_counter() + max(
+                600.0, float(snapshot.get("duration_min") or 1) * 60.0 * 3)
+            while time.perf_counter() < deadline:
+                live = 0
+                for c in child:
+                    run = db.get_run(c["run_id"], parse=False)
+                    counts = db.count_attempts(c["run_id"])
+                    if run and run["status"] in ("queued", "running") and (
+                            counts.get("pending") or counts.get("running")
+                            or run["status"] == "queued"):
+                        live += 1
+                if live == 0:
+                    break
+                time.sleep(_PLAN_POLL_S)
+            stats = _plan_phase_stats(plan_run_id, phase)
+            stats["units"] = child
+            phases.append(stats)
+            db.update_plan_run(plan_run_id, {"phases": phases})
+
+        final = "completed"
+        if all((p.get("completed") or 0) == 0 for p in phases):
+            final = "failed"
+        current = db.get_plan_run(plan_run_id, parse=False)
+        if current is not None and current["status"] == "cancelled":
+            db.update_plan_run(plan_run_id, {"phases": phases})
+            return
+        db.update_plan_run(plan_run_id, {"status": final, "current_phase": None,
+                                         "phases": phases, "finished_at": _now()})
+    except Exception as exc:  # noqa: BLE001 - a coordinator must not die silently
+        db.update_plan_run(plan_run_id, {
+            "status": "failed", "error": _trunc(f"{type(exc).__name__}: {exc}"),
+            "finished_at": _now()})
+
+
+def cancel_plan_run(plan_run_id: str) -> Optional[Dict[str, Any]]:
+    """取消方案运行：停掉后续阶段，并取消尚未执行的任务。"""
+    plan_run = db.get_plan_run(plan_run_id)
+    if plan_run is None:
+        return None
+    if plan_run.get("status") in ("completed", "failed", "cancelled"):
+        return plan_run_public(plan_run_id)
+    _finalize_cancelled_plan(plan_run_id)
+    return plan_run_public(plan_run_id)
+
+
+def _finalize_cancelled_plan(plan_run_id: str,
+                             strategy: Optional[str] = None) -> None:
+    """把方案运行及其所有未完成子 run 标记为已取消。"""
+    try:
+        for run in db.runs_for_plan(plan_run_id):
+            if run.get("status") in ("queued", "running"):
+                db.cancel_pending_attempts(run["run_id"], "plan run cancelled")
+                db.update_run(run["run_id"], {"status": "cancelled",
+                                              "finished_at": _now()})
+        fields: Dict[str, Any] = {"status": "cancelled", "current_phase": None,
+                                  "finished_at": _now()}
+        if strategy:
+            fields["error"] = f"cancelled before phase '{strategy}'"
+        db.update_plan_run(plan_run_id, fields)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def create_plan_run(body: Dict[str, Any]) -> Dict[str, Any]:
+    """POST /api/plans/runs：按测试方案下发一次运行（含自定义覆盖）。"""
+    if not isinstance(body, dict):
+        raise RunError("request body must be a JSON object")
+    plan_id = str(body.get("plan_id") or "").strip()
+    try:
+        base = plans_mod.get_plan(plan_id)
+    except KeyError as exc:
+        raise RunError(str(exc))
+
+    overrides = body.get("overrides") if isinstance(body.get("overrides"), dict) else {}
+    # 允许把覆盖项直接放在顶层（前端表单更直观）
+    for key in ("devices", "kinds", "generate_window_min", "duration_min",
+                "strategies", "name"):
+        if body.get(key) is not None and overrides.get(key) is None:
+            overrides[key] = body[key]
+
+    snapshot = plans_mod.apply_overrides(base, overrides)
+    problems = plans_mod.validate_plan(snapshot)
+    if problems:
+        raise RunError("；".join(problems))
+
+    # 标签只反映"用户给的名字"，不要因为用户写了名字就标成"自定义配置"；
+    # 是否自定义由 overrides 是否真的改动了方案默认值决定。
+    given = body.get("label")
+    if given:
+        label = str(given)[:160]
+    elif snapshot.get("customized"):
+        label = "自定义配置"
+    else:
+        label = base["name"]
+    snapshot["label"] = label
+    plan_run_id = db.new_plan_run_id()
+    db.create_plan_run({"plan_run_id": plan_run_id, "plan_id": plan_id,
+                        "plan_name": snapshot.get("name") or base["name"],
+                        "snapshot": snapshot, "label": label,
+                        "strategies": snapshot["strategies"],
+                        "status": "queued"})
+    with _PLAN_LOCK:
+        thread = threading.Thread(target=_plan_coordinator,
+                                  args=(plan_run_id,),
+                                  name=f"bench-plan-{plan_run_id}", daemon=True)
+        _PLAN_WORKERS[plan_run_id] = thread
+        thread.start()
+    return plan_run_public(plan_run_id) or {}
+
+
+def plan_run_public(plan_run_id: str) -> Optional[Dict[str, Any]]:
+    """方案运行的对外视图：配置快照 + 各阶段实测 + 逐类对比 + 判定。"""
+    plan_run = db.get_plan_run(plan_run_id)
+    if plan_run is None:
+        return None
+    snapshot = plan_run.get("snapshot") or {}
+    child = db.runs_for_plan(plan_run_id)
+    by_phase: Dict[str, List[Dict[str, Any]]] = {}
+    for run in child:
+        by_phase.setdefault(str(run.get("plan_phase")), []).append(run)
+
+    progress: Dict[str, Any] = {}
+    for phase, runs in by_phase.items():
+        counts = {"total": 0, "pending": 0, "running": 0, "completed": 0, "failed": 0}
+        for run in runs:
+            c = db.count_attempts(run["run_id"])
+            for k in counts:
+                counts[k] += int(c.get(k) or 0)
+        progress[phase] = counts
+
+    live = plan_run.get("status") in ("queued", "running")
+    result = {
+        "plan_run_id": plan_run_id,
+        "plan_id": plan_run.get("plan_id"),
+        "plan_name": plan_run.get("plan_name"),
+        "label": plan_run.get("label"),
+        "status": plan_run.get("status"),
+        "current_phase": plan_run.get("current_phase"),
+        "error": plan_run.get("error"),
+        "created_at": plan_run.get("created_at"),
+        "started_at": plan_run.get("started_at"),
+        "finished_at": plan_run.get("finished_at"),
+        "strategies": plan_run.get("strategies") or [],
+        "config": snapshot,
+        "total_tasks_per_phase": plans_mod.plan_total_tasks(snapshot),
+        "phases": plan_run.get("phases") or [],
+        "progress": progress,
+        "runs": [{"run_id": r["run_id"], "phase": r.get("plan_phase"),
+                  "unit": r.get("plan_unit"), "kind": r.get("kind"),
+                  "source": r.get("source"), "status": r.get("status"),
+                  "repeats": r.get("repeats")} for r in child],
+        "live": live,
+        "by_kind": _plan_by_kind(plan_run_id),
+        "comparison": _plan_comparison(plan_run_id, snapshot),
+    }
+    return result
+
+
+def _plan_comparison(plan_run_id: str, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """逐类 + 总体：本地（未调度） vs 云边端协同。"""
+    per_kind: List[Dict[str, Any]] = []
+    kinds = sorted({str(r.get("kind")) for r in db.runs_for_plan(plan_run_id)})
+    order = {k: i for i, k in enumerate(KINDS)}
+    kinds.sort(key=lambda k: order.get(k, 9))
+    for kind in kinds:
+        entry: Dict[str, Any] = {"kind": kind, "modes": {}}
+        for phase in ("local", "collaborative"):
+            rows = db.attempts_for_runs(
+                [r["run_id"] for r in db.runs_for_plan(plan_run_id)
+                 if r.get("plan_phase") == phase and r.get("kind") == kind],
+                limit=20000)
+            lat = sorted(float(r["client_total_ms"]) for r in rows
+                         if isinstance(r.get("client_total_ms"), (int, float)))
+            r_ms = sum(float(r.get("retry_ms_total") or 0.0) for r in rows
+                       if isinstance(r.get("retry_ms_total"), (int, float)))
+            entry["modes"][phase] = {
+                "n": len(rows),
+                "completed": len([r for r in rows if r.get("status") == "completed"]),
+                "total_client_ms": round(sum(lat), 2) if lat else None,
+                "mean": round(sum(lat) / len(lat), 2) if lat else None,
+                "p50": round(_percentile(lat, 50), 2) if lat else None,
+                "p95": round(_percentile(lat, 95), 2) if lat else None,
+                "min": round(lat[0], 2) if lat else None,
+                "max": round(lat[-1], 2) if lat else None,
+                "retries": sum(int(r.get("retry_count") or 0) for r in rows),
+                "retried_tasks": len([r for r in rows
+                                      if int(r.get("retry_count") or 0) > 0]),
+                "retry_ms_total": round(r_ms, 2),
+                # 含重传代价的任务处理总用时（判定口径）
+                "processing_ms": round((sum(lat) if lat else 0.0) + r_ms, 2),
+            }
+        c, l = entry["modes"]["collaborative"], entry["modes"]["local"]
+        entry["gain_pct"] = (round(100.0 * (l["total_client_ms"] - c["total_client_ms"])
+                                   / l["total_client_ms"], 2)
+                             if l.get("total_client_ms") and c.get("total_client_ms")
+                             else None)
+        per_kind.append(entry)
+
+    totals = {ph: _plan_phase_stats(plan_run_id, ph) for ph in ("local", "collaborative")}
+    l_ms = (totals["local"] or {}).get("total_wall_ms")
+    c_ms = (totals["collaborative"] or {}).get("total_wall_ms")
+    exec_l = sum((e["modes"]["local"].get("total_client_ms") or 0) for e in per_kind)
+    exec_c = sum((e["modes"]["collaborative"].get("total_client_ms") or 0) for e in per_kind)
+    proc_l = sum((e["modes"]["local"].get("processing_ms") or 0) for e in per_kind)
+    proc_c = sum((e["modes"]["collaborative"].get("processing_ms") or 0) for e in per_kind)
+    return {
+        "per_kind": per_kind,
+        "totals": totals,
+        "overall": {
+            "local_wall_ms": l_ms,
+            "collaborative_wall_ms": c_ms,
+            "wall_gain_pct": (round(100.0 * (l_ms - c_ms) / l_ms, 2)
+                              if l_ms and c_ms else None),
+            # exec = 只算成功那次执行；processing = exec + 重传浪费（判定用）
+            "local_exec_ms": round(exec_l, 2) if exec_l else None,
+            "collaborative_exec_ms": round(exec_c, 2) if exec_c else None,
+            "local_processing_ms": round(proc_l, 2) if proc_l else None,
+            "collaborative_processing_ms": round(proc_c, 2) if proc_c else None,
+            "processing_gain_pct": (round(100.0 * (proc_l - proc_c) / proc_l, 2)
+                                    if proc_l and proc_c else None),
+            "retries_local": (totals.get("local") or {}).get("retries"),
+            "retries_collaborative": (totals.get("collaborative") or {}).get("retries"),
+        },
+        "criteria": _plan_criteria(plan_run_id, snapshot, per_kind,
+                                   {"local": l_ms, "collaborative": c_ms}),
+    }
+
+
+def _plan_criteria(plan_run_id: str, snapshot: Dict[str, Any],
+                   per_kind: List[Dict[str, Any]],
+                   wall: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    l_ms, c_ms = wall.get("local"), wall.get("collaborative")
+    sum_l = sum((e["modes"]["local"].get("processing_ms") or 0) for e in per_kind)
+    sum_c = sum((e["modes"]["collaborative"].get("processing_ms") or 0) for e in per_kind)
+    # 完成率以"最差的那个阶段"为准：两遍都必须达到要求。
+    # 只要还有任务没跑完，就不下结论（否则运行中会显示"不通过"，误导判读）。
+    stats_ph = {ph: (_plan_phase_stats(plan_run_id, ph) or {})
+                for ph in ("local", "collaborative")}
+    rates = [v.get("completion_pct") for v in stats_ph.values()
+             if v.get("completion_pct") is not None]
+    unfinished = any((v.get("pending") or 0) > 0 for v in stats_ph.values())
+    done = {"completion_pct": None if unfinished else (min(rates) if rates else None)}
+    for spec in snapshot.get("criteria") or []:
+        item = dict(spec)
+        ctype = spec.get("type")
+        if ctype == "external":
+            item.update({"verdict": "pending", "measured": None,
+                         "note": f"由 {spec.get('source')} 实测填写，平台不自动判定"})
+        elif ctype in ("complete_gt", "complete_gte"):
+            val = done.get("completion_pct")
+            target = float(spec.get("value") or 0)
+            # val 可能为 None（任务还没跑完就查结果）——必须先判空再比较，
+            # 否则 `None >= 100.0` 会直接抛 TypeError，连下发都失败。
+            if val is None:
+                verdict = "pending"
+            else:
+                ok = (val > target) if ctype == "complete_gt" else (val >= target)
+                verdict = "pass" if ok else "fail"
+            item.update({"verdict": verdict,
+                         "measured": val,
+                         "measured_retries": sum(
+                             int((_plan_phase_stats(plan_run_id, ph) or {})
+                                 .get("retries") or 0)
+                             for ph in ("local", "collaborative"))})
+        elif ctype == "gain_gt":
+            # 大纲的「任务处理总用时」= 各任务耗时之和（Σ client_total_ms）。
+            # 阶段墙钟（makespan）会包含固定的"任务产生窗口"，那部分两遍相同，
+            # 计进去只会稀释策略差异，所以判定用处理总用时，墙钟另列参考。
+            gain = (round(100.0 * (sum_l - sum_c) / sum_l, 2)
+                    if sum_l and sum_c else None)   # 含重传代价的处理总用时
+            wall = (round(100.0 * (l_ms - c_ms) / l_ms, 2) if l_ms and c_ms else None)
+            item.update({"verdict": ("pending" if gain is None
+                                     else ("pass" if gain > float(spec.get("value") or 0)
+                                           else "fail")),
+                         "measured": gain,
+                         "measured_wall_gain_pct": wall,
+                         "note": "判定口径 = 任务处理总用时（Σ 单任务 client_total_ms）；"
+                                 "阶段墙钟含固定产生窗口，仅作参考"})
+        else:
+            item.update({"verdict": "pending", "measured": None})
+        out.append(item)
+    return out
+
+
 def _label_for(suite: Dict[str, Any], params: Dict[str, Any]) -> str:
     for sp in suite["specs"]:
         if all(params.get(k) == v for k, v in sp["params"].items()):
@@ -1220,7 +1775,13 @@ def _level_index(level_params: List[Dict[str, Any]], params: Dict[str, Any]) -> 
 
 
 def _run_one(run_id: str) -> None:
-    """Worker body: claim attempts until none are left, then finalise the run."""
+    """Worker body: claim attempts until none are left, then finalise the run.
+
+    Test-plan runs (§5.4/§5.5) spread their tasks over a generation window, so a
+    worker that finds no *due* attempt must keep waiting while pending attempts
+    remain in the future instead of draining the run early.
+    """
+    stall = 0
     while True:
         try:
             attempt = db.claim_next_attempt(run_id)
@@ -1228,7 +1789,32 @@ def _run_one(run_id: str) -> None:
             time.sleep(0.2)
             attempt = None
         if attempt is None:
-            break
+            # 领取不到任务分两种情况：① 还没到"产生"时刻（方案的时间窗）→ 等；
+            # ② 到期了却领不到（例如 SQLite 短暂锁冲突）→ 也**不能**直接收尾，
+            #    否则那条 pending 会被永久遗弃、run 卡在 running（实测踩过）。
+            try:
+                counts = db.count_attempts(run_id)
+                waiting = db.count_waiting_attempts(run_id)
+            except Exception:  # noqa: BLE001
+                counts, waiting = {"pending": 0}, 0
+            run = db.get_run(run_id, parse=False)
+            if run is None:
+                return
+            if run["status"] not in ("queued", "running"):
+                break                       # 被取消或已结束
+            if counts.get("pending", 0) <= 0:
+                break                       # 真的没有待执行了 → 收尾
+            if waiting > 0:
+                stall = 0                   # 有任务还没产生，耐心等
+            else:
+                stall += 1
+                if stall > 20:              # 到期却始终领不到：如实报错而不是挂着
+                    _fail_orphan_attempts(
+                        run_id, "worker could not claim a due pending attempt")
+                    break
+            time.sleep(0.35)
+            continue
+        stall = 0
         run = db.get_run(run_id)
         if run is None:
             return
@@ -1242,11 +1828,76 @@ def _run_one(run_id: str) -> None:
             fields = {"status": "failed",
                       "error": _trunc(f"{type(exc).__name__}: {exc}"),
                       "finished_at": _now()}
+        # ---------------------------------------------------------------- 失败重传
+        # 任务保障：只要本次没成功、还有重传额度、且 run 没被取消，就把这条任务
+        # 放回 pending 重传，而不是直接判失败。失败尝试的耗时单独记账，
+        # 不被悄悄抹掉（否则重传就成了"把失败时间藏起来"）。
+        if (str(fields.get("status")) != "completed"
+                and _requeue_for_retry(int(attempt["id"]), attempt, fields, cfg, run_id)):
+            continue
         try:
             db.finish_attempt(int(attempt["id"]), fields)
         except Exception:  # noqa: BLE001
             pass
     _finalize_run(run_id)
+
+
+def _requeue_for_retry(attempt_id: int, attempt: Dict[str, Any],
+                       fields: Dict[str, Any], cfg: Dict[str, Any],
+                       run_id: str) -> bool:
+    """失败任务是否要重传；要则放回 pending 并返回 True。"""
+    try:
+        run = db.get_run(run_id)            # 解析 params：方案可声明自己的额度
+        if run is None or run["status"] not in ("queued", "running"):
+            return False                    # 已取消：不再重传
+        run_limit = (run.get("params") or {}).get("_retries")
+        limit = max(0, int(run_limit if run_limit is not None
+                           else (cfg.get("attempt_retries") or 0)))
+        done = int(attempt.get("retry_count") or 0)
+        if limit <= 0 or done >= limit:
+            return False
+        try:
+            wasted = float(attempt.get("retry_ms_total") or 0.0)
+        except (TypeError, ValueError):
+            wasted = 0.0
+        try:
+            spent = float(fields.get("client_total_ms") or 0.0)
+        except (TypeError, ValueError):
+            spent = 0.0
+        history = attempt.get("retry_errors") or []
+        if not isinstance(history, list):
+            history = []
+        history = history + [{"retry": done + 1, "ms": round(spent, 2),
+                              "error": _trunc(str(fields.get("error") or "failed"))}]
+        backoff = max(0, int(cfg.get("retry_backoff_ms") or 0)) / 1000.0
+        db.requeue_attempt(attempt_id, done + 1, wasted + spent,
+                           json.dumps(history, ensure_ascii=False),
+                           not_before=_iso_after(backoff) if backoff else None)
+        return True
+    except Exception:  # noqa: BLE001 - 重传失败就退回"按失败处理"
+        return False
+
+
+def _fail_orphan_attempts(run_id: str, reason: str) -> int:
+    """把「已到期但始终领不到」的 pending attempt 标记为失败。
+
+    宁可让 run 以 failed 收尾并把原因写清楚，也不要留着一条永不执行的
+    pending 让整个方案运行卡在 running。
+    """
+    try:
+        with db.connect() as con:
+            rows = con.execute(
+                """SELECT id FROM attempts WHERE run_id=? AND status='pending'""",
+                (run_id,)).fetchall()
+            for row in rows:
+                con.execute(
+                    """UPDATE attempts SET status='failed', error=?,
+                              finished_at=?, updated_at=?
+                       WHERE id=?""",
+                    (_trunc(reason), _now(), _now(), row["id"]))
+        return len(rows)
+    except Exception:  # noqa: BLE001
+        return 0
 
 
 def _finalize_run(run_id: str) -> Dict[str, int]:
@@ -1403,7 +2054,7 @@ def health(probe_pods: bool = True) -> Dict[str, Any]:
 
     info = patients_info()
     return {
-        "site": {"service": "benchmark-site", "version": "1.0", "status": "ok",
+        "site": {"service": SITE_SERVICE, "version": SITE_VERSION, "status": "ok",
                  "time": _now(), "db_path": db.db_path(),
                  "patients": {"path": info.get("path"), "source": info.get("source"),
                               "count": info.get("count"),
