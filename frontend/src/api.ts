@@ -25,6 +25,30 @@ export interface SubmitResp {
   mode?: ExecMode;
 }
 
+/** GET /cluster/pod_metrics —— 单个 Pod 的实时用量与配额占比。 */
+export interface PodMetric {
+  pod: string;
+  node?: string | null;
+  phase?: string | null;
+  cpu_cores?: number | null;
+  mem_bytes?: number | null;
+  cpu_limit_cores?: number | null;
+  mem_limit_bytes?: number | null;
+  cpu_request_cores?: number | null;
+  mem_request_bytes?: number | null;
+  /** 0..1 的限额占比（无 limits 时以 requests 为分母）；无配额时为 null */
+  cpu_pct?: number | null;
+  mem_pct?: number | null;
+}
+
+export interface PodMetricsResp {
+  ok: boolean;
+  count: number;
+  /** metrics-server 是否有可用数据（false 时用量按 0 处理） */
+  metrics: boolean;
+  pods: PodMetric[];
+}
+
 /** v3.2：所有提交接口都接受执行模式（见 调度模式与降级-设计方案.md） */
 export interface ModeOptions {
   /** 执行模式：云边端协同 / 本地执行 / 自动 */
@@ -124,6 +148,10 @@ export const api = {
   /** Lightweight snapshot for dashboards (fast). */
   clusterSummary: async (): Promise<ClusterSummary> =>
     (await http.get('/cluster/summary')).data,
+
+  /** 集群资源页：default 命名空间业务 Pod 的 CPU / 内存实时负载。 */
+  podMetrics: async (): Promise<PodMetricsResp> =>
+    (await http.get('/cluster/pod_metrics')).data,
 
   clusterDefault: async (): Promise<ClusterDefault> =>
     (await http.get('/cluster/default')).data,

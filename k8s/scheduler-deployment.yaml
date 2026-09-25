@@ -28,7 +28,7 @@ spec:
 
       containers:
       - name: scheduler
-        image: k8s-master:5000/k8s-repo/inference-scheduler:v3.3.14
+        image: k8s-master:5000/k8s-repo/inference-scheduler:v3.6.0
         imagePullPolicy: IfNotPresent
 
         env:

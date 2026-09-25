@@ -3,16 +3,13 @@ import { NavLink } from 'react-router-dom';
 import { api } from '../api';
 import { useTicker } from '../hooks';
 import { MODEL_COLOR, MODEL_LABEL } from '../utils';
-import { TIER_LABEL } from '../terms';
 import type { ClusterSummary, HealthMap, TaskStats } from '../types';
 
 const MODELS = ['diagnosis', 'compute', 'sync', 'routine'] as const;
 
 const ENTRIES: Array<{ to: string; title: string; desc: string }> = [
-  { to: '/visual', title: '可视化', desc: '逻辑架构总览 · 任务执行轨迹 · 多任务并发' },
-  { to: '/load', title: '集群负载', desc: '节点资源 · 实例就绪 · 组件健康 · 任务概览' },
-  { to: '/test', title: '综合测试', desc: '四类任务混合批量执行与结果查看' },
-  { to: '/cluster', title: '集群编排', desc: '地图 / 列表双视图编辑与下发' },
+  { to: '/visual', title: '集群架构', desc: '逻辑架构总览 · 任务执行轨迹 · 多任务并发' },
+  { to: '/load', title: '集群负载', desc: '节点 / Pod 负载 · 实例就绪 · 组件健康 · 编排调度' },
 ];
 
 function healthOk(v: unknown): boolean {
@@ -58,11 +55,7 @@ export default function PlatformOverviewPage() {
   return (
     <div className="page">
       <header className="page-head">
-        <h1>平台总览</h1>
-        <p>
-          三级架构：{TIER_LABEL.cloud} · {TIER_LABEL.medical} · {TIER_LABEL.hospital}；
-          四类任务：诊断 / 计算 / 通信 / 日常，由医疗中心与医院发起、数据中心统一调度。
-        </p>
+        <h1>集群总览</h1>
       </header>
 
       {err && <div className="errbox">{err}</div>}

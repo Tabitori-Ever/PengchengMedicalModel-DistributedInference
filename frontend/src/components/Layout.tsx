@@ -1,10 +1,13 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { PLATFORM_NAME, PLATFORM_SLOGAN } from '../terms';
+import { PLATFORM_SLOGAN } from '../terms';
+
+/** 管理平台名称（用户侧平台名保持不变，见 terms.PLATFORM_NAME）。 */
+export const ADMIN_PLATFORM_NAME = 'AI诊疗云边端协同管控平台';
 
 /** 双环字母标：纯内联 SVG，无外部资源 */
 function Monogram() {
   return (
-    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label="AI诊疗云边端协同应用平台">
+    <svg className="brand-glyph" viewBox="0 0 48 48" role="img" aria-label={ADMIN_PLATFORM_NAME}>
       <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.32" />
       <circle cx="24" cy="24" r="14" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <path d="M24 3v9M24 36v9M3 24h9M36 24h9" stroke="currentColor" strokeWidth="1" opacity="0.45" />
@@ -13,13 +16,11 @@ function Monogram() {
   );
 }
 
-/** 管理平台导航（纯中文） */
+/** 管理平台导航（纯中文，三段式编号） */
 const NAV = [
-  { to: '/overview', no: '01', label: '平台总览' },
-  { to: '/visual', no: '02', label: '可视化' },
+  { to: '/overview', no: '01', label: '集群总览' },
+  { to: '/visual', no: '02', label: '集群架构' },
   { to: '/load', no: '03', label: '集群负载' },
-  { to: '/test', no: '04', label: '综合测试' },
-  { to: '/cluster', no: '05', label: '集群编排' },
 ];
 
 export default function Layout() {
@@ -30,8 +31,7 @@ export default function Layout() {
         <div className="brand">
           <Monogram />
           <div className="brand-text">
-            <div className="brand-name">管理平台</div>
-            <div className="brand-caption">{PLATFORM_NAME}</div>
+            <div className="brand-name">{ADMIN_PLATFORM_NAME}</div>
           </div>
         </div>
 

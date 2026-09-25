@@ -1,10 +1,13 @@
 /* ==========================================================================
-   用户调用平台（/app/user/）专用样式 · v3.1.6
+   用户调用平台（/app/user/）专用样式
 
-   布局：左侧品牌 + 历史任务，主区是一条居中的列（max-width 880px, margin 0 auto）：
-   提交卡在上，本次会话的记录依次在下，全部同宽同列。
+   登录门：居中的身份面板（六项固定身份）→ 进入主界面。
+   布局：左侧品牌 + 身份 + 可折叠 / 多选的历史任务，主区是一条居中的列
+   （max-width 880px, margin 0 auto）：提交卡在上，本次会话与聚焦的历史记录
+   依次在下，全部同宽同列。
    提交卡是一张卡的两个部分——标题行就是四个任务类型按钮（等分四格、实底高亮），
-   卡身只有「发起方 + 上传」；数据集文件只出现在上传打开的面板里，卡内不列文件。
+   卡身只有「上传 + 执行」（位置固定为登录身份、模式固定云边端协同，不再有下拉）；
+   数据集文件只出现在上传打开的面板里，卡内不列文件。
    没有任何左右分栏的气泡，也不存在左右对齐的行。正文 16px，全部中文。
    ========================================================================== */
 
@@ -25,13 +28,41 @@
   border-right: 1px solid var(--line);
 }
 .up-brand-name { font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+.up-brand-id {
+  margin-top: 4px; display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; color: var(--grey-3);
+}
+.up-brand-id i { font-size: 12px; color: var(--grey-2); }
 .up-new { width: 100%; }
-.up-side-title { font-size: 13px; color: var(--grey-2); letter-spacing: 0.14em; margin-top: 4px; }
+.up-side-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--grey-2); letter-spacing: 0.14em; margin-top: 4px;
+}
+.up-side-acts { display: inline-flex; align-items: center; gap: 8px; }
+.up-side-act {
+  border: none; background: none; padding: 0 2px; cursor: pointer;
+  font-size: 12.5px; letter-spacing: 0.08em; color: var(--brass-2);
+  border-bottom: 1px solid transparent;
+}
+.up-side-act:hover { border-bottom-color: var(--brass-line); color: var(--ink); }
+
+/* 历史任务分区标题：点一下折叠 / 展开整个列表 */
+.up-side-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 0; background: none; border: none; text-align: left;
+}
+.up-side-toggle i { font-style: normal; font-size: 12px; color: var(--brass-2); letter-spacing: 0.06em; }
+.up-side-toggle:hover { color: var(--brass-2); }
+
+/* 历史任务多选工具条 */
+
 .up-history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
 .up-empty { font-size: 14px; color: var(--grey-2); padding: 2px 0; }
 
+/* 一行历史任务：整块即按钮，点一下选中（新的排最上），再点取消 */
 .up-hist {
-  text-align: left; display: flex; flex-direction: column; gap: 4px;
+  width: 100%; text-align: left; cursor: pointer; font: inherit;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
   background: var(--panel-2); border: 1px solid var(--line);
   border-radius: var(--r-1); padding: 8px 10px;
   transition: border-color var(--t-fast), background var(--t-fast);
@@ -43,6 +74,15 @@
 .up-hist-top .up-st { margin-left: auto; }
 .up-hist-bottom { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--grey-3); }
 .up-hist-bottom i { margin-left: auto; color: var(--grey-2); }
+
+/* 切换身份：回到登录面板 */
+.up-switch {
+  width: 100%; padding: 7px 10px; font-size: 14px; letter-spacing: 0.08em;
+  color: var(--grey-3); background: none; border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+.up-switch:hover { border-color: var(--brass-2); color: var(--brass-2); background: var(--brass-soft); }
 
 /* --------------------------------------------------------------- 主区 */
 .up-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100vh; }
@@ -66,7 +106,17 @@
 .up-card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .up-card-title { font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: 0.02em; word-break: break-all; }
 .up-card-note { font-size: 12px; color: var(--grey-2); }
-.up-card-x { margin-left: auto; }
+.up-card-x {
+  margin-left: auto; border: none; background: none; cursor: pointer;
+  font-size: 15px; line-height: 1; color: var(--grey-2); padding: 0 4px;
+}
+.up-card-x:hover { color: var(--rust); }
+.up-card-clear {
+  margin-left: auto; border: none; background: none; cursor: pointer; padding: 0 2px;
+  font-size: 12.5px; letter-spacing: 0.08em; color: var(--grey-2);
+}
+.up-card-clear:hover { color: var(--ink); }
+.up-card-clear + .up-card-x { margin-left: 8px; }
 .up-record.hist { border-left: 2px solid var(--brass-2); }
 
 .up-meta { display: flex; flex-wrap: wrap; gap: 8px 26px; }
@@ -111,27 +161,6 @@
 .up-card-body {
   padding: 14px 18px 16px;
   display: flex; flex-direction: column; gap: 12px;
-}
-
-/* 发起方：中文名 + 小字 mono 技术标识 */
-.up-field { display: flex; align-items: center; gap: 12px; }
-.up-label { flex: 0 0 auto; font-size: 14px; color: var(--grey-3); letter-spacing: 0.1em; }
-.up-select { flex: 1 1 auto; font-size: 16px; padding: 9px 30px 9px 12px; }
-.up-src-id { flex: 0 0 auto; color: var(--grey-2); }
-
-/* v3.2 执行模式：下拉 + 强制降级开关（沿用同一行样式，卡片仍是两行结构） */
-.up-check {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
-  font-size: 14px; color: var(--grey-3); letter-spacing: 0.06em; cursor: pointer;
-}
-.up-check input { accent-color: var(--brass-2); width: 15px; height: 15px; cursor: pointer; }
-.up-check:hover { color: var(--brass-2); }
-
-/* 结果里的降级徽标 */
-.up-degraded {
-  margin-left: 8px; padding: 1px 7px; font-style: normal; font-size: 12px;
-  letter-spacing: 0.08em; color: var(--warn, #a4562a);
-  border: 1px solid currentColor; border-radius: var(--r-1);
 }
 
 /* 上传：数据入口，实心棕铜描边，比一般小按钮更显眼 */
@@ -275,3 +304,42 @@
 .up-params-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px; align-items: baseline; }
 .up-params-row dt { font-size: 13.5px; font-weight: 600; color: var(--ink); }
 .up-params-row dd { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-3); }
+
+/* --------------------------------------------------------------------------
+   登录门：进入主界面前先选身份（医疗中心 A/B、医院 1/2/3/4）
+   -------------------------------------------------------------------------- */
+.up-login {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px; background: var(--paper); font-size: 16px; line-height: 1.6;
+}
+.up-login-card {
+  width: 100%; max-width: 560px;
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 30px 28px 26px;
+  background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  box-shadow: 0 18px 46px rgba(8, 10, 8, 0.12);
+}
+.up-login-title {
+  margin: 0; text-align: center;
+  font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: 0.05em;
+}
+.up-login-hint { margin: 0; text-align: center; font-size: 14px; color: var(--grey-3); letter-spacing: 0.04em; }
+.up-login-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.up-login-opt {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 12px 14px; text-align: left;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-left: 2px solid transparent; border-radius: var(--r-1);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.up-login-opt:hover { border-color: var(--brass-line); background: var(--brass-soft); }
+.up-login-opt.on { border-color: var(--brass-2); border-left-color: var(--brass-2); background: var(--brass-soft); }
+.up-login-opt-name { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: 0.03em; }
+.up-login-opt-id { font-size: 12px; color: var(--grey-2); }
+.up-login-enter { width: 100%; font-size: 16px; padding: 12px 16px; letter-spacing: 0.18em; }
+
+@media (max-width: 560px) {
+  .up-login-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+

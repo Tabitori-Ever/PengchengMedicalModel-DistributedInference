@@ -1,0 +1,10 @@
+{
+  "kind": "sync",
+  "name": "通信_高速_1",
+  "description": "60 Mbps / 并发 8 / 16 KB 分块",
+  "params": {
+    "bandwidth_mbps": 60,
+    "concurrency": 8,
+    "chunk_kb": 16
+  }
+}

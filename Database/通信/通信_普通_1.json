@@ -1,0 +1,10 @@
+{
+  "kind": "sync",
+  "name": "通信_普通_1",
+  "description": "20 Mbps / 并发 4 / 4 KB 分块",
+  "params": {
+    "bandwidth_mbps": 20,
+    "concurrency": 4,
+    "chunk_kb": 4
+  }
+}

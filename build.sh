@@ -18,7 +18,7 @@ cd "$ROOT"
 
 REGISTRY="${REGISTRY:-k8s-master:5000}"
 PROJECT="${PROJECT:-k8s-repo}"
-SCHED_TAG="${SCHED_TAG:-v3.3.5}"
+SCHED_TAG="${SCHED_TAG:-v3.6.0}"
 TAG="${TAG:-v3.3}"
 HOSP_TAG="${HOSP_TAG:-v3.6}"
 MED_TAG="${MED_TAG:-v1.1}"

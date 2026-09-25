@@ -1,15 +1,16 @@
 /* ===========================================================================
    用户调用平台 · 会话状态（纯函数，便于在无 DOM 环境下验证）
 
-   用户只做两件事：选任务位置、在「顶部任务类型 → 对应文件夹」里点选一个数据集
-   文件。任务类型与全部参数都写在文件名/文件内容里，这里只保存：
+   登录身份即任务位置（source），登录后不再选择位置；用户只做两件事：
+   在「顶部任务类型 → 对应文件夹」里点选一个数据集文件，再点执行。任务类型与
+   全部参数都写在文件名/文件内容里，这里只保存：
 
-     kind     顶部横条当前选中的任务类型（诊断 / 计算 / 通信 / 日常）
-     source   任务位置（医院 1/2、医疗中心 A/B）
-     index    数据集目录（/app/datasets/index.json，进入页面读一次）
-     file     当前类型文件夹中已选中的文件（含文件内容 params）
-     records  本次会话的提交记录，最新在前（同一列里原地更新）
-     focus    侧栏历史任务点开后聚焦的一条记录（不影响提交卡与本次记录）
+     kind       顶部横条当前选中的任务类型（诊断 / 计算 / 通信 / 日常）
+     source     日志身份 / 任务位置（由登录身份决定，提交时作为 source）
+     index      数据集目录（真实 /files/tree，失败回退 /app/datasets/index.json）
+     file       当前类型文件夹中已选中的文件（含文件内容 params）
+     records    本次会话的提交记录，最新在前（同一列里原地更新）
+     focusList  侧栏历史任务聚焦出来的记录（可同时显示多条）
 
    提交按所选文件自带的 kind 派发到对应接口（见 sendSubmission），
    载荷由 dataset.ts 的 buildSubmission 构造，界面不改写任何数值。
@@ -18,18 +19,20 @@
 import { api } from '../api';
 import type { ComputeBody, DiagnosisBody, RoutineBody, SyncBody } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
-import type { ExecMode, ModelKind, SourceId, TaskItem, TaskResult } from '../types';
-import { MODEL_LABEL, MODELS, SOURCES } from '../utils';
+import type { ModelKind, TaskItem, TaskResult } from '../types';
+import { MODEL_LABEL, MODELS } from '../utils';
 import type { DatasetEntry, DatasetFileMeta, DatasetFolder, DatasetIndex, Submission } from './dataset';
 import { fetchEntry } from './dataset';
+import type { IdentityId } from './identity';
+import { IDENTITIES } from './identity';
 
-/** 默认任务位置：医院 1 */
-export const DEFAULT_SOURCE: SourceId = 'clinic-1';
+/** 默认任务位置：医院 1（登录前的占位值） */
+export const DEFAULT_SOURCE: IdentityId = 'clinic-1';
 
 /** 任务位置合法值校验（历史任务/文件里可能带来任意字符串） */
-export function asSource(v?: string | null): SourceId {
+export function asSource(v?: string | null): IdentityId {
   const key = String(v ?? '');
-  return SOURCES.includes(key as SourceId) ? (key as SourceId) : DEFAULT_SOURCE;
+  return (IDENTITIES as string[]).includes(key) ? (key as IdentityId) : DEFAULT_SOURCE;
 }
 
 /** 一条任务记录：本次会话提交的记录，或侧栏历史任务聚焦出来的记录 */
@@ -38,7 +41,7 @@ export interface UserRecord {
   kind: ModelKind;
   /** 数据集文件名（例：计算_规模中等_1）；历史任务无此信息时为空串 */
   fileName: string;
-  source: SourceId;
+  source: IdentityId;
   taskId: string;
   live: TaskResult | null;
   task: TaskItem | null;
@@ -48,15 +51,12 @@ export interface UserRecord {
 
 export interface UserState {
   kind: ModelKind;
-  source: SourceId;
-  /** v3.2 执行模式：云边端协同 / 本地执行 / 自动 */
-  mode: ExecMode;
-  /** 强制降级开关（受控实验用；优先级高于 mode） */
-  forceDegraded: boolean;
+  source: IdentityId;
   index: DatasetIndex | null;
   file: DatasetEntry | null;
   records: UserRecord[];
-  focus: UserRecord | null;
+  /** 聚焦显示的历史任务记录：单条（单击）或多条（多选后「显示所选」） */
+  focusList: UserRecord[];
 }
 
 let seq = 0;
@@ -66,12 +66,10 @@ export function initialState(): UserState {
   return {
     kind: MODELS[0],
     source: DEFAULT_SOURCE,
-    mode: 'collaborative',
-    forceDegraded: false,
     index: null,
     file: null,
     records: [],
-    focus: null,
+    focusList: [],
   };
 }
 
@@ -89,18 +87,8 @@ export function selectKind(s: UserState, kind: ModelKind): UserState {
   return { ...s, kind, file: null };
 }
 
-export function selectSource(s: UserState, source: SourceId): UserState {
+export function selectSource(s: UserState, source: IdentityId): UserState {
   return { ...s, source };
-}
-
-/** v3.2：切换执行模式（云边端协同 / 本地执行 / 自动） */
-export function selectMode(s: UserState, mode: ExecMode): UserState {
-  return { ...s, mode };
-}
-
-/** v3.2：强制降级开关 */
-export function setForceDegraded(s: UserState, forceDegraded: boolean): UserState {
-  return { ...s, forceDegraded };
 }
 
 export function withIndex(s: UserState, index: DatasetIndex): UserState {
@@ -144,17 +132,35 @@ export function recordForTask(task: TaskItem): UserRecord {
   };
 }
 
+/** 单击历史任务：只聚焦这一条 */
 export function focusTask(s: UserState, task: TaskItem): UserState {
-  return { ...s, focus: recordForTask(task) };
+  return { ...s, focusList: [recordForTask(task)] };
+}
+
+/** 多选历史任务：「显示所选」把选中的任务一起放进主列 */
+export function focusTasks(s: UserState, tasks: TaskItem[]): UserState {
+  return { ...s, focusList: tasks.map(recordForTask) };
+}
+
+/** 点历史卡片：已选则取消，未选则**放在最上方**（新选的最靠前） */
+export function toggleFocus(s: UserState, task: TaskItem): UserState {
+  const id = String(task.id);
+  if (s.focusList.some((r) => r.taskId === id)) return removeFocus(s, id);
+  return { ...s, focusList: [recordForTask(task), ...s.focusList] };
 }
 
 export function patchFocus(s: UserState, taskId: string, patch: Partial<UserRecord>): UserState {
-  if (!s.focus || s.focus.taskId !== taskId) return s;
-  return { ...s, focus: { ...s.focus, ...patch } };
+  if (!s.focusList.some((r) => r.taskId === taskId)) return s;
+  return { ...s, focusList: s.focusList.map((r) => (r.taskId === taskId ? { ...r, ...patch } : r)) };
+}
+
+/** 关闭主列里某一条聚焦记录 */
+export function removeFocus(s: UserState, taskId: string): UserState {
+  return { ...s, focusList: s.focusList.filter((r) => r.taskId !== taskId) };
 }
 
 export function clearFocus(s: UserState): UserState {
-  return s.focus ? { ...s, focus: null } : s;
+  return s.focusList.length ? { ...s, focusList: [] } : s;
 }
 
 /** 新建任务：只重置提交卡与聚焦记录，本次会话的记录保留 */

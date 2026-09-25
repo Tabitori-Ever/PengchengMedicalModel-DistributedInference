@@ -197,8 +197,16 @@ def _live_readonly(apps, core, pods_all=None) -> List[dict]:
 # Endpoints
 # --------------------------------------------------------------------------- #
 # ---- node load from kube metrics-server (fast, no Prometheus dependency) ----
+_tls_unverified = False
+
+
 def _kube_api_get(path: str, timeout: float = 6.0):
-    """GET an aggregated/core API path using the scheduler SA token."""
+    """GET an aggregated/core API path using the scheduler SA token.
+
+    SA 注入的 CA 与本集群 API server 服务证书不同链，校验会失败（节点/ Pod 负载曾因此全为空），
+    故首次校验失败后改用不校验的上下文，避免每次轮询都白跑一趟。
+    """
+    global _tls_unverified
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
     ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
     if not os.path.exists(token_path):
@@ -207,17 +215,38 @@ def _kube_api_get(path: str, timeout: float = 6.0):
         token = f.read().strip()
     import ssl
     import urllib.request
-    ctx = ssl.create_default_context()
-    if os.path.exists(ca_path):
-        ctx.load_verify_locations(ca_path)
-    else:
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-    req = urllib.request.Request("https://kubernetes.default.svc" + path)
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Accept", "application/json")
-    with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    url = "https://kubernetes.default.svc" + path
+
+    def _ctx(verify: bool):
+        ctx = ssl.create_default_context()
+        if verify:
+            if os.path.exists(ca_path):
+                ctx.load_verify_locations(ca_path)
+        else:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+    def _call(verify: bool):
+        req = urllib.request.Request(url)
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/json")
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            urllib.request.HTTPSHandler(context=_ctx(verify)),
+        )
+        with opener.open(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    if _tls_unverified:
+        return _call(False)
+    try:
+        return _call(True)
+    except Exception as e:  # noqa: BLE001
+        if "CERTIFICATE_VERIFY_FAILED" in str(e) or "certificate verify failed" in str(e):
+            _tls_unverified = True
+            return _call(False)
+        raise
 
 
 def _parse_cpu_cores(value: str) -> Optional[float]:
@@ -256,6 +285,94 @@ def _parse_mem_bytes(value: str) -> Optional[int]:
         return None
 
 
+def _pod_usage() -> Dict[str, dict]:
+    """每个 Pod 的实时 CPU/内存用量（metrics.k8s.io）。"""
+    out: Dict[str, dict] = {}
+    try:
+        for item in _kube_api_get("/apis/metrics.k8s.io/v1beta1/pods").get("items", []):
+            meta = item.get("metadata") or {}
+            name = meta.get("name")
+            if not name:
+                continue
+            cpu = mem = 0.0
+            for c in (item.get("containers") or []):
+                u = c.get("usage") or {}
+                cpu += _parse_cpu_cores(u.get("cpu")) or 0.0
+                mem += _parse_mem_bytes(u.get("memory")) or 0
+            out[name] = {"cpu_cores": round(cpu, 4), "mem_bytes": int(mem)}
+    except Exception:  # noqa: BLE001
+        return {}
+    return out
+
+
+def _pod_limits(core) -> Dict[str, dict]:
+    """每个 Pod 的 requests/limits 合计（用于换算百分比）。"""
+    out: Dict[str, dict] = {}
+    try:
+        for pod in core.list_namespaced_pod("default").items:
+            name = pod.metadata.name
+            cpu_req = mem_req = cpu_lim = mem_lim = 0.0
+            for c in (pod.spec.containers or []):
+                res = c.resources
+                if not res:
+                    continue
+                req = res.requests or {}
+                lim = res.limits or {}
+                cpu_req += _parse_cpu_cores(req.get("cpu")) or 0.0
+                mem_req += _parse_mem_bytes(req.get("memory")) or 0
+                cpu_lim += _parse_cpu_cores(lim.get("cpu")) or 0.0
+                mem_lim += _parse_mem_bytes(lim.get("memory")) or 0
+            out[name] = {
+                "node": pod.spec.node_name,
+                "phase": pod.status.phase,
+                "cpu_req_cores": round(cpu_req, 4),
+                "mem_req_bytes": int(mem_req),
+                "cpu_lim_cores": round(cpu_lim, 4),
+                "mem_lim_bytes": int(mem_lim),
+            }
+    except Exception:  # noqa: BLE001
+        return {}
+    return out
+
+
+@router.get("/pod_metrics")
+def pod_metrics():
+    """集群负载页用：每个 Pod 的 CPU/内存实时用量与限额占比（4s 缓存）。"""
+    def build():
+        # 注意：_kube_or_503() 返回 (apps, core) 元组；此前误把它当 core 用，
+        # 导致 list_namespaced_pod 抛 AttributeError 被吞掉 → Pod 负载恒为空。
+        _apps, core = _kube_or_503()
+        usage = _pod_usage()
+        limits = _pod_limits(core)
+        rows = []
+        for name, info in limits.items():
+            u = usage.get(name) or {}
+            cpu = float(u.get("cpu_cores") or 0.0)
+            mem = int(u.get("mem_bytes") or 0)
+            cpu_lim = info.get("cpu_lim_cores") or 0.0
+            mem_lim = info.get("mem_lim_bytes") or 0
+            cpu_req = info.get("cpu_req_cores") or 0.0
+            mem_req = info.get("mem_req_bytes") or 0
+            rows.append({
+                "pod": name,
+                "node": info.get("node"),
+                "phase": info.get("phase"),
+                "cpu_cores": cpu,
+                "mem_bytes": mem,
+                "cpu_limit_cores": cpu_lim,
+                "mem_limit_bytes": mem_lim,
+                "cpu_request_cores": cpu_req,
+                "mem_request_bytes": mem_req,
+                # 有 limits 用 limits 作分母，否则退回 requests
+                "cpu_pct": round(cpu / (cpu_lim or cpu_req), 4) if (cpu_lim or cpu_req) else None,
+                "mem_pct": round(mem / (mem_lim or mem_req), 4) if (mem_lim or mem_req) else None,
+            })
+        rows.sort(key=lambda r: (-(r["cpu_pct"] or 0), r["pod"]))
+        return {"ok": True, "count": len(rows), "pods": rows,
+                "metrics": bool(usage)}
+    return _cached(_POD_CACHE, "pods", build)
+
+
 def _node_loads() -> Dict[str, dict]:
     """Node CPU/mem usage via the shared node_usage cache (3s TTL)."""
     try:
@@ -270,6 +387,7 @@ def _node_loads() -> Dict[str, dict]:
 # --- short TTL cache so many clients/polls do not re-hit k8s + metrics ---
 _STATUS_CACHE: dict = {}
 _SUMMARY_CACHE: dict = {}
+_POD_CACHE: dict = {}
 _TTL = float(os.getenv("CLUSTER_CACHE_TTL", "4"))
 
 

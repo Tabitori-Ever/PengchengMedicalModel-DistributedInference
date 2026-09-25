@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 
 from prometheus_client import start_http_server
 
-from .scheduler import InferenceScheduler
+from .scheduler import InferenceScheduler, UnsupportedLocalMode
 from .redis_client import (
     REDIS_AVAILABLE, get_tasks, redis_keys, redis_delete, dequeue_task,
     get_queue_length as redis_queue_len,
@@ -198,6 +198,10 @@ def _do_submit(model: str, req: BaseSchedule, input_data: dict):
                                        force_degraded=getattr(req, "force_degraded", False))
         update_metrics()
         return result
+    except UnsupportedLocalMode as e:
+        # 诊断没有本地执行策略：明确 400，而不是队列满的 429
+        failed_requests.labels(model=model).inc()
+        raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
         failed_requests.labels(model=model).inc()
         raise HTTPException(status_code=429, detail=str(e))
@@ -411,6 +415,102 @@ def clear_tasks():
         count += 1
     return {"count": count}
 
+
+
+# ---------------------- 数据集真实目录（Database/） -------------------------
+# 用户平台「上传」弹窗读的是真实文件夹，而不是前端打包的虚拟目录：
+#   GET /files/tree            列出目录树（子目录 = 任务类型，文件 = 一份数据）
+#   GET /files/get?path=...    读取单个文件内容（JSON 自描述：kind/name/description/params）
+# 目录可用 DATABASE_DIR 覆盖；容器内默认为 /app/Database。
+DATABASE_DIR = Path(os.getenv("DATABASE_DIR", "/app/Database"))
+_KIND_BY_DIR = {
+    "计算": "compute", "compute": "compute",
+    "通信": "sync", "sync": "sync",
+    "日常": "routine", "routine": "routine",
+    "诊断": "diagnosis", "diagnosis": "diagnosis",
+}
+_KIND_ORDER = ["compute", "sync", "routine", "diagnosis"]
+
+
+def _safe_dataset_path(rel: str) -> Optional[Path]:
+    """把请求里的相对路径安全地解析到 DATABASE_DIR 之内（拒绝越界与绝对路径）。"""
+    raw = str(rel or "").strip().replace("\\", "/")
+    if not raw or raw.startswith("/") or ".." in raw.split("/"):
+        return None
+    target = (DATABASE_DIR / raw).resolve()
+    root = DATABASE_DIR.resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return None
+    return target
+
+
+def _dir_kind(name: str) -> Optional[str]:
+    return _KIND_BY_DIR.get(name) or _KIND_BY_DIR.get(name.lower())
+
+
+def _file_entry(folder: str, path: Path) -> Optional[dict]:
+    """一个数据文件的轻量元信息（说明优先取文件自带的 description）。"""
+    kind = _dir_kind(folder)
+    if kind is None or path.suffix.lower() != ".json":
+        return None
+    desc = ""
+    name = path.stem
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            desc = str(data.get("description") or "")
+            name = str(data.get("name") or name)
+            if data.get("kind") and str(data["kind"]) != kind:
+                return None
+    except Exception:
+        desc = ""
+    if not desc:
+        desc = "JSON 数据文件"
+    return {"path": f"{folder}/{path.name}", "name": name,
+            "description": desc, "bytes": path.stat().st_size}
+
+
+@app.get("/files/tree")
+def files_tree():
+    """真实数据集目录树（Database/ 下的子目录与 JSON 文件）。"""
+    root = DATABASE_DIR
+    if not root.is_dir():
+        raise HTTPException(status_code=503,
+                            detail=f"数据集目录不存在：{root}（可设置 DATABASE_DIR）")
+    folders = []
+    for d in sorted([x for x in root.iterdir() if x.is_dir()], key=lambda x: x.name):
+        kind = _dir_kind(d.name)
+        if kind is None:
+            continue
+        files = []
+        for f in sorted(d.iterdir(), key=lambda x: x.name):
+            if not f.is_file():
+                continue
+            entry = _file_entry(d.name, f)
+            if entry:
+                files.append(entry)
+        folders.append({"id": kind, "name": d.name, "files": files})
+    folders.sort(key=lambda f: _KIND_ORDER.index(f["id"]) if f["id"] in _KIND_ORDER else 99)
+    return {"root": root.name or "Database", "path": str(root), "folders": folders}
+
+
+@app.get("/files/get")
+def files_get(path: str):
+    """读取真实目录里的一个数据文件（返回其自描述 JSON）。"""
+    target = _safe_dataset_path(path)
+    if target is None:
+        raise HTTPException(status_code=400, detail="非法路径")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"无法解析：{str(e)[:120]}")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=422, detail="文件内容不是 JSON 对象")
+    return data
 
 
 # ---- static caching: hashed assets are immutable, index must revalidate ----

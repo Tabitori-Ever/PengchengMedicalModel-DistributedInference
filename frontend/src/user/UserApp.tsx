@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { isTerminalStatus } from '../components/TaskResultView';
-import type { ExecMode, ModelKind, SourceId, TaskItem } from '../types';
-import { EXEC_MODE_LABEL, MODEL_LABEL, STATUS_LABEL } from '../utils';
+import type { ModelKind, TaskItem } from '../types';
+import { MODEL_LABEL, STATUS_LABEL } from '../utils';
 import { PLATFORM_NAME, entityName } from '../terms';
 import type { DatasetEntry } from './dataset';
 import { buildSubmission, fetchIndex } from './dataset';
+import type { IdentityId } from './identity';
+import { loadIdentity } from './identity';
 import type { UserRecord, UserState } from './state';
 import {
-  addRecord, clearFocus, focusTask, isPending, loadEntry, newTask, nextId,
-  patchFocus, patchRecord, pickFile, queuedResult, recordStatus, selectKind,
-  selectMode, selectSource, setForceDegraded,
-  sendSubmission, initialState, withIndex, folderFor,
+  addRecord, clearFocus, focusTask, focusTasks, isPending, loadEntry, newTask, nextId, toggleFocus,
+  patchFocus, patchRecord, pickFile, queuedResult, recordStatus, removeFocus, selectKind,
+  selectSource, sendSubmission, initialState, withIndex, folderFor,
 } from './state';
+import LoginPanel from './LoginPanel';
 import TaskForm from './TaskForm';
 import UserResult from './UserResult';
 
@@ -28,10 +30,14 @@ const fmtTime = (iso?: string): string => {
 };
 
 /**
- * 用户调用平台（/app/user/）：左侧品牌 + 历史任务，主区是一条居中列
- * （最大 880px）——提交卡在上（卡内标题行就是四个任务类型按钮），
- * 本次会话的记录依次在下，全部同宽同列。
- * 没有任何左右分栏的气泡：提交与结果同在一条列里，等宽对齐。
+ * 用户调用平台（/app/user/）
+ *
+ * 登录门：进入主界面前先在居中的登录面板选身份（医疗中心 A/B、医院 1/2/3/4），
+ * 选中结果写入 localStorage 并作为本次任务位置（source）。
+ *
+ * 主界：左侧品牌 + 身份 + 可折叠 / 多选的历史任务，主区是一条居中列（最大 880px）：
+ * 提交卡在上（卡内标题行就是四个任务类型按钮，卡身只有上传与执行），
+ * 聚焦的历史记录与本次会话的记录依次在下，全部同宽同列。
  */
 export interface UserAppViewProps {
   state: UserState;
@@ -39,56 +45,84 @@ export interface UserAppViewProps {
   note: string;
   error: string;
   tasks: TaskItem[];
+  /** 当前登录身份（即任务位置，提交时作为 source） */
+  identity: IdentityId;
+  /** 历史任务列表是否展开（折叠后只剩分区标题） */
+  historyOpen: boolean;
+  /** 已勾选的历史任务 id（多选） */
   onKind: (k: ModelKind) => void;
-  onSource: (s: SourceId) => void;
-  /** v3.2 执行模式 */
-  onMode: (m: ExecMode) => void;
-  onForceDegraded: (v: boolean) => void;
   onPick: (entry: DatasetEntry) => void;
   onSubmit: () => void;
   onNew: () => void;
-  onOpenTask: (t: TaskItem) => void;
-  onCloseFocus: () => void;
+  onCloseFocus: (taskId: string) => void;
+  onSwitchIdentity: () => void;
+  onToggleHistory: () => void;
+  onRefreshHistory: () => void;
+  onToggleTask: (t: TaskItem) => void;
+  onClearFocus: () => void;
 }
 
 export function UserAppView(props: UserAppViewProps) {
   const { state, tasks } = props;
-  const focusId = state.focus?.taskId ?? null;
+  const focusIds = state.focusList.map((r) => r.taskId);
 
   return (
     <div className="up-shell">
       <aside className="up-side">
         <div className="up-brand">
           <div className="up-brand-name">{PLATFORM_NAME}</div>
+          <div className="up-brand-id">{entityName(props.identity)}<i className="mono">{props.identity}</i></div>
         </div>
 
         <button type="button" className="btn primary up-new" onClick={props.onNew}>＋ 新建任务</button>
 
-        <div className="up-side-title">历史任务</div>
-        <div className="up-history">
-          {tasks.length === 0 && <div className="up-empty">暂无任务记录</div>}
-          {tasks.map((t) => {
-            const status = String(t.status || '');
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={`up-hist ${focusId === t.id ? 'on' : ''}`}
-                title={t.id}
-                onClick={() => props.onOpenTask(t)}
-              >
-                <span className="up-hist-top">
-                  <b>{MODEL_LABEL[t.model] || t.model}</b>
-                  <i className={`up-st s-${status}`}>{STATUS_LABEL[status] || status}</i>
-                </span>
-                <span className="up-hist-bottom">
-                  <span>{t.source ? entityName(t.source) : '—'}</span>
-                  <i className="mono">{fmtTime(t.start_time)}</i>
-                </span>
-              </button>
-            );
-          })}
+        <div className="up-side-title">
+          <span>历史任务</span>
+          <span className="up-side-acts">
+            <button type="button" className="up-side-act" onClick={props.onRefreshHistory}>刷新</button>
+            <button
+              type="button"
+              className="up-side-act"
+              aria-expanded={props.historyOpen}
+              onClick={props.onToggleHistory}
+            >
+              {props.historyOpen ? '收起' : '展开'}
+            </button>
+          </span>
         </div>
+
+        {props.historyOpen && (
+          <>
+            <div className="up-history">
+              {tasks.length === 0 && <div className="up-empty">暂无任务记录</div>}
+              {tasks.map((t) => {
+                const status = String(t.status || '');
+                const on = focusIds.includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`up-hist ${on ? 'on' : ''}`}
+                    title={t.id}
+                    aria-pressed={on}
+                    onClick={() => props.onToggleTask(t)}
+                  >
+                    <span className="up-hist-top">
+                      <b>{MODEL_LABEL[t.model] || t.model}</b>
+                      <i className={`up-st s-${status}`}>{STATUS_LABEL[status] || status}</i>
+                    </span>
+                    <span className="up-hist-bottom">
+                      <span>{t.source ? entityName(t.source) : '—'}</span>
+                      <i className="mono">{fmtTime(t.start_time)}</i>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <button type="button" className="up-switch" onClick={props.onSwitchIdentity}>切换身份</button>
       </aside>
 
       <main className="up-main">
@@ -96,23 +130,24 @@ export function UserAppView(props: UserAppViewProps) {
           <div className="up-col">
             <TaskForm
               kind={state.kind}
-              source={state.source}
-              mode={state.mode}
-              forceDegraded={state.forceDegraded}
               index={state.index}
               file={state.file}
               busy={props.busy}
               note={props.note}
               error={props.error}
               onKind={props.onKind}
-              onSource={props.onSource}
-              onMode={props.onMode}
-              onForceDegraded={props.onForceDegraded}
               onPick={props.onPick}
               onSubmit={props.onSubmit}
             />
 
-            {state.focus && <RecordCard record={state.focus} onClose={props.onCloseFocus} />}
+            {state.focusList.map((r, i) => (
+              <RecordCard
+                key={r.id}
+                record={r}
+                onClose={() => props.onCloseFocus(r.taskId)}
+                onClearAll={i === 0 && state.focusList.length > 0 ? props.onClearFocus : undefined}
+              />
+            ))}
 
             {state.records.length === 0 && <div className="up-empty">本次会话暂无提交记录</div>}
             {state.records.map((r) => <RecordCard key={r.id} record={r} />)}
@@ -124,12 +159,10 @@ export function UserAppView(props: UserAppViewProps) {
 }
 
 /** 一条记录：提交卡同宽同列，标题是数据集文件名，状态在旁边，结论用 UserResult */
-function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => void }) {
+function RecordCard({ record, onClose, onClearAll }: {
+  record: UserRecord; onClose?: () => void; onClearAll?: () => void;
+}) {
   const status = recordStatus(record);
-  // v3.2：结果里带上实际使用的执行模式与降级标记
-  const res: any = (record.live as any)?.result || (record.task?.result as any) || null;
-  const modeUsed: string | undefined = res?.mode;
-  const degraded: boolean = res?.degraded === true;
   return (
     <article className={`up-card up-record ${record.history ? 'hist' : ''}`} data-task={record.taskId}>
       <header className="up-card-head">
@@ -137,8 +170,11 @@ function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => v
           {record.history ? `${MODEL_LABEL[record.kind]}任务` : record.fileName}
         </b>
         <i className="up-card-note mono">{record.taskId}</i>
+        {onClearAll && (
+          <button type="button" className="up-card-clear" onClick={onClearAll}>清空</button>
+        )}
         {onClose && (
-          <button type="button" className="mini up-card-x" onClick={onClose}>关闭</button>
+          <button type="button" className="up-card-x" onClick={onClose} aria-label="移除这条">×</button>
         )}
       </header>
 
@@ -155,13 +191,6 @@ function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => v
           <i>状态</i>
           <b className={`up-st s-${status}`}>{STATUS_LABEL[status] || status}</b>
         </span>
-        {modeUsed && (
-          <span className="up-meta-item">
-            <i>执行</i>
-            <b>{EXEC_MODE_LABEL[modeUsed] || modeUsed}</b>
-            {degraded && <em className="up-degraded" title="调度降级：由发起 Pod 本地执行">降级</em>}
-          </span>
-        )}
       </div>
 
       <div className="up-result">
@@ -171,32 +200,47 @@ function RecordCard({ record, onClose }: { record: UserRecord; onClose?: () => v
   );
 }
 
-/** 容器：读目录 → 选类型/上传选文件 → 提交 → 轮询记录 */
+/** 容器：登录选身份 → 读目录 → 选类型/上传选文件 → 提交 → 轮询记录 */
 export default function UserApp() {
-  const [state, setState] = useState<UserState>(initialState);
+  const [identity, setIdentity] = useState<IdentityId | null>(() => loadIdentity());
+  const [state, setState] = useState<UserState>(
+    () => ({ ...initialState(), source: identity ?? initialState().source }),
+  );
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const identityRef = useRef(identity);
+  identityRef.current = identity;
 
+  /** 历史任务：只保留本登录身份（该医疗中心 / 医院）自己发起的任务 */
   const loadTasks = useCallback(async () => {
     try {
-      setTasks((await api.tasksRecent(HISTORY_LIMIT)) || []);
+      const list = (await api.tasksRecent(HISTORY_LIMIT)) || [];
+      const mine = list.filter((t) => String(t?.source || '') === String(identityRef.current || ''));
+      setTasks(mine);
     } catch { /* 保留上一次列表 */ }
   }, []);
 
-  useEffect(() => { loadTasks(); }, [loadTasks]);
-
-  // 进入页面读一次目录；弹窗据此直接进入当前类型对应的文件夹
+  // 登录后才读历史任务与数据集目录（登录面板不触发任何数据请求）
   useEffect(() => {
+    if (!identity) return undefined;
+    loadTasks();
+    return undefined;
+  }, [identity, loadTasks]);
+
+  // 进入主界面后读一次目录；弹窗据此直接进入当前类型对应的文件夹
+  useEffect(() => {
+    if (!identity) return undefined;
     let disposed = false;
     fetchIndex()
       .then((idx) => { if (!disposed) setState((s) => withIndex(s, idx)); })
       .catch((e: any) => { if (!disposed) setNote(String(e?.message || e)); });
     return () => { disposed = true; };
-  }, []);
+  }, [identity]);
 
   // 轮询进行中的提交（每 1.5s），完成后拉取完整记录，并原地更新该条记录
   const pendingKey = useMemo(() => state.records.filter(isPending).map((r) => r.id).join(','),
@@ -226,20 +270,24 @@ export default function UserApp() {
     return () => { disposed = true; window.clearInterval(iv); };
   }, [pendingKey, loadTasks]);
 
+  /** 登录：保存身份并把它作为任务位置 */
+  const onEnter = (id: IdentityId) => {
+    setIdentity(id);
+    setState((s) => selectSource(s, id));
+  };
+
+  /** 切换身份：清除登录态，回到登录面板 */
+  const onSwitchIdentity = () => {
+    setIdentity(null);
+    setState((s) => clearFocus(s));
+  };
+
   /** 选中类型：已选文件随之失效（下次上传在弹窗里进入新类型的文件夹） */
   const onKind = (k: ModelKind) => {
     setError('');
     setNote('');
     setState((s) => selectKind(s, k));
   };
-
-  const onSource = (s: SourceId) => setState((st) => selectSource(st, s));
-
-  /** v3.2：执行模式（云边端协同 / 本地执行 / 自动） */
-  const onMode = (m: ExecMode) => setState((st) => selectMode(st, m));
-
-  /** v3.2：强制降级开关 */
-  const onForceDegraded = (v: boolean) => setState((st) => setForceDegraded(st, v));
 
   /** 弹窗里选中文件：文件内容已由 DatasetBrowser 读取，选中后 执行 才可用 */
   const onPick = (entry: DatasetEntry) => {
@@ -248,7 +296,7 @@ export default function UserApp() {
     setState((s) => pickFile(s, entry));
   };
 
-  /** 提交：按文件自带的类型派发，成功后在列首新增一条记录 */
+  /** 提交：按文件自带的类型派发，source 固定为登录身份，成功后在列首新增一条记录 */
   const onSubmit = async () => {
     const s = stateRef.current;
     const entry = s.file;
@@ -256,10 +304,7 @@ export default function UserApp() {
     setBusy(true);
     setError('');
     try {
-      const sub = buildSubmission(entry, s.source, {
-        mode: s.mode,
-        forceDegraded: s.forceDegraded,
-      });
+      const sub = buildSubmission(entry, s.source);
       const taskId = await sendSubmission(sub);
       const rec: UserRecord = {
         id: nextId(),
@@ -280,20 +325,28 @@ export default function UserApp() {
     }
   };
 
-  /** 侧栏历史任务 → 列首聚焦该任务的结论，不动提交卡与本次会话记录 */
-  const onOpenTask = (t: TaskItem) => {
-    setState((s) => focusTask(s, t));
+  /** 点历史卡片：选中即加入（新的排最上），再点一次取消；多条可同时显示 */
+  const onToggleTask = (t: TaskItem) => {
+    const already = stateRef.current.focusList.some((r) => r.taskId === String(t.id));
+    setState((s) => toggleFocus(s, t));
+    if (!already) refreshFocus([t]);
+  };
+
+  /** 逐条拉取聚焦任务的实时结果与详情，原地更新主列里的记录 */
+  const refreshFocus = (list: TaskItem[]) => {
     (async () => {
-      try {
-        const live = await api.taskResult(t.id);
-        setState((s) => patchFocus(s, t.id, { live }));
-        if (isTerminalStatus(live.status)) {
-          try {
-            const detail = await api.taskDetail(t.id);
-            setState((s) => patchFocus(s, t.id, { live, task: detail }));
-          } catch { /* 保留历史列表里的轻量记录 */ }
-        }
-      } catch { /* 保留历史列表里的轻量记录 */ }
+      for (const t of list) {
+        try {
+          const live = await api.taskResult(t.id);
+          setState((s) => patchFocus(s, t.id, { live }));
+          if (isTerminalStatus(live.status)) {
+            try {
+              const detail = await api.taskDetail(t.id);
+              setState((s) => patchFocus(s, t.id, { live, task: detail }));
+            } catch { /* 保留历史列表里的轻量记录 */ }
+          }
+        } catch { /* 保留历史列表里的轻量记录 */ }
+      }
     })();
   };
 
@@ -303,6 +356,8 @@ export default function UserApp() {
     setState((s) => newTask(s));
   };
 
+  if (!identity) return <LoginPanel onEnter={onEnter} />;
+
   return (
     <UserAppView
       state={state}
@@ -310,24 +365,28 @@ export default function UserApp() {
       note={note}
       error={error}
       tasks={tasks}
+      identity={identity}
+      historyOpen={historyOpen}
       onKind={onKind}
-      onSource={onSource}
       onPick={onPick}
       onSubmit={onSubmit}
-      onMode={onMode}
-      onForceDegraded={onForceDegraded}
       onNew={onNew}
-      onOpenTask={onOpenTask}
-      onCloseFocus={() => setState((s) => clearFocus(s))}
+      onToggleTask={onToggleTask}
+      onCloseFocus={(taskId) => setState((s) => removeFocus(s, taskId))}
+      onSwitchIdentity={onSwitchIdentity}
+      onToggleHistory={() => setHistoryOpen((v) => !v)}
+      onRefreshHistory={() => { loadTasks(); }}
+      onClearFocus={() => setState((s) => clearFocus(s))}
     />
   );
 }
 
 /** 测试钩子：纯状态迁移，便于在无 DOM 环境下验证交互逻辑 */
 export const __userInternals = {
-  folderFor, selectKind, selectSource, selectMode, setForceDegraded,
+  folderFor, selectKind, selectSource,
   withIndex, pickFile, addRecord, patchRecord,
-  focusTask, patchFocus, clearFocus, newTask, recordStatus, isPending, loadEntry,
+  focusTask, focusTasks, patchFocus, removeFocus, clearFocus, newTask,
+  recordStatus, isPending, loadEntry,
   sendSubmission, queuedResult, buildSubmission,
 };
 

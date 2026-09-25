@@ -202,15 +202,10 @@ export default function ClusterPage() {
   const selLive: EntityLive | undefined = live?.entities?.[selected];
 
   return (
-    <div className="page wide">
+    <section className="orchestrate">
       <header className="page-head row">
         <div>
-          <h1>集群编排 <span className="ver-tag">v{live?.version || '3.0'}</span></h1>
-          <p>
-            大圆圈 = 节点（外环显示 CPU/内存负载）；小圆圈 = 业务实体。
-            拖拽医疗中心 / 医院实体到其它业务节点，或在右侧面板调整副本/亲和/资源/镜像等运维参数，
-            最后点击「应用」下发集群，或「重置」恢复默认拓扑（仅含医疗中心 A/B 与医院 1/2）。
-          </p>
+          <h2 className="section-title">编排调度</h2>
         </div>
         <div className="toolbar">
           <span className={`dirty ${dirty ? 'on' : ''}`}>
@@ -313,7 +308,7 @@ export default function ClusterPage() {
           )}
         </aside>
       </div>
-    </div>
+    </section>
   );
 }
 

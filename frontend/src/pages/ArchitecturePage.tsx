@@ -170,16 +170,10 @@ export default function ArchitecturePage() {
     <div className="page wide arch">
       <header className="page-head row">
         <div>
-          <h1>可视化 <span className="ver-tag">{REFRESH_MS / 1000}s 自动刷新</span></h1>
-          <p>
-            三级命名体系：数据中心（node3 调度 / 医疗推理 / 患者库 / 队列）、医疗中心（node1 / node2）、
-            医院（node1 / node2）、控制面（desktop-jm5iec6）。总览图展示实体与归属，轨迹图按任务类型回放执行链路；
-            节点负载请前往「集群负载」页。数据每 {REFRESH_MS / 1000} 秒自动刷新。
-          </p>
+          <h1>集群架构</h1>
         </div>
         <div className="toolbar">
           <span className="arch-meta mono">
-            {updatedAt ? `最后更新 ${updatedAt.toLocaleTimeString('zh-CN', { hour12: false })}` : '尚未更新'}
             <i className="arch-meta-sep">·</i>
             {countdown}s 后刷新
           </span>

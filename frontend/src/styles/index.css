@@ -2954,3 +2954,29 @@ h1, h2, h3, h4 { font-weight: 700; }
 .ur-bar > i { display: block; height: 100%; background: var(--brass-2); transition: width 0.4s ease; }
 .ur-stage { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--grey-3); }
 
+
+/* --------------------------------------------------------------------------
+   集群资源 · Pod 负载 与 编排调度分段（v3.2.0）
+   -------------------------------------------------------------------------- */
+.section-title { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; }
+.orchestrate { display: block; margin-top: 14px; }
+.pod-load { display: flex; flex-direction: column; gap: 6px; }
+.pod-row {
+  display: grid; grid-template-columns: minmax(180px, 1.4fr) 90px minmax(150px, 1fr) minmax(150px, 1fr);
+  align-items: center; gap: 12px; padding: 6px 8px;
+  border: 1px solid var(--line-soft); border-radius: var(--r-1); background: var(--panel-2);
+}
+.pod-row:nth-child(odd) { background: var(--panel); }
+.pod-name { font-size: 12.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pod-node { white-space: nowrap; }
+.pod-metric { display: grid; grid-template-columns: 34px minmax(40px, 1fr) 110px; align-items: center; gap: 8px; }
+.pod-metric-k { font-style: normal; font-size: 11.5px; color: var(--grey-3); }
+.pod-bar { display: block; height: 6px; background: rgba(8, 10, 8, 0.09); border-radius: 3px; overflow: hidden; }
+.pod-bar > i { display: block; height: 100%; background: var(--brass-2); transition: width 0.4s ease; }
+.pod-bar > i.warm { background: #c9761f; }
+.pod-bar > i.hot { background: var(--rust); }
+.pod-metric-v { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+@media (max-width: 1180px) {
+  .pod-row { grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr); row-gap: 6px; }
+  .pod-node { display: none; }
+}

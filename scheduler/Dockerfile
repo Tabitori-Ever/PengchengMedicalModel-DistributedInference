@@ -23,6 +23,8 @@ WORKDIR /app
 RUN rm -rf /app/scheduler /app/frontend
 COPY scheduler/ /app/scheduler/
 COPY frontend/dist/ /app/frontend/dist/
+# v3.1.9: 用户平台「上传」弹窗读取的真实数据集目录（DATABASE_DIR）
+COPY Database/ /app/Database/
 COPY test/test_dataset.json /app/test/test_dataset.json
 COPY model_profile.yaml /app/
 

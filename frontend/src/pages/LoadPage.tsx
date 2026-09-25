@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useTicker } from '../hooks';
+import ClusterOrchestration from './ClusterPage';
 import type { ClusterStatus, HealthMap, TaskStats } from '../types';
+import type { PodMetric } from '../api';
 import { healthDetail, healthState, loadColor, sortNodes } from '../utils';
-import { PLATFORM_NAME, entityName } from '../terms';
+import { entityName } from '../terms';
 
 const REFRESH_MS = 5000;
 const NODES = ['desktop-jm5iec6', 'node1', 'node2', 'node3'];
@@ -34,17 +36,21 @@ export default function LoadPage() {
   const [errs, setErrs] = useState<string[]>([]);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_MS / 1000);
+  const [pods, setPods] = useState<PodMetric[]>([]);
+  const [podErr, setPodErr] = useState('');
 
   const refresh = useCallback(async () => {
     const problems: string[] = [];
-    const [c, h, t] = await Promise.all([
+    const [c, h, t, pm] = await Promise.all([
       api.clusterStatus().catch((e) => { problems.push(`集群状态 /cluster/status 不可用：${errText(e)}`); return null; }),
       api.health().catch((e) => { problems.push(`健康探针 /health 不可用：${errText(e)}`); return null; }),
       api.taskStats().catch((e) => { problems.push(`任务统计 /tasks/stats 不可用：${errText(e)}`); return null; }),
+      api.podMetrics().catch((e) => { setPodErr(`Pod 指标 /cluster/pod_metrics 不可用：${errText(e)}`); return null; }),
     ]);
     if (c) setCluster(c);
     if (h) setHealth(h);
     if (t) setStats(t);
+    if (pm) { setPods(pm.pods || []); setPodErr(''); }
     setErrs(problems);
     setUpdatedAt(new Date());
     setCountdown(REFRESH_MS / 1000);
@@ -120,18 +126,9 @@ export default function LoadPage() {
     <div className="page wide">
       <header className="page-head row">
         <div>
-          <h1>集群负载 <span className="ver-tag">{REFRESH_MS / 1000}s 自动刷新</span></h1>
-          <p>
-            {PLATFORM_NAME} 的运行视图：4 个节点的 CPU / 内存、业务实例与平台实例的就绪情况、
-            组件探针结果，以及任务队列概览。
-          </p>
+          <h1>集群负载</h1>
         </div>
         <div className="toolbar">
-          <span className="arch-meta mono">
-            {updatedAt ? `最后更新 ${updatedAt.toLocaleTimeString('zh-CN', { hour12: false })}` : '尚未更新'}
-            <i className="arch-meta-sep">·</i>
-            {countdown}s 后刷新
-          </span>
           <button className="btn primary sm" onClick={refresh}>刷新</button>
         </div>
       </header>
@@ -229,8 +226,53 @@ export default function LoadPage() {
           {!stats && <div className="muted xs">任务统计暂不可用</div>}
         </div>
       </section>
+
+      <section className="card">
+        <div className="card-headrow">
+          <h3 className="card-title">Pod 负载</h3>
+          <span className="muted xs mono">{`${pods.length} 个实例`}</span>
+        </div>
+        {podErr && <div className="errbox">{podErr}</div>}
+        <div className="pod-load">
+          {pods.length === 0 && !podErr && <div className="muted xs">暂无 Pod 指标</div>}
+          {pods.map((p) => (
+            <div className="pod-row" key={p.pod}>
+              <span className="pod-name mono" title={p.pod}>{p.pod}</span>
+              <span className="pod-node muted xs mono">{p.node || '—'}</span>
+              <PodBar label="CPU" pct={p.cpu_pct ?? null} text={fmtCores(p.cpu_cores)} />
+              <PodBar label="内存" pct={p.mem_pct ?? null} text={fmtMem(p.mem_bytes)} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <ClusterOrchestration />
     </div>
   );
+}
+
+/** 单个 Pod 的 CPU/内存条：pct 为限额占比（无配额时用 requests），可能为 null。 */
+function PodBar({ label, pct, text }: { label: string; pct: number | null; text: string }) {
+  const w = pct === null ? 0 : Math.max(2, Math.min(100, Math.round(pct * 100)));
+  const tone = pct === null ? '' : pct >= 0.85 ? 'hot' : pct >= 0.6 ? 'warm' : '';
+  return (
+    <span className="pod-metric">
+      <i className="pod-metric-k">{label}</i>
+      <span className="pod-bar"><i className={tone} style={{ width: `${w}%` }} /></span>
+      <b className="pod-metric-v mono">{pct === null ? text : `${Math.round(pct * 100)}% · ${text}`}</b>
+    </span>
+  );
+}
+
+function fmtCores(v?: number | null): string {
+  if (v === null || v === undefined) return '—';
+  return v >= 1 ? `${v.toFixed(2)} 核` : `${Math.round(v * 1000)}m`;
+}
+
+function fmtMem(v?: number | null): string {
+  if (v === null || v === undefined) return '—';
+  const mib = v / 1024 / 1024;
+  return mib >= 1024 ? `${(mib / 1024).toFixed(2)} GiB` : `${Math.round(mib)} MiB`;
 }
 
 function Kpi({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
