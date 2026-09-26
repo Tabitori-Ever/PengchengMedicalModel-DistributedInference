@@ -22,6 +22,11 @@ metadata:
 
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
 
   selector:
     matchLabels:
@@ -43,7 +48,7 @@ spec:
 
       containers:
       - name: clinic
-        image: k8s-master:5000/k8s-repo/clinic:v3.3
+        image: k8s-master:5000/k8s-repo/clinic:v3.4
         imagePullPolicy: IfNotPresent
 
         env:

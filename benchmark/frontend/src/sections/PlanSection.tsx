@@ -3,8 +3,9 @@ import type { Kind, PlanInfo, ReqMode, Source } from '../types';
 import { CLINICS, HOSPITALS, KIND_ZH, MODE_ZH } from '../types';
 import type { Draft, DraftKind } from '../planDraft';
 import {
-  KIND_PARAM_FIELDS, draftFromPlan, draftOverrides, draftProblems,
-  draftTotalAttempts, draftTotalTasks, estimateMinutes, fmtMinutes,
+  KIND_PARAM_FIELDS, MAX_DEVICES, clampPerDevice, draftFromPlan, draftOverrides,
+  draftProblems, draftTotalAttempts, draftTotalTasks, estimateMinutes, fmtMinutes,
+  kindStrategies, phaseTasks,
 } from '../planDraft';
 import { fmtInt } from '../components/format';
 
@@ -145,6 +146,12 @@ export default function PlanSection({
             <span className="ss-item"><i>任务总数</i><b>{fmtInt(totalTasks)}</b></span>
             <span className="ss-item"><i>设备</i><b>{draft.devices.length} 台</b></span>
             <span className="ss-item"><i>策略遍数</i><b>{draft.strategies.length}</b></span>
+            {draft.strategies.map((ph) => (
+              <span className="ss-item" key={ph}>
+                <i>{MODE_ZH[ph] || ph}任务数</i>
+                <b>{fmtInt(phaseTasks(draft, ph))}</b>
+              </span>
+            ))}
             <span className="ss-item"><i>累计任务数</i><b>{fmtInt(totalAttempts)}</b></span>
             <span className="ss-item"><i>重传额度</i><b>{fmtInt(draft.retries)}</b></span>
             <span className="ss-item"><i>预计耗时</i><b>{fmtMinutes(estimateMinutes(draft))}</b></span>
@@ -154,7 +161,7 @@ export default function PlanSection({
           <div className="card-headrow mt">
             <div className="card-title">发起设备</div>
             <div className="btnrow">
-              <button className="mini" disabled={busy}
+              <button className="mini" disabled={busy || draft.devices.length >= MAX_DEVICES}
                 onClick={() => onChangeDraft({ ...draft, customized: true,
                   devices: [...draft.devices, {
                     id: String.fromCharCode(65 + draft.devices.length),
@@ -210,6 +217,7 @@ export default function PlanSection({
                 <tr>
                   <th>任务类型</th>
                   <th>对应大纲任务</th>
+                  <th>适用策略</th>
                   <th>每设备任务数</th>
                   <th>任务参数</th>
                 </tr>
@@ -221,12 +229,15 @@ export default function PlanSection({
                     <td className="wrapcell">
                       {selected?.kinds.find((x) => x.kind === k.kind)?.outline_name ?? '—'}
                     </td>
+                    <td className="wrapcell">
+                      {kindStrategies(k.kind).map((x) => MODE_ZH[x] || x).join(' · ')}
+                    </td>
                     <td>
                       <input className="num-in" type="number" min={0} max={500}
                         value={k.per_device}
                         onChange={(e) => {
                           const kinds = draft.kinds.map((x, j) =>
-                            j === i ? { ...x, per_device: Number(e.target.value) } : x);
+                            j === i ? { ...x, per_device: clampPerDevice(Number(e.target.value)) } : x);
                           onChangeDraft({ ...draft, customized: true, kinds });
                         }} />
                       <div className="hint">合计 {fmtInt(k.per_device * draft.devices.length)} 个</div>

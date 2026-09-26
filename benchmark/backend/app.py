@@ -58,9 +58,14 @@ DB_PATH = os.getenv("DB_PATH", "/data/bench/bench.db")
 async def lifespan(_app: FastAPI):
     db.init(DB_PATH)
     recovered = db.recover_interrupted()
+    # 方案运行可能持续十几小时：重启后把中断的 run / 方案接回去，别让整场测试停半路
+    try:
+        resumed = engine.resume_after_restart()
+    except Exception as exc:  # noqa: BLE001 - 恢复失败不能阻止站点启动
+        resumed = {"error": f"{type(exc).__name__}: {exc}"}
     config.init()
     info = engine.load_patients()
-    print(f"[benchmark-site] db={db.db_path()} recovered={recovered} "
+    print(f"[benchmark-site] db={db.db_path()} recovered={recovered} resumed={resumed} "
           f"patients={info.get('count')} source={info.get('source')} "
           f"error={info.get('error')}", flush=True)
     yield

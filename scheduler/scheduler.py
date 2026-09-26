@@ -68,6 +68,21 @@ ROLE_BY_ENTITY = {
     "clinic-1": ("terminal", "node1"), "clinic-2": ("terminal", "node2"),
 }
 
+# v3.14: 诊断没有本地执行策略。医疗中心（医院）只能执行 DoubleTower 前端，
+# server 半段（layer4 + 融合 + 分类器）只有数据中心 medical-server 能执行，
+# 因此 mode=local / force_degraded / auto 降级对 diagnosis 一律拒绝，绝不就地执行。
+NO_LOCAL_DIAGNOSIS = (
+    "诊断任务没有本地执行策略：医疗中心无法执行模型的 server 半段"
+    "（layer4 + 融合 + 分类器），诊断必须经数据中心完成云边端协同推理")
+
+
+class UnsupportedLocalMode(RuntimeError):
+    """请求的诊断本地/降级执行已不再支持（医疗中心无 server 半段）。
+
+    继承 RuntimeError 以便既有的调度器调用方仍能捕获；API 层单独映射为 400，
+    避免与「队列已满」的 429 混在一起。
+    """
+
 
 # ---------------------------------------------------------- compact enc ---
 _IMG_KEYS = ("dce_image", "dwi_image", "clinical", "radiomics")
@@ -141,8 +156,11 @@ class InferenceScheduler:
       collaborative - the data center orchestrates every actor (default)
       local         - the *initiating pod* runs the whole pipeline itself; the
                       scheduler only forwards and accounts for the task
+                      (diagnosis has **no** local strategy: the server half only
+                      runs in the data center, so local/degraded is refused)
       auto          - collaborative when the cloud dependencies are healthy,
                       otherwise degrade to local and flag the result
+                      (diagnosis never degrades: it fails instead)
     """
 
     def __init__(self, max_concurrent: int = 4, max_queue: int = 200):
@@ -169,6 +187,9 @@ class InferenceScheduler:
         mode = (mode or "collaborative").strip().lower()
         if mode not in ("collaborative", "local", "auto"):
             raise RuntimeError(f"未知执行模式: {mode}（可选 collaborative/local/auto）")
+        # 诊断只能协同：本地 / 显式降级都直接拒绝（客户端会拿到 400）
+        if model == "diagnosis" and (mode == "local" or force_degraded):
+            raise UnsupportedLocalMode(NO_LOCAL_DIAGNOSIS)
         task = create_task(model=model, source=source, priority=priority,
                            input_data=input_data or {}, deadline=deadline,
                            extra={"mode": mode,
@@ -190,7 +211,11 @@ class InferenceScheduler:
         mode = (task.get("mode") or "collaborative").lower()
         force = bool(task.get("force_degraded"))
         try:
-            if force:
+            if model == "diagnosis" and (force or mode == "local"):
+                # 防御：历史遗留任务（升级前入队）或直接 create_task 的任务
+                # 也不能在医院就地跑完整模型。
+                fail_task(task_id, NO_LOCAL_DIAGNOSIS)
+            elif force:
                 self._run_local(task, degrade_reason="forced")
             elif mode == "local":
                 self._run_local(task)
@@ -202,6 +227,10 @@ class InferenceScheduler:
                                               "degraded": False,
                                               "degrade_reason": None}
                     self._pipeline(task, model)
+                elif model == "diagnosis":
+                    # 诊断没有本地降级路径：协同依赖不可用时直接失败，
+                    # 绝不降级到医院本地执行。
+                    fail_task(task_id, NO_LOCAL_DIAGNOSIS)
                 else:
                     self._run_local(task, degrade_reason=reason)
             else:
@@ -276,6 +305,10 @@ class InferenceScheduler:
         """Hand the whole task to the initiating pod (local / degraded mode)."""
         task_id = task["id"]
         model = task.get("model", "compute")
+        # 诊断没有本地执行策略：兜底拒绝，绝不把完整模型派给医院 Pod。
+        if model == "diagnosis":
+            fail_task(task_id, NO_LOCAL_DIAGNOSIS)
+            return
         source = task.get("source", "hospital-a")
         inp = task.get("input", {}) or {}
         start = time.perf_counter()
@@ -396,11 +429,13 @@ class InferenceScheduler:
     def _run_diagnosis_data_parallel(self, task: dict, batch: list, hospital: str,
                                      start: float, queue_wait: float,
                                      forwarded: bool):
-        """数据并行分片：医院与数据中心各跑一部分患者的**完整模型**。
+        """数据并行分片：把患者分成互不依赖的两份，医院与数据中心同时开工。
 
-        为什么有效：模型拆分（前段→后段）两端做的是同一份计算的先后两半，还得额外搬运
-        中间特征；而数据并行把患者分成互不依赖的两份，两端同时开工，
-        墙钟 ≈ max(两侧份额) + 输入搬运，等于把 4 核变成 8 核。
+        **v3.14 口径修正**：医疗中心不能执行模型的 server 半段（layer4 + 融合 +
+        分类器），所以医院这一份不再是"本地跑完整模型"，而是走
+        `/medical/infer_forward`——前端（conv1..layer3）在边缘就地算，后段直投
+        云端后端；数据中心那一份仍由 `/infer_full` 整段执行。
+        并行收益因此来自"把前端算力卸到边缘"，墙钟 ≈ max(两侧份额) + 输入搬运。
         """
         task_id = task["id"]
         # 分片：奇数位给数据中心，偶数位留在医院（两边份额尽量均衡）
@@ -415,7 +450,9 @@ class InferenceScheduler:
             if executor == "datacenter":
                 url = medical_server_url().rstrip("/").replace("/infer", "") + "/infer_full"
             else:
-                url = hospital_base(executor) + "/medical/infer_full"
+                # 医疗中心只能做前端：走 forward（前端就地 → 云端后端），
+                # 旧的 /medical/infer_full（医院整段执行）已不再支持。
+                url = hospital_base(executor) + "/medical/infer_forward"
             t0 = time.perf_counter()
             try:
                 r = _session().post(url, json=encode_input(payload), timeout=300)
@@ -449,7 +486,9 @@ class InferenceScheduler:
         for r in recs:
             by_exec.setdefault(r["executor"], []).append(r)
         stages = [_stage(task_id, "worker-data", ex, max(x["ms"] for x in rs),
-                         f"{len(rs)} 例完整模型（数据并行分片）",
+                         (f"{len(rs)} 例整段执行（数据中心）"
+                          if ex == "datacenter"
+                          else f"{len(rs)} 例：边缘前端 + 云端后端"),
                          (rs[0].get("node") or ex))
                   for ex, rs in by_exec.items()]
         compute_total = sum(float(r.get("compute_ms") or 0) for r in recs)
@@ -483,8 +522,10 @@ class InferenceScheduler:
     # 控制面与数据面分离：调度器只登记任务并给出「谁执行哪几个患者」的计划，
     # 输入数据由客户端**直投执行者**，不再经调度器中转两趟。
     # 实测中转成本（站点→调度器→执行者）在批量下是秒级，是端侧空闲时诊断不达标的主因。
-    _DIAG_DATA_ENDPOINTS = {"hospital-a": "/medical/infer_full",
-                            "hospital-b": "/medical/infer_full",
+    # 医疗中心只能执行前端：直投给医院的计划必须用 forward 端点
+    # （前端就地 → 云端后端），/medical/infer_full 已不再支持。
+    _DIAG_DATA_ENDPOINTS = {"hospital-a": "/medical/infer_forward",
+                            "hospital-b": "/medical/infer_forward",
                             "datacenter": "/infer_full"}
 
     def _diag_executor_url(self, entity: str) -> Optional[str]:
@@ -494,20 +535,23 @@ class InferenceScheduler:
                 base = base[: -len("/infer")]
             return base + "/infer_full"
         base = self._entity_url(entity)
-        return (base + "/medical/infer_full") if base else None
+        return (base + "/medical/infer_forward") if base else None
 
     def plan_diagnosis(self, source: str, patient_ids: list, priority: int = 5,
                        deadline: str = "300s", mode: str = "collaborative") -> dict:
         """登记任务 + 返回数据面执行计划（不入队，由客户端驱动）。"""
         if not is_source(source):
             raise RuntimeError(f"unknown initiator: {source}")
+        if (mode or "").strip().lower() == "local":
+            # 直投计划本身是协同路径；显式 mode=local 的诊断必须拒绝
+            raise UnsupportedLocalMode(NO_LOCAL_DIAGNOSIS)
         ids = [str(x) for x in patient_ids]
         if len(ids) < 1:
             raise RuntimeError("直投模式需要至少 1 例患者")
         hospital = pick_hospital(source, None)
-        # v3.5c 按算力加权分片：实测数据中心 node3（4 核且与调度器/redis/患者库共处）
-        # 每例完整模型约 230ms，而医院 Pod 约 130ms。**均分会让慢的那台决定墙钟**，
-        # 因此按「每例成本」的倒数分配份额；成本来自各次实测的滚动平均。
+        # v3.5c 按算力加权分片：份额按「每例成本」的倒数分配，成本取各次实测的滚动
+        # 平均。v3.14 起医院的份额是"边缘前端 + 云端后端"，成本随之变化，滚动平均
+        # 会自动跟上，不需要改权重公式。
         partners = [hospital] if len(ids) == 1 else [hospital, "datacenter"]
         costs = [max(30.0, self._exec_cost.get(e, 200.0)) for e in partners]
         inv = [1.0 / c for c in costs]

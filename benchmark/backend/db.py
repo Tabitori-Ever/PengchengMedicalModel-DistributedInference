@@ -755,15 +755,69 @@ def patient_origins() -> Dict[str, int]:
 # startup housekeeping                                                        #
 # --------------------------------------------------------------------------- #
 def recover_interrupted() -> Dict[str, int]:
-    """Fail attempts/runs left non-terminal by a previous process (restart)."""
+    """重启后的恢复：只收尾真正被打断的任务，**不杀等待中的任务**。
+
+    测试方案的运行可能长达十几小时（大纲 5.5 是 10 小时产生窗口 × 两阶段），
+    期间只要站点 Pod 重启一次，旧实现就会把**所有 pending 任务**判失败——
+    等于把整场测试毁掉。正确做法是按任务状态区分：
+
+      * `running`：进程死在执行途中 → 放回 `pending` 重跑（保留重传计数），
+        这样"成功率 100%"的要求不会因为一次重启而破功；
+      * `pending`：本来就还没到产生时刻（`not_before` 在未来）或还没被领取，
+        **保持原样**，恢复后继续按时间窗产生；
+      * `runs`：只要还有未完成任务就保持非终态，由恢复流程重新拉起 worker；
+        真的没有剩余任务了才收尾。
+
+    返回各类处理条数，供启动日志记账。
+    """
     ts = now()
-    msg = "interrupted by backend restart"
     with connect() as con:
-        att = con.execute(
-            """UPDATE attempts SET status='failed', error=?, finished_at=?,
+        # 执行到一半的：放回待执行（不是判失败）
+        requeued = con.execute(
+            """UPDATE attempts SET status='pending', started_at=NULL,
+                                   retry_errors_json=COALESCE(retry_errors_json,'[]'),
                                    updated_at=?
-               WHERE status IN ('pending','running')""", (msg, ts, ts,))
-        run = con.execute(
-            """UPDATE runs SET status='failed', error=?, finished_at=?
-               WHERE status IN ('queued','running')""", (msg, ts))
-    return {"attempts": att.rowcount or 0, "runs": run.rowcount or 0}
+               WHERE status='running'""", (ts,)).rowcount or 0
+        pending = con.execute(
+            "SELECT COUNT(*) AS c FROM attempts WHERE status='pending'").fetchone()["c"]
+        # 有剩余任务的 run 保持非终态；没有的才收尾
+        to_finalize = [r["run_id"] for r in con.execute(
+            """SELECT run_id FROM runs WHERE status IN ('queued','running')""")]
+        settled = 0
+        for run_id in to_finalize:
+            left = con.execute(
+                """SELECT COUNT(*) AS c FROM attempts
+                   WHERE run_id=? AND status IN ('pending','running')""",
+                (run_id,)).fetchone()["c"]
+            if left:
+                con.execute("UPDATE runs SET status='queued' WHERE run_id=?", (run_id,))
+            else:
+                con.execute(
+                    """UPDATE runs SET status='completed', finished_at=?
+                       WHERE run_id=?""", (ts, run_id))
+                settled += 1
+    return {"requeued": requeued, "pending_kept": int(pending or 0),
+            "runs_resumed": len(to_finalize) - settled, "runs_settled": settled}
+
+
+def next_due_in(run_id: str) -> Optional[float]:
+    """距离下一条任务"产生"还有多少秒；没有未来任务时返回 None。
+
+    方案运行的时间窗可以长达 10 小时（大纲 5.5）。worker 若固定每 0.35s 查一次库，
+    8 个执行单元一晚上要打上百万次 SELECT。这里让 worker 直接睡到下一条任务到期
+    （上限 5 秒，保证取消/状态变化仍能及时察觉）。
+    """
+    with connect() as con:
+        row = con.execute(
+            """SELECT MIN(not_before) AS nb FROM attempts
+               WHERE run_id=? AND status='pending'
+                 AND not_before IS NOT NULL AND not_before>?""",
+            (run_id, now())).fetchone()
+    if not row or not row["nb"]:
+        return None
+    try:
+        due = datetime.fromisoformat(str(row["nb"]).replace("Z", "+00:00"))
+        delta = (due - datetime.now(timezone.utc)).total_seconds()
+    except ValueError:
+        return None
+    return max(0.0, delta)

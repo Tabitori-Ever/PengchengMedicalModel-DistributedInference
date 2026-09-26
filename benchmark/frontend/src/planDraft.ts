@@ -8,6 +8,26 @@ import { KIND_ZH, KINDS } from './types';
  * 任何改动都写回草稿，下发时作为 `overrides` 传给后端，
  * 后端把 overrides 套到方案上生成不可变的配置快照（plan_runs.snapshot）。
  */
+/**
+ * 任务数上限，与后端 `benchmark/backend/plans.py` 的常量保持一致。
+ * 超限**静默截断**（不做任何提示）：既防崩溃，也防统计查询截断导致的静默算错。
+ */
+export const MAX_TASKS_PER_UNIT = 1000;   // 单个「设备 × 任务类型」的任务数上限
+export const MAX_TASKS_PER_PHASE = 1000;  // 每阶段任务总数上限（超出按比例压缩）
+export const MAX_DEVICES = 8;
+
+/** 各任务类型适用的调度策略（诊断无本地执行策略，只能协同） */
+export const KIND_STRATEGIES: Record<Kind, ReqMode[]> = {
+  diagnosis: ['collaborative'],
+  compute: ['local', 'collaborative'],
+  sync: ['local', 'collaborative'],
+  routine: ['local', 'collaborative'],
+};
+
+export function kindStrategies(kind: Kind): ReqMode[] {
+  return KIND_STRATEGIES[kind] ?? ['local', 'collaborative'];
+}
+
 export interface DraftDevice {
   id: string;
   name: string;
@@ -72,7 +92,7 @@ export const KIND_PARAM_FIELDS: Record<Kind, ParamField[]> = {
 };
 
 export function draftFromPlan(plan: PlanInfo): Draft {
-  return {
+  return normalizeDraft({
     basePlanId: plan.plan_id,
     name: plan.name,
     duration_min: plan.duration_min,
@@ -83,7 +103,7 @@ export function draftFromPlan(plan: PlanInfo): Draft {
     kinds: plan.kinds.map((k) => ({ kind: k.kind, per_device: k.per_device,
                                     params: { ...k.params } as Draft['kinds'][number]['params'] })),
     customized: false,
-  };
+  });
 }
 
 /** 一份"从零开始"的自定义模板：1 台设备 × 4 类任务 × 1 个，立即可跑 */
@@ -94,7 +114,7 @@ export function customDraft(base: PlanInfo | null): Draft {
     return { kind, per_device: 1,
              params: { ...(src?.params ?? {}) } as DraftKind['params'] };
   });
-  return {
+  return normalizeDraft({
     basePlanId: base?.plan_id ?? 'plan-5.4-collab',
     name: '自定义实验配置',
     duration_min: 10,
@@ -104,22 +124,71 @@ export function customDraft(base: PlanInfo | null): Draft {
     devices,
     kinds,
     customized: true,
-  };
+  });
 }
 
+/** 单类任务数按上限截断 */
+export function clampPerDevice(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(MAX_TASKS_PER_UNIT, Math.trunc(n)));
+}
+
+/**
+ * 把草稿归一化：设备数、单类任务数截断到上限，并按阶段预算压缩任务总数。
+ * 界面与下发都走这一份结果，保证"看到的"与"下发的"一致。
+ */
+export function normalizeDraft(draft: Draft): Draft {
+  const devices = draft.devices.slice(0, MAX_DEVICES);
+  const kinds = draft.kinds.map((k) => ({ ...k, per_device: clampPerDevice(k.per_device) }));
+  return { ...draft, devices, kinds: applyPhaseBudget(kinds, devices) };
+}
+
+/** 阶段任务总数上限：按比例压缩，每类至少 1 个（不整类消失） */
+function applyPhaseBudget(kinds: DraftKind[], devices: DraftDevice[]): DraftKind[] {
+  const n = devices.length || 1;
+  const total = kinds.reduce((s, k) => s + k.per_device * n, 0);
+  if (total <= MAX_TASKS_PER_PHASE || total === 0) return kinds;
+  const scale = MAX_TASKS_PER_PHASE / total;
+  const out = kinds.map((k) => ({
+    ...k,
+    per_device: k.per_device > 0 ? Math.max(1, Math.floor(k.per_device * scale)) : 0,
+  }));
+  const sum = () => out.reduce((s, k) => s + k.per_device * n, 0);
+  while (sum() < MAX_TASKS_PER_PHASE && out.some((k) => k.per_device > 0)) {
+    for (const k of out) {
+      if (sum() >= MAX_TASKS_PER_PHASE) break;
+      if (k.per_device > 0) k.per_device += 1;
+    }
+  }
+  while (sum() > MAX_TASKS_PER_PHASE) {
+    const biggest = out.reduce((a, b) => (b.per_device > a.per_device ? b : a), out[0]);
+    if (biggest.per_device <= 1) break;
+    biggest.per_device -= 1;
+  }
+  return out;
+}
+
+/** 指定阶段的任务总数（诊断不进本地阶段） */
+export function phaseTasks(draft: Draft, phase: ReqMode): number {
+  const d = normalizeDraft(draft);
+  return d.kinds.reduce((s, k) => (
+    kindStrategies(k.kind).includes(phase) ? s + k.per_device * d.devices.length : s), 0);
+}
+
+/** 类型最全的那个阶段的任务总数（协同阶段） */
 export function draftTotalTasks(draft: Draft): number {
-  const perDevice = draft.kinds.reduce((s, k) => s + Math.max(0, k.per_device), 0);
-  return perDevice * draft.devices.length;
+  return phaseTasks(draft, 'collaborative');
 }
 
-/** 各类任务数 × 阶段数（两种策略 = 2 遍） */
+/** 各阶段累计任务数之和 */
 export function draftTotalAttempts(draft: Draft): number {
-  return draftTotalTasks(draft) * Math.max(1, draft.strategies.length);
+  return draft.strategies.reduce((s, ph) => s + phaseTasks(draft, ph), 0);
 }
 
 export function draftOverrides(draft: Draft): CreatePlanRunBody['overrides'] {
+  const d = normalizeDraft(draft);
   const kinds: Record<string, { per_device: number; params: Record<string, unknown> }> = {};
-  for (const k of draft.kinds) {
+  for (const k of d.kinds) {
     const params: Record<string, unknown> = {};
     for (const f of KIND_PARAM_FIELDS[k.kind]) {
       const v = k.params[f.key];
@@ -128,13 +197,13 @@ export function draftOverrides(draft: Draft): CreatePlanRunBody['overrides'] {
     kinds[k.kind] = { per_device: Math.max(0, k.per_device), params };
   }
   return {
-    devices: draft.devices.map((d) => ({ id: d.id, name: d.name, source: d.source })),
+    devices: d.devices.map((x) => ({ id: x.id, name: x.name, source: x.source })),
     kinds,
-    generate_window_min: draft.generate_window_min,
-    duration_min: draft.duration_min,
-    retries: draft.retries,
-    strategies: draft.strategies,
-    ...(draft.customized ? { name: draft.name } : {}),
+    generate_window_min: d.generate_window_min,
+    duration_min: d.duration_min,
+    retries: d.retries,
+    strategies: d.strategies,
+    ...(d.customized ? { name: d.name } : {}),
   };
 }
 
@@ -190,8 +259,9 @@ export function windowCaution(draft: Draft): string | null {
 
 /** 预估执行时长：窗口 + 任务执行（粗估，仅用于提示用户） */
 export function estimateMinutes(draft: Draft, perTaskSec = 2.5): number {
-  const perPhase = draft.generate_window_min + (draftTotalTasks(draft) * perTaskSec) / 60;
-  return Math.round(perPhase * Math.max(1, draft.strategies.length));
+  const phases = draft.strategies.length ? draft.strategies : (['collaborative'] as ReqMode[]);
+  return Math.round(phases.reduce((sum, ph) => (
+    sum + draft.generate_window_min + (phaseTasks(draft, ph) * perTaskSec) / 60), 0));
 }
 
 export function fmtMinutes(min: number): string {

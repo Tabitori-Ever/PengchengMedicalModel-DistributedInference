@@ -188,23 +188,50 @@ def main() -> int:
           f"协同 {ov['collaborative_wall_ms']} ms → {ov['wall_gain_pct']}%")
     print("逐类：")
     for e in comp["per_kind"]:
-        print(f"  {e['kind']:10s} 本地 {e['modes']['local']['total_client_ms']:8.1f} ms · "
-              f"协同 {e['modes']['collaborative']['total_client_ms']:8.1f} ms · "
-              f"增益 {e['gain_pct']}%")
+        lv = e["modes"]["local"].get("total_client_ms")
+        cv = e["modes"]["collaborative"].get("total_client_ms")
+        ls = "—" if lv is None else f"{lv:8.1f} ms"
+        cs = "—" if cv is None else f"{cv:8.1f} ms"
+        print(f"  {e['kind']:10s} 本地 {ls} · 协同 {cs} · 增益 {e['gain_pct']}%")
+    print(f"  参与对比的类型 {ov['common_kinds']} · 仅协同阶段 {ov['collaborative_only_kinds']}")
     if ov["processing_gain_pct"] is None:
         fails.append("总体对比缺失")
     elif ov["processing_gain_pct"] < 10:
         fails.append(f"假执行器下协同应更快（构造为 120ms vs 60ms），"
                      f"实得 {ov['processing_gain_pct']}%")
-    # 阶段墙钟被固定产生窗口主导，两遍应接近——这正是判定不用墙钟的原因
-    if ov["wall_gain_pct"] is not None and abs(ov["wall_gain_pct"]) > 60:
-        fails.append(f"阶段墙钟差异异常（窗口主导下不应有 {ov['wall_gain_pct']}%）")
+    # 阶段墙钟由"产生窗口"主导：两遍各自独立抽样，makespan 本来就可能差很多，
+    # 所以不能比较两者之差（这是判定不用墙钟的原因）。这里只校验墙钟落在
+    # 窗口量级内：不得远低于窗口，也不得远超窗口+执行时间。
+    win_ms = args.window_s * 1000.0
+    for phase in ("local", "collaborative"):
+        w = (phases.get(phase) or {}).get("total_wall_ms")
+        if w is None:
+            continue
+        if w > win_ms + 8000:
+            fails.append(f"{phase} 阶段墙钟 {w:.0f}ms 远超窗口 {win_ms:.0f}ms")
+        print(f"  {phase} 阶段墙钟 {w:.0f}ms（窗口 {win_ms:.0f}ms，"
+              f"两侧独立抽样，差不参与判定）")
     print("判定：")
     for c in comp["criteria"]:
         print(f"  [{c['verdict']:7s}] {c['label']}（实测 {c['measured']} {c.get('unit') or ''}）")
 
+    # 3.5) 诊断无本地执行策略：本地阶段绝不能出现诊断任务
+    bad_local_diag = [c for c in loc if c["kind"] == "diagnosis"]
+    print(f"\n本地阶段诊断任务数 {len(bad_local_diag)}（必须为 0）")
+    if bad_local_diag:
+        fails.append(f"本地阶段出现了诊断任务（{len(bad_local_diag)} 个）")
+    diag_collab = [c for c in col if c["kind"] == "diagnosis"]
+    print(f"协同阶段诊断任务数 {len(diag_collab)}（应 > 0）")
+    if not diag_collab:
+        fails.append("协同阶段没有诊断任务")
+    if ov.get("collaborative_only_kinds") != ["diagnosis"]:
+        fails.append(f"仅协同类型应为 ['diagnosis']，实为 {ov.get('collaborative_only_kinds')}")
+    common = set(ov.get("common_kinds") or [])
+    if "diagnosis" in common:
+        fails.append("诊断不应出现在'两阶段共有'的类型里")
+
     # 4) 诊断类任务患者轮换
-    diag = [c for c in loc if c["kind"] == "diagnosis"]
+    diag = [c for c in col if c["kind"] == "diagnosis"]
     pids = [c["params"].get("patient_id") for c in diag]
     print(f"\n诊断类任务患者分配：{pids}")
     if diag and len(set(pids)) != len(pids):

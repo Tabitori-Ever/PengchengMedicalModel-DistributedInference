@@ -41,7 +41,7 @@ spec:
 
       containers:
       - name: benchmark-site
-        image: 10.29.182.66:5000/k8s-repo/benchmark-site:v1.25
+        image: 10.29.182.66:5000/k8s-repo/benchmark-site:v1.29
         imagePullPolicy: IfNotPresent
 
         env:

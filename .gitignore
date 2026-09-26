@@ -40,3 +40,8 @@ scheduler/latency_model.json
 # 前端渲染自检抓取的站点真实响应，以及 esbuild 临时产物
 .ssrcheck/
 benchmark/frontend/.ssr-build/
+
+# 长任务收尾时对站点库做的本机快照（test/finalize_plan_report.sh）
+.bench_snapshot.db
+plan_finalize.log
+plan_finalize.done

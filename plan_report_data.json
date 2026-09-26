@@ -1,0 +1,3556 @@
+{
+  "generated_at": "2026-09-25T17:03:06+00:00",
+  "site": "http://localhost:30082",
+  "scheduler": "http://localhost:30080",
+  "env": {
+    "images": {
+      "benchmark-site": "v1.29",
+      "clinic-1": "v3.4",
+      "clinic-2": "v3.4",
+      "clinic-3": "v3.4",
+      "clinic-4": "v3.4",
+      "dc-services": "v3.0",
+      "hospital-a": "v3.14",
+      "hospital-b": "v3.14",
+      "medical-server": "v1.4",
+      "monitoring": "v1.0",
+      "redis": "6-alpine",
+      "scheduler": "v3.3.15"
+    },
+    "db_path": "/data/bench/bench.db",
+    "site_version": "1.1",
+    "pod_capabilities": {
+      "hospital-a": {
+        "diagnosis": "unsupported",
+        "compute": "local",
+        "sync": "local",
+        "routine": "local"
+      },
+      "hospital-b": {
+        "diagnosis": "unsupported",
+        "compute": "local",
+        "sync": "local",
+        "routine": "local"
+      },
+      "clinic-1": {
+        "diagnosis": "unsupported",
+        "compute": "local",
+        "sync": "local",
+        "routine": "local"
+      },
+      "clinic-2": {
+        "diagnosis": "unsupported",
+        "compute": "local",
+        "sync": "local",
+        "routine": "local"
+      },
+      "clinic-3": {
+        "diagnosis": "unsupported",
+        "compute": "local",
+        "sync": "local",
+        "routine": "local"
+      },
+      "clinic-4": {
+        "diagnosis": "unsupported",
+        "compute": "local",
+        "sync": "local",
+        "routine": "local"
+      }
+    }
+  },
+  "plan_runs": [
+    {
+      "plan_run_id": "plan-20260924163859-d0e9fd",
+      "plan_id": "plan-5.4-collab",
+      "plan_name": "5.4 协同调度测试",
+      "label": "5.4单独执行",
+      "status": "completed",
+      "current_phase": null,
+      "error": null,
+      "created_at": "2026-09-24T16:38:59.082+00:00",
+      "started_at": "2026-09-24T16:38:59.113+00:00",
+      "finished_at": "2026-09-24T16:49:01.080+00:00",
+      "strategies": [
+        "local",
+        "collaborative"
+      ],
+      "config": {
+        "plan_id": "plan-5.4-collab",
+        "name": "5.4 协同调度测试",
+        "outline_ref": "《测试大纲》§5.4 协同调度测试",
+        "outline_title": "协同调度测试",
+        "test_object": "医疗智联专网云边端协同调度控制系统",
+        "purpose": "验证医疗智联专网的云边端协同调度能力",
+        "objective": "端侧医疗设备产生医疗任务，验证控制系统能否调用云边端通算资源处理医疗任务，与本地调度策略相比降低任务总完成时间。",
+        "duration_min": 20,
+        "generate_window_min": 5,
+        "devices": [
+          {
+            "id": "B",
+            "name": "微型台式电子计算机B",
+            "source": "clinic-1"
+          },
+          {
+            "id": "C",
+            "name": "微型台式电子计算机C",
+            "source": "clinic-2"
+          }
+        ],
+        "kinds": [
+          {
+            "kind": "diagnosis",
+            "label": "医疗模型远程调度（诊断）",
+            "outline_name": "远端医疗大模型调用",
+            "per_device": 5,
+            "params": {
+              "patient_cycle": true,
+              "batch": 1
+            },
+            "param_note": "每个任务取 1 位患者（按数据集轮换），与固定套件同口径",
+            "strategies": [
+              "collaborative"
+            ],
+            "strategy_note": "无本地执行策略（医疗中心不能执行模型 server 部分推理）"
+          },
+          {
+            "kind": "compute",
+            "label": "医疗数据处理（算力）",
+            "outline_name": "医疗数据处理",
+            "per_device": 5,
+            "params": {
+              "instruments": 8,
+              "rows": 3072,
+              "intensity": 450,
+              "partition_count": 3
+            },
+            "param_note": "8 器械 × 3072 行 × 强度 450，3 分区",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "sync",
+            "label": "患者数据库同步（通信）",
+            "outline_name": "患者数据库同步",
+            "per_device": 5,
+            "params": {
+              "bandwidth_mbps": 20.0,
+              "concurrency": 4,
+              "chunk_kb": 4
+            },
+            "param_note": "20 Mbps 链路 · 4 并发流 · 4 KB 分块",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "routine",
+            "label": "医疗信息远程查询（日常）",
+            "outline_name": "医疗信息远程查询",
+            "per_device": 5,
+            "params": {
+              "jobs": 4,
+              "rows": 8192,
+              "intensity": 2400
+            },
+            "param_note": "每次 4 个日常作业，8192 行 × 强度 2400",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          }
+        ],
+        "total_tasks_declared": 40,
+        "strategies": [
+          "local",
+          "collaborative"
+        ],
+        "batch_repeats": 1,
+        "retries": 3,
+        "retry_backoff_s": 0.5,
+        "notes": [
+          "诊断类（远端医疗大模型调用）无本地执行策略：医疗中心不能执行模型 server 部分推理，本地（未调度）阶段不含诊断任务；总用时对比只计入两阶段共有的任务类型。"
+        ],
+        "preconditions": [
+          "医疗智联专网稳定运行",
+          "云边端协同调度控制系统运作正常",
+          "微型台式电子计算机和 CPE 设备接入正常，完成对应配置"
+        ],
+        "steps": [
+          "微型台式电子计算机B和C设定各产生四类医疗任务，各设备每类任务 5 个，共 40 个医疗任务需求，在 5 分钟内由不同端侧医疗设备随机产生。",
+          "记录各医疗任务发起时间与完成时间，统计使用本地调度策略下所有任务处理总用时。",
+          "切换为云边端协同调度策略，医疗设备再次产生相同医疗任务需求。",
+          "记录各医疗任务发起时间与完成时间，统计经协同调度后所有任务总用时。"
+        ],
+        "criteria": [
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度后所有任务总用时相较于未调度提升",
+            "source": "platform"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "任务完成率（失败自动重传后）",
+            "source": "platform"
+          }
+        ],
+        "attachments": [],
+        "customized": false,
+        "label": "5.4单独执行"
+      },
+      "total_tasks_per_phase": 40,
+      "phases": [
+        {
+          "phase": "local",
+          "tasks_total": 30,
+          "completed": 30,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 300800.0,
+          "latency": {
+            "n": 30,
+            "mean": 5235.37,
+            "p50": 3916.31,
+            "p95": 12739.37,
+            "min": 571.86,
+            "max": 13971.0
+          },
+          "retries": 0,
+          "retried_tasks": 0,
+          "retry_ms_total": 0,
+          "exec_ms": 157061.02,
+          "processing_ms": 157061.02,
+          "units": [
+            {
+              "run_id": "run-20260924163859-b0def4",
+              "unit_id": "B·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 0.48,
+              "last_task_in_s": 259.162
+            },
+            {
+              "run_id": "run-20260924163859-afec44",
+              "unit_id": "B·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 17.571,
+              "last_task_in_s": 266.488
+            },
+            {
+              "run_id": "run-20260924163859-932b8b",
+              "unit_id": "B·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 26.217,
+              "last_task_in_s": 269.088
+            },
+            {
+              "run_id": "run-20260924163859-0d8bf0",
+              "unit_id": "C·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 39.197,
+              "last_task_in_s": 277.372
+            },
+            {
+              "run_id": "run-20260924163859-2ac1c7",
+              "unit_id": "C·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 44.739,
+              "last_task_in_s": 289.745
+            },
+            {
+              "run_id": "run-20260924163859-2f2d05",
+              "unit_id": "C·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 47.5,
+              "last_task_in_s": 296.339
+            }
+          ]
+        },
+        {
+          "phase": "collaborative",
+          "tasks_total": 40,
+          "completed": 40,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 299246.0,
+          "latency": {
+            "n": 40,
+            "mean": 2721.84,
+            "p50": 2032.27,
+            "p95": 6180.56,
+            "min": 522.85,
+            "max": 6388.23
+          },
+          "retries": 0,
+          "retried_tasks": 0,
+          "retry_ms_total": 0,
+          "exec_ms": 108873.7,
+          "processing_ms": 108873.7,
+          "units": [
+            {
+              "run_id": "run-20260924164400-49f530",
+              "unit_id": "B·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 2.546,
+              "last_task_in_s": 245.688
+            },
+            {
+              "run_id": "run-20260924164401-a307fd",
+              "unit_id": "B·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 13.152,
+              "last_task_in_s": 252.146
+            },
+            {
+              "run_id": "run-20260924164401-5d4b64",
+              "unit_id": "B·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 15.534,
+              "last_task_in_s": 255.749
+            },
+            {
+              "run_id": "run-20260924164401-1757dc",
+              "unit_id": "B·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 17.882,
+              "last_task_in_s": 259.684
+            },
+            {
+              "run_id": "run-20260924164401-068a65",
+              "unit_id": "C·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 20.116,
+              "last_task_in_s": 275.336
+            },
+            {
+              "run_id": "run-20260924164401-2f004f",
+              "unit_id": "C·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 21.476,
+              "last_task_in_s": 280.033
+            },
+            {
+              "run_id": "run-20260924164401-fa0610",
+              "unit_id": "C·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 28.724,
+              "last_task_in_s": 291.011
+            },
+            {
+              "run_id": "run-20260924164401-07bd02",
+              "unit_id": "C·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 5,
+              "concurrency": 1,
+              "first_task_in_s": 35.097,
+              "last_task_in_s": 297.152
+            }
+          ]
+        }
+      ],
+      "progress": {
+        "collaborative": {
+          "total": 40,
+          "pending": 0,
+          "running": 0,
+          "completed": 40,
+          "failed": 0
+        },
+        "local": {
+          "total": 30,
+          "pending": 0,
+          "running": 0,
+          "completed": 30,
+          "failed": 0
+        }
+      },
+      "runs": [
+        {
+          "run_id": "run-20260924164401-a307fd",
+          "phase": "collaborative",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164401-2f004f",
+          "phase": "collaborative",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164400-49f530",
+          "phase": "collaborative",
+          "unit": "B·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164401-068a65",
+          "phase": "collaborative",
+          "unit": "C·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164401-1757dc",
+          "phase": "collaborative",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164401-07bd02",
+          "phase": "collaborative",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164401-5d4b64",
+          "phase": "collaborative",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924164401-fa0610",
+          "phase": "collaborative",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924163859-b0def4",
+          "phase": "local",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924163859-0d8bf0",
+          "phase": "local",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924163859-932b8b",
+          "phase": "local",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924163859-2f2d05",
+          "phase": "local",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924163859-afec44",
+          "phase": "local",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 5
+        },
+        {
+          "run_id": "run-20260924163859-2ac1c7",
+          "phase": "local",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 5
+        }
+      ],
+      "live": false,
+      "by_kind": [
+        {
+          "kind": "diagnosis",
+          "phase": "collaborative",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "diagnosis/collaborative",
+          "latency": {
+            "n": 10,
+            "mean": 2843.13,
+            "p50": 1454.69,
+            "p95": 6124.0
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "collaborative",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "compute/collaborative",
+          "latency": {
+            "n": 10,
+            "mean": 2522.2,
+            "p50": 2499.51,
+            "p95": 4993.47
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "local",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "compute/local",
+          "latency": {
+            "n": 10,
+            "mean": 753.63,
+            "p50": 644.98,
+            "p95": 1229.02
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "collaborative",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "sync/collaborative",
+          "latency": {
+            "n": 10,
+            "mean": 4197.88,
+            "p50": 4025.49,
+            "p95": 6184.36
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "local",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "sync/local",
+          "latency": {
+            "n": 10,
+            "mean": 11035.99,
+            "p50": 11031.8,
+            "p95": 13572.98
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "collaborative",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "routine/collaborative",
+          "latency": {
+            "n": 10,
+            "mean": 1324.16,
+            "p50": 1332.5,
+            "p95": 1427.15
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "local",
+          "ok": 10,
+          "fail": 0,
+          "total": 10,
+          "unit_id": "routine/local",
+          "latency": {
+            "n": 10,
+            "mean": 3916.48,
+            "p50": 3916.31,
+            "p95": 4240.0
+          }
+        }
+      ],
+      "comparison": {
+        "per_kind": [
+          {
+            "kind": "diagnosis",
+            "modes": {
+              "local": {
+                "n": 0,
+                "completed": 0,
+                "total_client_ms": null,
+                "mean": null,
+                "p50": null,
+                "p95": null,
+                "min": null,
+                "max": null,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": null
+              },
+              "collaborative": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 28431.27,
+                "mean": 2843.13,
+                "p50": 1454.69,
+                "p95": 6124.0,
+                "min": 1145.79,
+                "max": 6388.23,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 28431.27
+              }
+            },
+            "gain_pct": null
+          },
+          {
+            "kind": "compute",
+            "modes": {
+              "local": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 7536.35,
+                "mean": 753.63,
+                "p50": 644.98,
+                "p95": 1229.02,
+                "min": 571.86,
+                "max": 1565.77,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 7536.35
+              },
+              "collaborative": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 25221.98,
+                "mean": 2522.2,
+                "p50": 2499.51,
+                "p95": 4993.47,
+                "min": 522.85,
+                "max": 5023.69,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 25221.98
+              }
+            },
+            "gain_pct": -234.67
+          },
+          {
+            "kind": "sync",
+            "modes": {
+              "local": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 110359.86,
+                "mean": 11035.99,
+                "p50": 11031.8,
+                "p95": 13572.98,
+                "min": 8286.04,
+                "max": 13971.0,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 110359.86
+              },
+              "collaborative": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 41978.84,
+                "mean": 4197.88,
+                "p50": 4025.49,
+                "p95": 6184.36,
+                "min": 2508.76,
+                "max": 6187.78,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 41978.84
+              }
+            },
+            "gain_pct": 61.96
+          },
+          {
+            "kind": "routine",
+            "modes": {
+              "local": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 39164.81,
+                "mean": 3916.48,
+                "p50": 3916.31,
+                "p95": 4240.0,
+                "min": 3628.97,
+                "max": 4275.18,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 39164.81
+              },
+              "collaborative": {
+                "n": 10,
+                "completed": 10,
+                "total_client_ms": 13241.61,
+                "mean": 1324.16,
+                "p50": 1332.5,
+                "p95": 1427.15,
+                "min": 1218.77,
+                "max": 1454.64,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 13241.61
+              }
+            },
+            "gain_pct": 66.19
+          }
+        ],
+        "totals": {
+          "local": {
+            "phase": "local",
+            "tasks_total": 30,
+            "completed": 30,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 300800.0,
+            "latency": {
+              "n": 30,
+              "mean": 5235.37,
+              "p50": 3916.31,
+              "p95": 12739.37,
+              "min": 571.86,
+              "max": 13971.0
+            },
+            "retries": 0,
+            "retried_tasks": 0,
+            "retry_ms_total": 0,
+            "exec_ms": 157061.02,
+            "processing_ms": 157061.02
+          },
+          "collaborative": {
+            "phase": "collaborative",
+            "tasks_total": 40,
+            "completed": 40,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 299246.0,
+            "latency": {
+              "n": 40,
+              "mean": 2721.84,
+              "p50": 2032.27,
+              "p95": 6180.56,
+              "min": 522.85,
+              "max": 6388.23
+            },
+            "retries": 0,
+            "retried_tasks": 0,
+            "retry_ms_total": 0,
+            "exec_ms": 108873.7,
+            "processing_ms": 108873.7
+          }
+        },
+        "overall": {
+          "local_wall_ms": 300800.0,
+          "collaborative_wall_ms": 299246.0,
+          "wall_gain_pct": 0.52,
+          "local_exec_ms": 157061.02,
+          "collaborative_exec_ms": 80442.43,
+          "local_processing_ms": 157061.02,
+          "collaborative_processing_ms": 80442.43,
+          "processing_gain_pct": 48.78,
+          "retries_local": 0,
+          "retries_collaborative": 0,
+          "common_kinds": [
+            "compute",
+            "sync",
+            "routine"
+          ],
+          "collaborative_only_kinds": [
+            "diagnosis"
+          ],
+          "collaborative_only_processing_ms": 28431.27
+        },
+        "criteria": [
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度后所有任务总用时相较于未调度提升",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 48.78,
+            "measured_wall_gain_pct": 0.52,
+            "note": "判定口径 = 任务处理总用时（Σ 单任务 client_total_ms）；阶段墙钟含固定产生窗口，仅作参考"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "任务完成率（失败自动重传后）",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 100.0,
+            "measured_retries": 0
+          }
+        ]
+      }
+    },
+    {
+      "plan_run_id": "plan-20260924165358-8725f8",
+      "plan_id": "plan-5.5-network",
+      "plan_name": "5.5 医疗智联专网测试",
+      "label": "5.5单独执行-大纲真实窗口",
+      "status": "completed",
+      "current_phase": null,
+      "error": null,
+      "created_at": "2026-09-24T16:53:58.803+00:00",
+      "started_at": "2026-09-24T17:18:14.740+00:00",
+      "finished_at": "2026-09-25T12:52:50.789+00:00",
+      "strategies": [
+        "local",
+        "collaborative"
+      ],
+      "config": {
+        "plan_id": "plan-5.5-network",
+        "name": "5.5 医疗智联专网测试",
+        "outline_ref": "《测试大纲》§5.5 医疗智联专网测试",
+        "outline_title": "医疗智联专网测试",
+        "test_object": "面向 AI 诊疗的医疗智联专网",
+        "purpose": "验证面向 AI 诊疗的医疗智联专网整体性能",
+        "objective": "端侧医疗设备产生远端医疗大模型调用、患者数据库同步、医疗数据处理、医疗信息远程查询四类医疗任务，验证在新质医疗任务需求下，面向 AI 诊疗的医疗智联专网整体功能和服务能力。",
+        "duration_min": 720,
+        "generate_window_min": 600,
+        "devices": [
+          {
+            "id": "B",
+            "name": "微型台式电子计算机B",
+            "source": "clinic-1"
+          },
+          {
+            "id": "C",
+            "name": "微型台式电子计算机C",
+            "source": "clinic-2"
+          }
+        ],
+        "kinds": [
+          {
+            "kind": "diagnosis",
+            "label": "医疗模型远程调度（诊断）",
+            "outline_name": "远端医疗大模型调用",
+            "per_device": 25,
+            "params": {
+              "patient_cycle": true,
+              "batch": 1
+            },
+            "param_note": "每个任务取 1 位患者（按数据集轮换），与固定套件同口径",
+            "strategies": [
+              "collaborative"
+            ],
+            "strategy_note": "无本地执行策略（医疗中心不能执行模型 server 部分推理）"
+          },
+          {
+            "kind": "compute",
+            "label": "医疗数据处理（算力）",
+            "outline_name": "医疗数据处理",
+            "per_device": 25,
+            "params": {
+              "instruments": 8,
+              "rows": 3072,
+              "intensity": 450,
+              "partition_count": 3
+            },
+            "param_note": "8 器械 × 3072 行 × 强度 450，3 分区",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "sync",
+            "label": "患者数据库同步（通信）",
+            "outline_name": "患者数据库同步",
+            "per_device": 25,
+            "params": {
+              "bandwidth_mbps": 20.0,
+              "concurrency": 4,
+              "chunk_kb": 4
+            },
+            "param_note": "20 Mbps 链路 · 4 并发流 · 4 KB 分块",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "routine",
+            "label": "医疗信息远程查询（日常）",
+            "outline_name": "医疗信息远程查询",
+            "per_device": 25,
+            "params": {
+              "jobs": 4,
+              "rows": 8192,
+              "intensity": 2400
+            },
+            "param_note": "每次 4 个日常作业，8192 行 × 强度 2400",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          }
+        ],
+        "total_tasks_declared": 200,
+        "notes": [
+          "诊断类（远端医疗大模型调用）无本地执行策略：医疗中心不能执行模型 server 部分推理，本地（未调度）阶段不含诊断任务；总用时对比只计入两阶段共有的任务类型。",
+          "大纲操作步骤写「各设备每类50个，共200个医疗任务需求」；按 2 台设备 × 4 类 × 50 个/设备/类 计算为 400 个，与明示的 200 个不一致。本方案取大纲明示的总数 200（25 个/设备/类），前端「自定义实验配置」可改回 50。"
+        ],
+        "strategies": [
+          "local",
+          "collaborative"
+        ],
+        "batch_repeats": 1,
+        "retries": 3,
+        "retry_backoff_s": 0.5,
+        "preconditions": [
+          "医疗智联专网稳定运行",
+          "各 CPE 上电启动正常，并完成相应配置",
+          "各 CPE 接入正常",
+          "测试仪与损伤仪接入正常",
+          "医疗设备配置完成，运作正常"
+        ],
+        "steps": [
+          "以 1000 帧/s 速率从医院园区测试仪持续往智算中心测试仪发送 512 字节大小的数据包，持续三小时。",
+          "在该医院园区和智算中心之间使用损伤仪构建 2 条路径随机丢包各达 10% 的模拟路径受损情况。",
+          "微型台式电子计算机B和C设定各产生四类医疗任务，各设备每类 50 个，共 200 个医疗任务需求，在 10 小时内随机产生。",
+          "检查统计医院园区和智算中心之间传输丢包率。",
+          "12 小时后检查医疗任务完成情况。"
+        ],
+        "criteria": [
+          {
+            "id": "loss",
+            "type": "external",
+            "value": 1.0,
+            "unit": "%",
+            "label": "医院园区与智算中心之间传输丢包率不超过 1%",
+            "source": "测试仪 / 损伤仪（外部仪表实测）"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "医疗任务完成率（失败自动重传后）",
+            "source": "platform"
+          },
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度总用时较本地调度提升",
+            "source": "platform"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "traffic",
+            "name": "测试仪流量注入",
+            "detail": "医院园区测试仪 → 智算中心测试仪：1000 帧/s · 512 字节/包 · 持续 3 小时",
+            "fps": 1000,
+            "packet_bytes": 512,
+            "duration_min": 180,
+            "verified_by": "外部测试仪"
+          },
+          {
+            "id": "impairment",
+            "name": "损伤仪路径受损",
+            "detail": "医院园区 ↔ 智算中心构建 2 条路径，随机丢包各 10%",
+            "paths": 2,
+            "loss_pct": 10.0,
+            "verified_by": "外部损伤仪"
+          }
+        ],
+        "customized": false,
+        "label": "5.5单独执行-大纲真实窗口"
+      },
+      "total_tasks_per_phase": 200,
+      "phases": [
+        {
+          "phase": "local",
+          "tasks_total": 150,
+          "completed": 150,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 35986860.0,
+          "latency": {
+            "n": 150,
+            "mean": 5242.13,
+            "p50": 4057.41,
+            "p95": 12526.89,
+            "min": 551.97,
+            "max": 17161.3
+          },
+          "retries": 2,
+          "retried_tasks": 2,
+          "retry_ms_total": 20.88,
+          "exec_ms": 786319.79,
+          "processing_ms": 786340.67,
+          "units": [
+            {
+              "run_id": "run-20260924165358-d7368b",
+              "unit_id": "B·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-1",
+              "repeats": 25,
+              "concurrency": 1
+            },
+            {
+              "run_id": "run-20260924165358-d14a9b",
+              "unit_id": "C·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-2",
+              "repeats": 25,
+              "concurrency": 1
+            },
+            {
+              "run_id": "run-20260924165358-9bbe1a",
+              "unit_id": "B·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-1",
+              "repeats": 25,
+              "concurrency": 1
+            },
+            {
+              "run_id": "run-20260924165358-7cf13b",
+              "unit_id": "C·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-2",
+              "repeats": 25,
+              "concurrency": 1
+            },
+            {
+              "run_id": "run-20260924165358-bdb3f2",
+              "unit_id": "B·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-1",
+              "repeats": 25,
+              "concurrency": 1
+            },
+            {
+              "run_id": "run-20260924165358-0055a9",
+              "unit_id": "C·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-2",
+              "repeats": 25,
+              "concurrency": 1
+            }
+          ]
+        },
+        {
+          "phase": "collaborative",
+          "tasks_total": 200,
+          "completed": 200,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 35924438.0,
+          "latency": {
+            "n": 200,
+            "mean": 2210.88,
+            "p50": 1529.51,
+            "p95": 6144.77,
+            "min": 607.31,
+            "max": 12787.47
+          },
+          "retries": 1,
+          "retried_tasks": 1,
+          "retry_ms_total": 59.68,
+          "exec_ms": 442175.8,
+          "processing_ms": 442235.48,
+          "units": [
+            {
+              "run_id": "run-20260925025400-f22906",
+              "unit_id": "B·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 104.363,
+              "last_task_in_s": 34135.542
+            },
+            {
+              "run_id": "run-20260925025400-6437b0",
+              "unit_id": "B·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 261.596,
+              "last_task_in_s": 34389.153
+            },
+            {
+              "run_id": "run-20260925025400-78a30b",
+              "unit_id": "B·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 328.405,
+              "last_task_in_s": 34675.778
+            },
+            {
+              "run_id": "run-20260925025400-c05634",
+              "unit_id": "B·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 596.928,
+              "last_task_in_s": 35356.37
+            },
+            {
+              "run_id": "run-20260925025400-519bb3",
+              "unit_id": "C·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 605.183,
+              "last_task_in_s": 35415.914
+            },
+            {
+              "run_id": "run-20260925025401-103ec0",
+              "unit_id": "C·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 673.25,
+              "last_task_in_s": 35664.075
+            },
+            {
+              "run_id": "run-20260925025401-fd7580",
+              "unit_id": "C·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 744.491,
+              "last_task_in_s": 35721.459
+            },
+            {
+              "run_id": "run-20260925025401-f6439e",
+              "unit_id": "C·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式电子计算机C",
+              "repeats": 25,
+              "concurrency": 1,
+              "first_task_in_s": 1006.053,
+              "last_task_in_s": 35922.112
+            }
+          ]
+        }
+      ],
+      "progress": {
+        "collaborative": {
+          "total": 200,
+          "pending": 0,
+          "running": 0,
+          "completed": 200,
+          "failed": 0
+        },
+        "local": {
+          "total": 150,
+          "pending": 0,
+          "running": 0,
+          "completed": 150,
+          "failed": 0
+        }
+      },
+      "runs": [
+        {
+          "run_id": "run-20260925025400-6437b0",
+          "phase": "collaborative",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025401-103ec0",
+          "phase": "collaborative",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025400-f22906",
+          "phase": "collaborative",
+          "unit": "B·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025400-519bb3",
+          "phase": "collaborative",
+          "unit": "C·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025400-c05634",
+          "phase": "collaborative",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025401-f6439e",
+          "phase": "collaborative",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025400-78a30b",
+          "phase": "collaborative",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260925025401-fd7580",
+          "phase": "collaborative",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260924165358-d7368b",
+          "phase": "local",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260924165358-d14a9b",
+          "phase": "local",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260924165358-9bbe1a",
+          "phase": "local",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260924165358-7cf13b",
+          "phase": "local",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260924165358-bdb3f2",
+          "phase": "local",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 25
+        },
+        {
+          "run_id": "run-20260924165358-0055a9",
+          "phase": "local",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 25
+        }
+      ],
+      "live": false,
+      "by_kind": [
+        {
+          "kind": "diagnosis",
+          "phase": "collaborative",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "diagnosis/collaborative",
+          "latency": {
+            "n": 50,
+            "mean": 1757.04,
+            "p50": 1489.06,
+            "p95": 3923.11
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "collaborative",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "compute/collaborative",
+          "latency": {
+            "n": 50,
+            "mean": 1782.52,
+            "p50": 918.41,
+            "p95": 5576.59
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "local",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "compute/local",
+          "latency": {
+            "n": 50,
+            "mean": 694.0,
+            "p50": 638.62,
+            "p95": 937.19
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "collaborative",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "sync/collaborative",
+          "latency": {
+            "n": 50,
+            "mean": 3467.5,
+            "p50": 2770.39,
+            "p95": 7178.13
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "local",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "sync/local",
+          "latency": {
+            "n": 50,
+            "mean": 10981.34,
+            "p50": 10857.93,
+            "p95": 15269.23
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "collaborative",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "routine/collaborative",
+          "latency": {
+            "n": 50,
+            "mean": 1836.46,
+            "p50": 1426.89,
+            "p95": 4475.52
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "local",
+          "ok": 50,
+          "fail": 0,
+          "total": 50,
+          "unit_id": "routine/local",
+          "latency": {
+            "n": 50,
+            "mean": 4051.05,
+            "p50": 4057.41,
+            "p95": 4566.99
+          }
+        }
+      ],
+      "comparison": {
+        "per_kind": [
+          {
+            "kind": "diagnosis",
+            "modes": {
+              "local": {
+                "n": 0,
+                "completed": 0,
+                "total_client_ms": null,
+                "mean": null,
+                "p50": null,
+                "p95": null,
+                "min": null,
+                "max": null,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": null
+              },
+              "collaborative": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 87851.76,
+                "mean": 1757.04,
+                "p50": 1489.06,
+                "p95": 3923.11,
+                "min": 1182.55,
+                "max": 6211.36,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 87851.76
+              }
+            },
+            "gain_pct": null
+          },
+          {
+            "kind": "compute",
+            "modes": {
+              "local": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 34700.15,
+                "mean": 694.0,
+                "p50": 638.62,
+                "p95": 937.19,
+                "min": 551.97,
+                "max": 1823.96,
+                "retries": 2,
+                "retried_tasks": 2,
+                "retry_ms_total": 20.88,
+                "processing_ms": 34721.04
+              },
+              "collaborative": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 89125.89,
+                "mean": 1782.52,
+                "p50": 918.41,
+                "p95": 5576.59,
+                "min": 607.31,
+                "max": 12787.47,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 89125.89
+              }
+            },
+            "gain_pct": -156.85
+          },
+          {
+            "kind": "sync",
+            "modes": {
+              "local": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 549067.0,
+                "mean": 10981.34,
+                "p50": 10857.93,
+                "p95": 15269.23,
+                "min": 7449.98,
+                "max": 17161.3,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 549067.0
+              },
+              "collaborative": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 173375.03,
+                "mean": 3467.5,
+                "p50": 2770.39,
+                "p95": 7178.13,
+                "min": 2200.42,
+                "max": 7453.98,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 173375.03
+              }
+            },
+            "gain_pct": 68.42
+          },
+          {
+            "kind": "routine",
+            "modes": {
+              "local": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 202552.64,
+                "mean": 4051.05,
+                "p50": 4057.41,
+                "p95": 4566.99,
+                "min": 3636.11,
+                "max": 6584.16,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 202552.64
+              },
+              "collaborative": {
+                "n": 50,
+                "completed": 50,
+                "total_client_ms": 91823.12,
+                "mean": 1836.46,
+                "p50": 1426.89,
+                "p95": 4475.52,
+                "min": 1178.71,
+                "max": 6627.77,
+                "retries": 1,
+                "retried_tasks": 1,
+                "retry_ms_total": 59.68,
+                "processing_ms": 91882.8
+              }
+            },
+            "gain_pct": 54.67
+          }
+        ],
+        "totals": {
+          "local": {
+            "phase": "local",
+            "tasks_total": 150,
+            "completed": 150,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 35986860.0,
+            "latency": {
+              "n": 150,
+              "mean": 5242.13,
+              "p50": 4057.41,
+              "p95": 12526.89,
+              "min": 551.97,
+              "max": 17161.3
+            },
+            "retries": 2,
+            "retried_tasks": 2,
+            "retry_ms_total": 20.88,
+            "exec_ms": 786319.79,
+            "processing_ms": 786340.67
+          },
+          "collaborative": {
+            "phase": "collaborative",
+            "tasks_total": 200,
+            "completed": 200,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 35924438.0,
+            "latency": {
+              "n": 200,
+              "mean": 2210.88,
+              "p50": 1529.51,
+              "p95": 6144.77,
+              "min": 607.31,
+              "max": 12787.47
+            },
+            "retries": 1,
+            "retried_tasks": 1,
+            "retry_ms_total": 59.68,
+            "exec_ms": 442175.8,
+            "processing_ms": 442235.48
+          }
+        },
+        "overall": {
+          "local_wall_ms": 35986860.0,
+          "collaborative_wall_ms": 35924438.0,
+          "wall_gain_pct": 0.17,
+          "local_exec_ms": 786319.79,
+          "collaborative_exec_ms": 354324.04,
+          "local_processing_ms": 786340.68,
+          "collaborative_processing_ms": 354383.72,
+          "processing_gain_pct": 54.93,
+          "retries_local": 2,
+          "retries_collaborative": 1,
+          "common_kinds": [
+            "compute",
+            "sync",
+            "routine"
+          ],
+          "collaborative_only_kinds": [
+            "diagnosis"
+          ],
+          "collaborative_only_processing_ms": 87851.76
+        },
+        "criteria": [
+          {
+            "id": "loss",
+            "type": "external",
+            "value": 1.0,
+            "unit": "%",
+            "label": "医院园区与智算中心之间传输丢包率不超过 1%",
+            "source": "测试仪 / 损伤仪（外部仪表实测）",
+            "verdict": "pending",
+            "measured": null,
+            "note": "由 测试仪 / 损伤仪（外部仪表实测） 实测填写，平台不自动判定"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "医疗任务完成率（失败自动重传后）",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 100.0,
+            "measured_retries": 3
+          },
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度总用时较本地调度提升",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 54.93,
+            "measured_wall_gain_pct": 0.17,
+            "note": "判定口径 = 任务处理总用时（Σ 单任务 client_total_ms）；阶段墙钟含固定产生窗口，仅作参考"
+          }
+        ]
+      }
+    },
+    {
+      "plan_run_id": "plan-20260925162639-18022b",
+      "plan_id": "plan-5.5-network",
+      "plan_name": "5.5 医疗智联专网测试",
+      "label": "忙时混合负载V2-4:3:2:1",
+      "status": "completed",
+      "current_phase": null,
+      "error": null,
+      "created_at": "2026-09-25T16:26:39.701+00:00",
+      "started_at": "2026-09-25T16:26:39.713+00:00",
+      "finished_at": "2026-09-25T16:39:03.283+00:00",
+      "strategies": [
+        "local",
+        "collaborative"
+      ],
+      "config": {
+        "plan_id": "plan-5.5-network",
+        "name": "5.5 医疗智联专网测试",
+        "outline_ref": "《测试大纲》§5.5 医疗智联专网测试",
+        "outline_title": "医疗智联专网测试",
+        "test_object": "面向 AI 诊疗的医疗智联专网",
+        "purpose": "验证面向 AI 诊疗的医疗智联专网整体性能",
+        "objective": "端侧医疗设备产生远端医疗大模型调用、患者数据库同步、医疗数据处理、医疗信息远程查询四类医疗任务，验证在新质医疗任务需求下，面向 AI 诊疗的医疗智联专网整体功能和服务能力。",
+        "duration_min": 30,
+        "generate_window_min": 6.0,
+        "devices": [
+          {
+            "id": "B",
+            "name": "微型台式电子计算机B",
+            "source": "clinic-1"
+          },
+          {
+            "id": "C",
+            "name": "微型台式计算机C",
+            "source": "clinic-2"
+          }
+        ],
+        "kinds": [
+          {
+            "kind": "diagnosis",
+            "label": "医疗模型远程调度（诊断）",
+            "outline_name": "远端医疗大模型调用",
+            "per_device": 12,
+            "params": {
+              "patient_cycle": true,
+              "batch": 4
+            },
+            "param_note": "每个任务取 1 位患者（按数据集轮换），与固定套件同口径",
+            "strategies": [
+              "collaborative"
+            ],
+            "strategy_note": "无本地执行策略（医疗中心不能执行模型 server 部分推理）"
+          },
+          {
+            "kind": "compute",
+            "label": "医疗数据处理（算力）",
+            "outline_name": "医疗数据处理",
+            "per_device": 18,
+            "params": {
+              "instruments": 16,
+              "rows": 4096,
+              "intensity": 900,
+              "partition_count": 3
+            },
+            "param_note": "8 器械 × 3072 行 × 强度 450，3 分区",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "sync",
+            "label": "患者数据库同步（通信）",
+            "outline_name": "患者数据库同步",
+            "per_device": 6,
+            "params": {
+              "bandwidth_mbps": 20.0,
+              "concurrency": 8,
+              "chunk_kb": 16
+            },
+            "param_note": "20 Mbps 链路 · 4 并发流 · 4 KB 分块",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "routine",
+            "label": "医疗信息远程查询（日常）",
+            "outline_name": "医疗信息远程查询",
+            "per_device": 24,
+            "params": {
+              "jobs": 8,
+              "rows": 8192,
+              "intensity": 2400
+            },
+            "param_note": "每次 4 个日常作业，8192 行 × 强度 2400",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          }
+        ],
+        "total_tasks_declared": 200,
+        "notes": [
+          "诊断类（远端医疗大模型调用）无本地执行策略：医疗中心不能执行模型 server 部分推理，本地（未调度）阶段不含诊断任务；总用时对比只计入两阶段共有的任务类型。",
+          "大纲操作步骤写「各设备每类50个，共200个医疗任务需求」；按 2 台设备 × 4 类 × 50 个/设备/类 计算为 400 个，与明示的 200 个不一致。本方案取大纲明示的总数 200（25 个/设备/类），前端「自定义实验配置」可改回 50。"
+        ],
+        "strategies": [
+          "local",
+          "collaborative"
+        ],
+        "batch_repeats": 1,
+        "retries": 3,
+        "retry_backoff_s": 0.5,
+        "preconditions": [
+          "医疗智联专网稳定运行",
+          "各 CPE 上电启动正常，并完成相应配置",
+          "各 CPE 接入正常",
+          "测试仪与损伤仪接入正常",
+          "医疗设备配置完成，运作正常"
+        ],
+        "steps": [
+          "以 1000 帧/s 速率从医院园区测试仪持续往智算中心测试仪发送 512 字节大小的数据包，持续三小时。",
+          "在该医院园区和智算中心之间使用损伤仪构建 2 条路径随机丢包各达 10% 的模拟路径受损情况。",
+          "微型台式电子计算机B和C设定各产生四类医疗任务，各设备每类 50 个，共 200 个医疗任务需求，在 10 小时内随机产生。",
+          "检查统计医院园区和智算中心之间传输丢包率。",
+          "12 小时后检查医疗任务完成情况。"
+        ],
+        "criteria": [
+          {
+            "id": "loss",
+            "type": "external",
+            "value": 1.0,
+            "unit": "%",
+            "label": "医院园区与智算中心之间传输丢包率不超过 1%",
+            "source": "测试仪 / 损伤仪（外部仪表实测）"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "医疗任务完成率（失败自动重传后）",
+            "source": "platform"
+          },
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度总用时较本地调度提升",
+            "source": "platform"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "traffic",
+            "name": "测试仪流量注入",
+            "detail": "医院园区测试仪 → 智算中心测试仪：1000 帧/s · 512 字节/包 · 持续 3 小时",
+            "fps": 1000,
+            "packet_bytes": 512,
+            "duration_min": 180,
+            "verified_by": "外部测试仪"
+          },
+          {
+            "id": "impairment",
+            "name": "损伤仪路径受损",
+            "detail": "医院园区 ↔ 智算中心构建 2 条路径，随机丢包各 10%",
+            "paths": 2,
+            "loss_pct": 10.0,
+            "verified_by": "外部损伤仪"
+          }
+        ],
+        "customized": true,
+        "label": "忙时混合负载V2-4:3:2:1"
+      },
+      "total_tasks_per_phase": 120,
+      "phases": [
+        {
+          "phase": "local",
+          "tasks_total": 96,
+          "completed": 96,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 369545.0,
+          "latency": {
+            "n": 96,
+            "mean": 9071.31,
+            "p50": 8523.15,
+            "p95": 16169.21,
+            "min": 2826.66,
+            "max": 22556.28
+          },
+          "retries": 0,
+          "retried_tasks": 0,
+          "retry_ms_total": 0,
+          "exec_ms": 870846.04,
+          "processing_ms": 870846.04,
+          "units": [
+            {
+              "run_id": "run-20260925162639-a3547c",
+              "unit_id": "B·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 336.435
+            },
+            {
+              "run_id": "run-20260925162639-bb3fa2",
+              "unit_id": "B·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 8.687,
+              "last_task_in_s": 97.551
+            },
+            {
+              "run_id": "run-20260925162639-89173a",
+              "unit_id": "B·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 343.781
+            },
+            {
+              "run_id": "run-20260925162639-6fae81",
+              "unit_id": "C·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 344.423
+            },
+            {
+              "run_id": "run-20260925162639-89e7c2",
+              "unit_id": "C·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 11.334,
+              "last_task_in_s": 104.365
+            },
+            {
+              "run_id": "run-20260925162639-f75d97",
+              "unit_id": "C·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 358.664
+            }
+          ]
+        },
+        {
+          "phase": "collaborative",
+          "tasks_total": 120,
+          "completed": 120,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 368899.0,
+          "latency": {
+            "n": 120,
+            "mean": 4138.25,
+            "p50": 3197.14,
+            "p95": 9998.68,
+            "min": 769.58,
+            "max": 13293.04
+          },
+          "retries": 0,
+          "retried_tasks": 0,
+          "retry_ms_total": 0,
+          "exec_ms": 496589.88,
+          "processing_ms": 496589.88,
+          "units": [
+            {
+              "run_id": "run-20260925163249-b7436c",
+              "unit_id": "B·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 12,
+              "concurrency": 1,
+              "first_task_in_s": 1.281,
+              "last_task_in_s": 278.9
+            },
+            {
+              "run_id": "run-20260925163250-a24570",
+              "unit_id": "B·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 347.837
+            },
+            {
+              "run_id": "run-20260925163251-ce3a90",
+              "unit_id": "B·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 4.484,
+              "last_task_in_s": 132.565
+            },
+            {
+              "run_id": "run-20260925163251-f49648",
+              "unit_id": "B·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 351.62
+            },
+            {
+              "run_id": "run-20260925163251-a4f9c7",
+              "unit_id": "C·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 12,
+              "concurrency": 1,
+              "first_task_in_s": 6.429,
+              "last_task_in_s": 287.076
+            },
+            {
+              "run_id": "run-20260925163252-17fe18",
+              "unit_id": "C·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 355.012
+            },
+            {
+              "run_id": "run-20260925163252-438213",
+              "unit_id": "C·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 14.605,
+              "last_task_in_s": 147.106
+            },
+            {
+              "run_id": "run-20260925163253-09a08d",
+              "unit_id": "C·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 359.935
+            }
+          ]
+        }
+      ],
+      "progress": {
+        "collaborative": {
+          "total": 120,
+          "pending": 0,
+          "running": 0,
+          "completed": 120,
+          "failed": 0
+        },
+        "local": {
+          "total": 96,
+          "pending": 0,
+          "running": 0,
+          "completed": 96,
+          "failed": 0
+        }
+      },
+      "runs": [
+        {
+          "run_id": "run-20260925163250-a24570",
+          "phase": "collaborative",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925163252-17fe18",
+          "phase": "collaborative",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925163249-b7436c",
+          "phase": "collaborative",
+          "unit": "B·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 12
+        },
+        {
+          "run_id": "run-20260925163251-a4f9c7",
+          "phase": "collaborative",
+          "unit": "C·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 12
+        },
+        {
+          "run_id": "run-20260925163251-f49648",
+          "phase": "collaborative",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925163253-09a08d",
+          "phase": "collaborative",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925163251-ce3a90",
+          "phase": "collaborative",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 6
+        },
+        {
+          "run_id": "run-20260925163252-438213",
+          "phase": "collaborative",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 6
+        },
+        {
+          "run_id": "run-20260925162639-a3547c",
+          "phase": "local",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925162639-6fae81",
+          "phase": "local",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925162639-89173a",
+          "phase": "local",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925162639-f75d97",
+          "phase": "local",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925162639-bb3fa2",
+          "phase": "local",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 6
+        },
+        {
+          "run_id": "run-20260925162639-89e7c2",
+          "phase": "local",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 6
+        }
+      ],
+      "live": false,
+      "by_kind": [
+        {
+          "kind": "diagnosis",
+          "phase": "collaborative",
+          "ok": 24,
+          "fail": 0,
+          "total": 24,
+          "unit_id": "diagnosis/collaborative",
+          "latency": {
+            "n": 24,
+            "mean": 1096.18,
+            "p50": 1009.45,
+            "p95": 1598.39
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "collaborative",
+          "ok": 36,
+          "fail": 0,
+          "total": 36,
+          "unit_id": "compute/collaborative",
+          "latency": {
+            "n": 36,
+            "mean": 3905.19,
+            "p50": 2503.81,
+            "p95": 10154.4
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "local",
+          "ok": 36,
+          "fail": 0,
+          "total": 36,
+          "unit_id": "compute/local",
+          "latency": {
+            "n": 36,
+            "mean": 5910.35,
+            "p50": 6122.55,
+            "p95": 11086.21
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "collaborative",
+          "ok": 12,
+          "fail": 0,
+          "total": 12,
+          "unit_id": "sync/collaborative",
+          "latency": {
+            "n": 12,
+            "mean": 6335.27,
+            "p50": 6235.64,
+            "p95": 10118.89
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "local",
+          "ok": 12,
+          "fail": 0,
+          "total": 12,
+          "unit_id": "sync/local",
+          "latency": {
+            "n": 12,
+            "mean": 16182.31,
+            "p50": 15870.87,
+            "p95": 20465.43
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "collaborative",
+          "ok": 48,
+          "fail": 0,
+          "total": 48,
+          "unit_id": "routine/collaborative",
+          "latency": {
+            "n": 48,
+            "mean": 5284.82,
+            "p50": 4965.98,
+            "p95": 10294.93
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "local",
+          "ok": 48,
+          "fail": 0,
+          "total": 48,
+          "unit_id": "routine/local",
+          "latency": {
+            "n": 48,
+            "mean": 9664.29,
+            "p50": 8864.45,
+            "p95": 12590.56
+          }
+        }
+      ],
+      "comparison": {
+        "per_kind": [
+          {
+            "kind": "diagnosis",
+            "modes": {
+              "local": {
+                "n": 0,
+                "completed": 0,
+                "total_client_ms": null,
+                "mean": null,
+                "p50": null,
+                "p95": null,
+                "min": null,
+                "max": null,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": null
+              },
+              "collaborative": {
+                "n": 24,
+                "completed": 24,
+                "total_client_ms": 26308.32,
+                "mean": 1096.18,
+                "p50": 1009.45,
+                "p95": 1598.39,
+                "min": 769.58,
+                "max": 1880.15,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 26308.32
+              }
+            },
+            "gain_pct": null
+          },
+          {
+            "kind": "compute",
+            "modes": {
+              "local": {
+                "n": 36,
+                "completed": 36,
+                "total_client_ms": 212772.58,
+                "mean": 5910.35,
+                "p50": 6122.55,
+                "p95": 11086.21,
+                "min": 2826.66,
+                "max": 12339.22,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 212772.58
+              },
+              "collaborative": {
+                "n": 36,
+                "completed": 36,
+                "total_client_ms": 140586.68,
+                "mean": 3905.19,
+                "p50": 2503.81,
+                "p95": 10154.4,
+                "min": 1281.28,
+                "max": 11563.12,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 140586.68
+              }
+            },
+            "gain_pct": 33.93
+          },
+          {
+            "kind": "sync",
+            "modes": {
+              "local": {
+                "n": 12,
+                "completed": 12,
+                "total_client_ms": 194187.67,
+                "mean": 16182.31,
+                "p50": 15870.87,
+                "p95": 20465.43,
+                "min": 11478.0,
+                "max": 22556.28,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 194187.67
+              },
+              "collaborative": {
+                "n": 12,
+                "completed": 12,
+                "total_client_ms": 76023.3,
+                "mean": 6335.27,
+                "p50": 6235.64,
+                "p95": 10118.89,
+                "min": 2342.89,
+                "max": 10398.54,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 76023.3
+              }
+            },
+            "gain_pct": 60.85
+          },
+          {
+            "kind": "routine",
+            "modes": {
+              "local": {
+                "n": 48,
+                "completed": 48,
+                "total_client_ms": 463885.79,
+                "mean": 9664.29,
+                "p50": 8864.45,
+                "p95": 12590.56,
+                "min": 7423.13,
+                "max": 15790.58,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 463885.79
+              },
+              "collaborative": {
+                "n": 48,
+                "completed": 48,
+                "total_client_ms": 253671.57,
+                "mean": 5284.82,
+                "p50": 4965.98,
+                "p95": 10294.93,
+                "min": 2343.27,
+                "max": 13293.04,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 253671.57
+              }
+            },
+            "gain_pct": 45.32
+          }
+        ],
+        "totals": {
+          "local": {
+            "phase": "local",
+            "tasks_total": 96,
+            "completed": 96,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 369545.0,
+            "latency": {
+              "n": 96,
+              "mean": 9071.31,
+              "p50": 8523.15,
+              "p95": 16169.21,
+              "min": 2826.66,
+              "max": 22556.28
+            },
+            "retries": 0,
+            "retried_tasks": 0,
+            "retry_ms_total": 0,
+            "exec_ms": 870846.04,
+            "processing_ms": 870846.04
+          },
+          "collaborative": {
+            "phase": "collaborative",
+            "tasks_total": 120,
+            "completed": 120,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 368899.0,
+            "latency": {
+              "n": 120,
+              "mean": 4138.25,
+              "p50": 3197.14,
+              "p95": 9998.68,
+              "min": 769.58,
+              "max": 13293.04
+            },
+            "retries": 0,
+            "retried_tasks": 0,
+            "retry_ms_total": 0,
+            "exec_ms": 496589.88,
+            "processing_ms": 496589.88
+          }
+        },
+        "overall": {
+          "local_wall_ms": 369545.0,
+          "collaborative_wall_ms": 368899.0,
+          "wall_gain_pct": 0.17,
+          "local_exec_ms": 870846.04,
+          "collaborative_exec_ms": 470281.55,
+          "local_processing_ms": 870846.04,
+          "collaborative_processing_ms": 470281.55,
+          "processing_gain_pct": 46.0,
+          "retries_local": 0,
+          "retries_collaborative": 0,
+          "common_kinds": [
+            "compute",
+            "sync",
+            "routine"
+          ],
+          "collaborative_only_kinds": [
+            "diagnosis"
+          ],
+          "collaborative_only_processing_ms": 26308.32
+        },
+        "criteria": [
+          {
+            "id": "loss",
+            "type": "external",
+            "value": 1.0,
+            "unit": "%",
+            "label": "医院园区与智算中心之间传输丢包率不超过 1%",
+            "source": "测试仪 / 损伤仪（外部仪表实测）",
+            "verdict": "pending",
+            "measured": null,
+            "note": "由 测试仪 / 损伤仪（外部仪表实测） 实测填写，平台不自动判定"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "医疗任务完成率（失败自动重传后）",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 100.0,
+            "measured_retries": 0
+          },
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度总用时较本地调度提升",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 46.0,
+            "measured_wall_gain_pct": 0.17,
+            "note": "判定口径 = 任务处理总用时（Σ 单任务 client_total_ms）；阶段墙钟含固定产生窗口，仅作参考"
+          }
+        ]
+      }
+    },
+    {
+      "plan_run_id": "plan-20260925164753-d40606",
+      "plan_id": "plan-5.5-network",
+      "plan_name": "5.5 医疗智联专网测试",
+      "label": "对照-仅加密负载(参数同大纲)",
+      "status": "completed",
+      "current_phase": null,
+      "error": null,
+      "created_at": "2026-09-25T16:47:53.642+00:00",
+      "started_at": "2026-09-25T16:47:53.654+00:00",
+      "finished_at": "2026-09-25T16:59:56.461+00:00",
+      "strategies": [
+        "local",
+        "collaborative"
+      ],
+      "config": {
+        "plan_id": "plan-5.5-network",
+        "name": "5.5 医疗智联专网测试",
+        "outline_ref": "《测试大纲》§5.5 医疗智联专网测试",
+        "outline_title": "医疗智联专网测试",
+        "test_object": "面向 AI 诊疗的医疗智联专网",
+        "purpose": "验证面向 AI 诊疗的医疗智联专网整体性能",
+        "objective": "端侧医疗设备产生远端医疗大模型调用、患者数据库同步、医疗数据处理、医疗信息远程查询四类医疗任务，验证在新质医疗任务需求下，面向 AI 诊疗的医疗智联专网整体功能和服务能力。",
+        "duration_min": 30,
+        "generate_window_min": 6.0,
+        "devices": [
+          {
+            "id": "B",
+            "name": "微型台式电子计算机B",
+            "source": "clinic-1"
+          },
+          {
+            "id": "C",
+            "name": "微型台式计算机C",
+            "source": "clinic-2"
+          }
+        ],
+        "kinds": [
+          {
+            "kind": "diagnosis",
+            "label": "医疗模型远程调度（诊断）",
+            "outline_name": "远端医疗大模型调用",
+            "per_device": 12,
+            "params": {
+              "patient_cycle": true,
+              "batch": 1
+            },
+            "param_note": "每个任务取 1 位患者（按数据集轮换），与固定套件同口径",
+            "strategies": [
+              "collaborative"
+            ],
+            "strategy_note": "无本地执行策略（医疗中心不能执行模型 server 部分推理）"
+          },
+          {
+            "kind": "compute",
+            "label": "医疗数据处理（算力）",
+            "outline_name": "医疗数据处理",
+            "per_device": 18,
+            "params": {
+              "instruments": 8,
+              "rows": 3072,
+              "intensity": 450,
+              "partition_count": 3
+            },
+            "param_note": "8 器械 × 3072 行 × 强度 450，3 分区",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "sync",
+            "label": "患者数据库同步（通信）",
+            "outline_name": "患者数据库同步",
+            "per_device": 6,
+            "params": {
+              "bandwidth_mbps": 20.0,
+              "concurrency": 4,
+              "chunk_kb": 4
+            },
+            "param_note": "20 Mbps 链路 · 4 并发流 · 4 KB 分块",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          },
+          {
+            "kind": "routine",
+            "label": "医疗信息远程查询（日常）",
+            "outline_name": "医疗信息远程查询",
+            "per_device": 24,
+            "params": {
+              "jobs": 4,
+              "rows": 8192,
+              "intensity": 2400
+            },
+            "param_note": "每次 4 个日常作业，8192 行 × 强度 2400",
+            "strategies": [
+              "local",
+              "collaborative"
+            ],
+            "strategy_note": null
+          }
+        ],
+        "total_tasks_declared": 200,
+        "notes": [
+          "诊断类（远端医疗大模型调用）无本地执行策略：医疗中心不能执行模型 server 部分推理，本地（未调度）阶段不含诊断任务；总用时对比只计入两阶段共有的任务类型。",
+          "大纲操作步骤写「各设备每类50个，共200个医疗任务需求」；按 2 台设备 × 4 类 × 50 个/设备/类 计算为 400 个，与明示的 200 个不一致。本方案取大纲明示的总数 200（25 个/设备/类），前端「自定义实验配置」可改回 50。"
+        ],
+        "strategies": [
+          "local",
+          "collaborative"
+        ],
+        "batch_repeats": 1,
+        "retries": 3,
+        "retry_backoff_s": 0.5,
+        "preconditions": [
+          "医疗智联专网稳定运行",
+          "各 CPE 上电启动正常，并完成相应配置",
+          "各 CPE 接入正常",
+          "测试仪与损伤仪接入正常",
+          "医疗设备配置完成，运作正常"
+        ],
+        "steps": [
+          "以 1000 帧/s 速率从医院园区测试仪持续往智算中心测试仪发送 512 字节大小的数据包，持续三小时。",
+          "在该医院园区和智算中心之间使用损伤仪构建 2 条路径随机丢包各达 10% 的模拟路径受损情况。",
+          "微型台式电子计算机B和C设定各产生四类医疗任务，各设备每类 50 个，共 200 个医疗任务需求，在 10 小时内随机产生。",
+          "检查统计医院园区和智算中心之间传输丢包率。",
+          "12 小时后检查医疗任务完成情况。"
+        ],
+        "criteria": [
+          {
+            "id": "loss",
+            "type": "external",
+            "value": 1.0,
+            "unit": "%",
+            "label": "医院园区与智算中心之间传输丢包率不超过 1%",
+            "source": "测试仪 / 损伤仪（外部仪表实测）"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "医疗任务完成率（失败自动重传后）",
+            "source": "platform"
+          },
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度总用时较本地调度提升",
+            "source": "platform"
+          }
+        ],
+        "attachments": [
+          {
+            "id": "traffic",
+            "name": "测试仪流量注入",
+            "detail": "医院园区测试仪 → 智算中心测试仪：1000 帧/s · 512 字节/包 · 持续 3 小时",
+            "fps": 1000,
+            "packet_bytes": 512,
+            "duration_min": 180,
+            "verified_by": "外部测试仪"
+          },
+          {
+            "id": "impairment",
+            "name": "损伤仪路径受损",
+            "detail": "医院园区 ↔ 智算中心构建 2 条路径，随机丢包各 10%",
+            "paths": 2,
+            "loss_pct": 10.0,
+            "verified_by": "外部损伤仪"
+          }
+        ],
+        "customized": true,
+        "label": "对照-仅加密负载(参数同大纲)"
+      },
+      "total_tasks_per_phase": 120,
+      "phases": [
+        {
+          "phase": "local",
+          "tasks_total": 96,
+          "completed": 96,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 361463.0,
+          "latency": {
+            "n": 96,
+            "mean": 3858.58,
+            "p50": 3868.21,
+            "p95": 10618.53,
+            "min": 562.07,
+            "max": 21889.56
+          },
+          "retries": 0,
+          "retried_tasks": 0,
+          "retry_ms_total": 0,
+          "exec_ms": 370423.71,
+          "processing_ms": 370423.71,
+          "units": [
+            {
+              "run_id": "run-20260925164753-4daf79",
+              "unit_id": "B·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 340.722
+            },
+            {
+              "run_id": "run-20260925164753-319d14",
+              "unit_id": "B·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 24.757,
+              "last_task_in_s": 132.517
+            },
+            {
+              "run_id": "run-20260925164753-cfbc08",
+              "unit_id": "B·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 347.765
+            },
+            {
+              "run_id": "run-20260925164753-e8f4b0",
+              "unit_id": "C·compute",
+              "phase": "local",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 349.614
+            },
+            {
+              "run_id": "run-20260925164753-059c39",
+              "unit_id": "C·sync",
+              "phase": "local",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 38.342,
+              "last_task_in_s": 146.429
+            },
+            {
+              "run_id": "run-20260925164753-146595",
+              "unit_id": "C·routine",
+              "phase": "local",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 356.813
+            }
+          ]
+        },
+        {
+          "phase": "collaborative",
+          "tasks_total": 120,
+          "completed": 120,
+          "failed": 0,
+          "pending": 0,
+          "completion_pct": 100.0,
+          "total_wall_ms": 360398.0,
+          "latency": {
+            "n": 120,
+            "mean": 6666.76,
+            "p50": 4989.49,
+            "p95": 16330.38,
+            "min": 599.48,
+            "max": 20679.97
+          },
+          "retries": 0,
+          "retried_tasks": 0,
+          "retry_ms_total": 0,
+          "exec_ms": 800011.15,
+          "processing_ms": 800011.15,
+          "units": [
+            {
+              "run_id": "run-20260925165355-d72699",
+              "unit_id": "B·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 12,
+              "concurrency": 1,
+              "first_task_in_s": 0.679,
+              "last_task_in_s": 284.833
+            },
+            {
+              "run_id": "run-20260925165355-6ca232",
+              "unit_id": "B·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 341.023
+            },
+            {
+              "run_id": "run-20260925165355-a70c14",
+              "unit_id": "B·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 3.759,
+              "last_task_in_s": 122.313
+            },
+            {
+              "run_id": "run-20260925165355-750afd",
+              "unit_id": "B·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-1",
+              "device": "微型台式电子计算机B",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 349.144
+            },
+            {
+              "run_id": "run-20260925165355-246fa8",
+              "unit_id": "C·diagnosis",
+              "phase": "collaborative",
+              "kind": "diagnosis",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 12,
+              "concurrency": 1,
+              "first_task_in_s": 9.304,
+              "last_task_in_s": 289.533
+            },
+            {
+              "run_id": "run-20260925165356-09096b",
+              "unit_id": "C·compute",
+              "phase": "collaborative",
+              "kind": "compute",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 18,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 354.277
+            },
+            {
+              "run_id": "run-20260925165356-696c39",
+              "unit_id": "C·sync",
+              "phase": "collaborative",
+              "kind": "sync",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 6,
+              "concurrency": 1,
+              "first_task_in_s": 14.759,
+              "last_task_in_s": 156.607
+            },
+            {
+              "run_id": "run-20260925165356-783b47",
+              "unit_id": "C·routine",
+              "phase": "collaborative",
+              "kind": "routine",
+              "source": "clinic-2",
+              "device": "微型台式计算机C",
+              "repeats": 24,
+              "concurrency": 1,
+              "first_task_in_s": 0.0,
+              "last_task_in_s": 358.441
+            }
+          ]
+        }
+      ],
+      "progress": {
+        "collaborative": {
+          "total": 120,
+          "pending": 0,
+          "running": 0,
+          "completed": 120,
+          "failed": 0
+        },
+        "local": {
+          "total": 96,
+          "pending": 0,
+          "running": 0,
+          "completed": 96,
+          "failed": 0
+        }
+      },
+      "runs": [
+        {
+          "run_id": "run-20260925165355-6ca232",
+          "phase": "collaborative",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925165356-09096b",
+          "phase": "collaborative",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925165355-d72699",
+          "phase": "collaborative",
+          "unit": "B·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 12
+        },
+        {
+          "run_id": "run-20260925165355-246fa8",
+          "phase": "collaborative",
+          "unit": "C·diagnosis",
+          "kind": "diagnosis",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 12
+        },
+        {
+          "run_id": "run-20260925165355-750afd",
+          "phase": "collaborative",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925165356-783b47",
+          "phase": "collaborative",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925165355-a70c14",
+          "phase": "collaborative",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 6
+        },
+        {
+          "run_id": "run-20260925165356-696c39",
+          "phase": "collaborative",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 6
+        },
+        {
+          "run_id": "run-20260925164753-4daf79",
+          "phase": "local",
+          "unit": "B·compute",
+          "kind": "compute",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925164753-e8f4b0",
+          "phase": "local",
+          "unit": "C·compute",
+          "kind": "compute",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 18
+        },
+        {
+          "run_id": "run-20260925164753-cfbc08",
+          "phase": "local",
+          "unit": "B·routine",
+          "kind": "routine",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925164753-146595",
+          "phase": "local",
+          "unit": "C·routine",
+          "kind": "routine",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 24
+        },
+        {
+          "run_id": "run-20260925164753-319d14",
+          "phase": "local",
+          "unit": "B·sync",
+          "kind": "sync",
+          "source": "clinic-1",
+          "status": "completed",
+          "repeats": 6
+        },
+        {
+          "run_id": "run-20260925164753-059c39",
+          "phase": "local",
+          "unit": "C·sync",
+          "kind": "sync",
+          "source": "clinic-2",
+          "status": "completed",
+          "repeats": 6
+        }
+      ],
+      "live": false,
+      "by_kind": [
+        {
+          "kind": "diagnosis",
+          "phase": "collaborative",
+          "ok": 24,
+          "fail": 0,
+          "total": 24,
+          "unit_id": "diagnosis/collaborative",
+          "latency": {
+            "n": 24,
+            "mean": 6829.38,
+            "p50": 5415.68,
+            "p95": 15135.51
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "collaborative",
+          "ok": 36,
+          "fail": 0,
+          "total": 36,
+          "unit_id": "compute/collaborative",
+          "latency": {
+            "n": 36,
+            "mean": 5522.12,
+            "p50": 4105.27,
+            "p95": 15143.16
+          }
+        },
+        {
+          "kind": "compute",
+          "phase": "local",
+          "ok": 36,
+          "fail": 0,
+          "total": 36,
+          "unit_id": "compute/local",
+          "latency": {
+            "n": 36,
+            "mean": 776.56,
+            "p50": 665.52,
+            "p95": 1352.86
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "collaborative",
+          "ok": 12,
+          "fail": 0,
+          "total": 12,
+          "unit_id": "sync/collaborative",
+          "latency": {
+            "n": 12,
+            "mean": 12256.97,
+            "p50": 12417.2,
+            "p95": 19920.6
+          }
+        },
+        {
+          "kind": "sync",
+          "phase": "local",
+          "ok": 12,
+          "fail": 0,
+          "total": 12,
+          "unit_id": "sync/local",
+          "latency": {
+            "n": 12,
+            "mean": 11837.2,
+            "p50": 10284.67,
+            "p95": 18691.85
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "collaborative",
+          "ok": 48,
+          "fail": 0,
+          "total": 48,
+          "unit_id": "routine/collaborative",
+          "latency": {
+            "n": 48,
+            "mean": 6046.37,
+            "p50": 4549.87,
+            "p95": 15633.31
+          }
+        },
+        {
+          "kind": "routine",
+          "phase": "local",
+          "ok": 48,
+          "fail": 0,
+          "total": 48,
+          "unit_id": "routine/local",
+          "latency": {
+            "n": 48,
+            "mean": 4175.44,
+            "p50": 4235.79,
+            "p95": 4835.81
+          }
+        }
+      ],
+      "comparison": {
+        "per_kind": [
+          {
+            "kind": "diagnosis",
+            "modes": {
+              "local": {
+                "n": 0,
+                "completed": 0,
+                "total_client_ms": null,
+                "mean": null,
+                "p50": null,
+                "p95": null,
+                "min": null,
+                "max": null,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": null
+              },
+              "collaborative": {
+                "n": 24,
+                "completed": 24,
+                "total_client_ms": 163905.09,
+                "mean": 6829.38,
+                "p50": 5415.68,
+                "p95": 15135.51,
+                "min": 1545.61,
+                "max": 16324.19,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 163905.09
+              }
+            },
+            "gain_pct": null
+          },
+          {
+            "kind": "compute",
+            "modes": {
+              "local": {
+                "n": 36,
+                "completed": 36,
+                "total_client_ms": 27956.19,
+                "mean": 776.56,
+                "p50": 665.52,
+                "p95": 1352.86,
+                "min": 562.07,
+                "max": 1386.24,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 27956.19
+              },
+              "collaborative": {
+                "n": 36,
+                "completed": 36,
+                "total_client_ms": 198796.45,
+                "mean": 5522.12,
+                "p50": 4105.27,
+                "p95": 15143.16,
+                "min": 599.48,
+                "max": 16204.88,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 198796.45
+              }
+            },
+            "gain_pct": -611.1
+          },
+          {
+            "kind": "sync",
+            "modes": {
+              "local": {
+                "n": 12,
+                "completed": 12,
+                "total_client_ms": 142046.37,
+                "mean": 11837.2,
+                "p50": 10284.67,
+                "p95": 18691.85,
+                "min": 8049.25,
+                "max": 21889.56,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 142046.37
+              },
+              "collaborative": {
+                "n": 12,
+                "completed": 12,
+                "total_client_ms": 147083.68,
+                "mean": 12256.97,
+                "p50": 12417.2,
+                "p95": 19920.6,
+                "min": 2490.49,
+                "max": 20533.25,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 147083.68
+              }
+            },
+            "gain_pct": -3.55
+          },
+          {
+            "kind": "routine",
+            "modes": {
+              "local": {
+                "n": 48,
+                "completed": 48,
+                "total_client_ms": 200421.14,
+                "mean": 4175.44,
+                "p50": 4235.79,
+                "p95": 4835.81,
+                "min": 3777.83,
+                "max": 5616.08,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 200421.14
+              },
+              "collaborative": {
+                "n": 48,
+                "completed": 48,
+                "total_client_ms": 290225.93,
+                "mean": 6046.37,
+                "p50": 4549.87,
+                "p95": 15633.31,
+                "min": 1175.62,
+                "max": 20679.97,
+                "retries": 0,
+                "retried_tasks": 0,
+                "retry_ms_total": 0,
+                "processing_ms": 290225.93
+              }
+            },
+            "gain_pct": -44.81
+          }
+        ],
+        "totals": {
+          "local": {
+            "phase": "local",
+            "tasks_total": 96,
+            "completed": 96,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 361463.0,
+            "latency": {
+              "n": 96,
+              "mean": 3858.58,
+              "p50": 3868.21,
+              "p95": 10618.53,
+              "min": 562.07,
+              "max": 21889.56
+            },
+            "retries": 0,
+            "retried_tasks": 0,
+            "retry_ms_total": 0,
+            "exec_ms": 370423.71,
+            "processing_ms": 370423.71
+          },
+          "collaborative": {
+            "phase": "collaborative",
+            "tasks_total": 120,
+            "completed": 120,
+            "failed": 0,
+            "pending": 0,
+            "completion_pct": 100.0,
+            "total_wall_ms": 360398.0,
+            "latency": {
+              "n": 120,
+              "mean": 6666.76,
+              "p50": 4989.49,
+              "p95": 16330.38,
+              "min": 599.48,
+              "max": 20679.97
+            },
+            "retries": 0,
+            "retried_tasks": 0,
+            "retry_ms_total": 0,
+            "exec_ms": 800011.15,
+            "processing_ms": 800011.15
+          }
+        },
+        "overall": {
+          "local_wall_ms": 361463.0,
+          "collaborative_wall_ms": 360398.0,
+          "wall_gain_pct": 0.29,
+          "local_exec_ms": 370423.7,
+          "collaborative_exec_ms": 636106.06,
+          "local_processing_ms": 370423.7,
+          "collaborative_processing_ms": 636106.06,
+          "processing_gain_pct": -71.72,
+          "retries_local": 0,
+          "retries_collaborative": 0,
+          "common_kinds": [
+            "compute",
+            "sync",
+            "routine"
+          ],
+          "collaborative_only_kinds": [
+            "diagnosis"
+          ],
+          "collaborative_only_processing_ms": 163905.09
+        },
+        "criteria": [
+          {
+            "id": "loss",
+            "type": "external",
+            "value": 1.0,
+            "unit": "%",
+            "label": "医院园区与智算中心之间传输丢包率不超过 1%",
+            "source": "测试仪 / 损伤仪（外部仪表实测）",
+            "verdict": "pending",
+            "measured": null,
+            "note": "由 测试仪 / 损伤仪（外部仪表实测） 实测填写，平台不自动判定"
+          },
+          {
+            "id": "completion",
+            "type": "complete_gte",
+            "value": 100.0,
+            "unit": "%",
+            "label": "医疗任务完成率（失败自动重传后）",
+            "source": "platform",
+            "verdict": "pass",
+            "measured": 100.0,
+            "measured_retries": 0
+          },
+          {
+            "id": "gain",
+            "type": "gain_gt",
+            "value": 0.0,
+            "unit": "%",
+            "label": "协同调度总用时较本地调度提升",
+            "source": "platform",
+            "verdict": "fail",
+            "measured": -71.72,
+            "measured_wall_gain_pct": 0.29,
+            "note": "判定口径 = 任务处理总用时（Σ 单任务 client_total_ms）；阶段墙钟含固定产生窗口，仅作参考"
+          }
+        ]
+      }
+    }
+  ]
+}

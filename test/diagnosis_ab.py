@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""诊断类「协同 vs 本地」的脱站点对照（不经过 benchmark-site）。
+"""诊断类协同路径的脱站点计时（不经过 benchmark-site）。
 
 目的：把**测量工具本身**从链路上拿掉，判断协同路径的长尾停顿是架构固有的、
 还是站点（单进程 + SQLite + 轮询）引入的。
 
-两条路径都直接打真实接口：
-  本地：站点角色 → 医院 Pod `/local/execute`（整批一次请求，Pod 串行跑完整模型）
+**v3.14 起诊断没有本地执行策略**（医疗中心不能执行模型 server 半段），因此本脚本
+只剩协同臂，不再做"协同 vs 本地"对照：
   协同：调度器 `/schedule/diagnosis {deliver:"direct"}` 拿执行计划
-        → 按分片**直投执行者**（医院 `/medical/infer_full`、数据中心 `/infer_full`）
+        → 按分片**直投执行者**（医院 `/medical/infer_forward`：前端就地 → 云端后端；
+          数据中心 `/infer_full`：整段执行）
         → `/task/{id}/report` 回传记账
 
 用法：
@@ -90,21 +91,6 @@ def payloads(pids):
     return items
 
 
-def run_local(hospital, pids, repeats):
-    items = payloads(pids)
-    lats = []
-    for i in range(repeats):
-        body = {"task_id": f"ab-local-{int(time.time()*1000)}-{i}", "kind": "diagnosis",
-                "source": "hospital-a", "params": {"patient_ids": pids},
-                "input": {"batch": items}}
-        t0 = time.perf_counter()
-        res = http(hospital + "/local/execute", body)
-        lats.append((time.perf_counter() - t0) * 1000)
-        if res.get("status") != "completed":
-            print("    本地执行失败:", str(res.get("error"))[:120])
-    return lats
-
-
 def run_collab(scheduler, pids, repeats):
     items = {it["patient_id"]: it for it in payloads(pids)}
     lats = []
@@ -156,7 +142,6 @@ def stat(vals):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scheduler", default="http://localhost:30080")
-    ap.add_argument("--hospital", default="http://10.50.126.210:8006")
     ap.add_argument("--batches", default="2,4,8")
     ap.add_argument("--repeats", type=int, default=5)
     ap.add_argument("--no-rewrite", action="store_true",
@@ -168,19 +153,19 @@ def main() -> int:
     batches = [int(x) for x in args.batches.split(",")]
 
     print("=" * 78)
-    print("诊断脱站点对照（不经过 benchmark-site）")
+    print("诊断协同路径脱站点计时（不经过 benchmark-site）")
+    print("诊断没有本地执行策略（医疗中心不能执行模型 server 半段），故无本地臂")
     print("=" * 78)
-    print(f"{'批量':>4s} {'本地 mean':>10s} {'本地 p50':>9s} | "
-          f"{'协同 mean':>10s} {'协同 p50':>9s} | {'差值(mean)':>10s} {'差值(p50)':>10s}")
+    print(f"{'批量':>4s} {'协同 mean':>12s} {'协同 p50':>10s} {'协同 max':>10s} "
+          f"{'样本':>5s}")
     for n in batches:
         pids = allp[:n]
-        l = stat(run_local(args.hospital, pids, args.repeats))
         c = stat(run_collab(args.scheduler, pids, args.repeats))
-        g = (l["mean"] - c["mean"]) / l["mean"] * 100 if l and c else 0
-        gp = (l["p50"] - c["p50"]) / l["p50"] * 100 if l and c else 0
-        print(f"{n:>4d} {l.get('mean', 0):>10.0f} {l.get('p50', 0):>9.0f} | "
-              f"{c.get('mean', 0):>10.0f} {c.get('p50', 0):>9.0f} | "
-              f"{g:>9.1f}% {gp:>9.1f}%")
+        if not c:
+            print(f"{n:>4d} {'—':>12s} {'—':>10s} {'—':>10s} {0:>5d}")
+            continue
+        print(f"{n:>4d} {c.get('mean', 0):>12.0f} {c.get('p50', 0):>10.0f} "
+              f"{c.get('max', 0):>10.0f} {c.get('n', 0):>5d}")
     return 0
 
 

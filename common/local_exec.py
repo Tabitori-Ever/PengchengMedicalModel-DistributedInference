@@ -8,9 +8,10 @@ lacks the capability:
   * compute   - the pod runs every partition itself (no peer, no data center)
   * sync      - the pod drives the same P2P pull -> cloud upload -> backup flow
   * routine   - the pod runs the jobs inline (no short-lived Kubernetes Jobs)
-  * diagnosis - a hospital runs the *full* DoubleTower end to end on itself;
-                a clinic has no model, so it forwards one hop to the nearest
-                hospital which then runs it locally (capability=forward)
+  * diagnosis - **no local execution strategy**: the server half (layer4 +
+                fusion + classifier) only runs in the data center, so neither a
+                hospital (front half only) nor a clinic can complete a diagnosis
+                on its own - both must go through the collaborative path
 
 This module gives both edge images the shared pieces:
   * http_json      - stdlib-only HTTP (the images have no `requests` dependency
@@ -18,12 +19,13 @@ This module gives both edge images the shared pieces:
   * ResultStore    - durable per-task result envelopes (hostPath JSON + memory)
   * LocalQueue     - bounded background worker queue: long local work must never
                      block the request thread or the health probes
-  * run_compute / run_sync / run_routine / forward_diagnosis
+  * run_compute / run_sync / run_routine / forward_diagnosis (总是拒绝诊断)
   * envelope helpers so *every* mode (collaborative / local / degraded) reports
     the same result schema and the same decomposed metrics
 
-Nothing here imports torch or numpy: the hospital image adds the full-model
-diagnosis function from its own module and hands it to `dispatch`.
+Nothing here imports torch or numpy: the hospital image keeps only the front
+half of the model. `dispatch` still accepts an optional `diagnosis_fn` so
+offline tests can inject a stub, but no production path supplies one.
 """
 from __future__ import annotations
 
@@ -92,16 +94,17 @@ def pod_name() -> str:
 def capabilities(kind: Optional[str] = None) -> Dict[str, str]:
     """Self-reported capability per task type.
 
-    hospital: full DoubleTower lives in the image -> diagnosis can be done
-              locally end to end.
-    clinic:   no PyTorch / no weights -> diagnosis is forwarded to the nearest
-              hospital, everything else runs locally.
+    hospital: only the DoubleTower front half lives in the image; the server
+              half (layer4 + fusion + classifier) runs in the data center, so
+              diagnosis has no local execution strategy.
+    clinic:   no PyTorch / no weights -> diagnosis is likewise unsupported
+              (a clinic forwarded to a hospital still cannot finish it).
     """
     kind = kind or entity_kind()
     if kind == "hospital":
-        return {"diagnosis": "local_full", "compute": "local",
+        return {"diagnosis": "unsupported", "compute": "local",
                 "sync": "local", "routine": "local"}
-    return {"diagnosis": "forward", "compute": "local",
+    return {"diagnosis": "unsupported", "compute": "local",
             "sync": "local", "routine": "local"}
 
 
@@ -687,50 +690,24 @@ def run_routine(task_id: str, params: dict, *, degraded: bool = False,
                              "network_ms_total": 0.0})
 
 
+# 诊断没有本地执行策略：医疗中心（医院）只能跑模型前端，后段（layer4 + 融合 +
+# 分类器）只有数据中心的 medical-server 能跑。因此「就地完整诊断」不成立，
+# 医院 /local/* 与诊所转诊都必须拒绝，统一报同一条中文原因。
+DIAGNOSIS_NO_LOCAL_EXEC = (
+    "诊断任务没有本地执行策略：医疗中心无法执行模型的 server 半段"
+    "（layer4 + 融合 + 分类器），诊断必须经数据中心完成云边端协同推理")
+
+
 def forward_diagnosis(task_id: str, params: dict, inp: dict, *,
                       degraded: bool = False,
                       degrade_reason: Optional[str] = None,
                       mode_requested: str = "local") -> dict:
-    """Clinic-side local diagnosis: this pod drives the pipeline itself but has
-    no model, so it takes the shortest hop - the nearest hospital runs the full
-    model locally (capability=forward, honest labelling for the comparison)."""
-    ent, node = entity_name(), node_name()
-    created = now_iso()
-    target = params.get("target_hospital") if params else None
-    if target not in HOSPITALS:
-        target = nearest_hospital(node)
-    url = ENTITY_URLS.get(target)
-    if not url:
-        raise RuntimeError(f"找不到目标医院 {target} 的服务地址")
+    """诊所侧诊断：不再转诊最近医院就地跑完整模型，直接拒绝。
 
-    t0 = time.perf_counter()
-    remote = http_json(url + "/local/diagnosis",
-                       {"task_id": task_id, "input": inp,
-                        "params": params or {}, "degraded": degraded,
-                        "degrade_reason": degrade_reason,
-                        "source": ent}, timeout=DEFAULT_TIMEOUT)
-    rtt = (time.perf_counter() - t0) * 1000
-    rmetrics = (remote or {}).get("metrics") or {}
-    hosp_pipeline = float(rmetrics.get("pipeline_total_ms") or 0.0)
-    network = max(0.0, rtt - hosp_pipeline)
-    detail = dict((remote or {}).get("result_detail") or {})
-    detail.update({"forwarded_to": target, "capability": "forward",
-                   "self_orchestrated": True,
-                   "hospital_pipeline_ms": round(hosp_pipeline, 2)})
-    stages = [stage("forward", ent, node, rtt,
-                    detail=f"本机编排 → {target} 就近医院就地执行",
-                    compute_ms=hosp_pipeline, network_ms=network)]
-    for s in (remote or {}).get("stages") or []:
-        stages.append(dict(s, name=f"{target}:{s.get('name')}"))
-    return envelope(task_id, "diagnosis", mode="local",
-                    mode_requested=mode_requested, degraded=degraded,
-                    degrade_reason=degrade_reason, orchestrator="pod",
-                    executor=target, stages=stages, created_at=created,
-                    result_detail=detail,
-                    metrics={"pipeline_total_ms": rtt,
-                             "compute_ms_total": float(
-                                 rmetrics.get("compute_ms_total") or hosp_pipeline),
-                             "network_ms_total": network})
+    v3.14 修正：医院镜像只保留 DoubleTower 前端，转诊到医院也无法完成诊断，
+    所谓 capability=forward 的本地路径不成立。诊断只能走数据中心协同。
+    """
+    raise ValueError(DIAGNOSIS_NO_LOCAL_EXEC)
 
 
 # --------------------------------------------------------------------------
@@ -743,8 +720,9 @@ def dispatch(kind: str, task_id: str, params: dict, inp: Optional[dict] = None, 
              degraded: bool = False, degrade_reason: Optional[str] = None,
              mode_requested: str = "local",
              diagnosis_fn: Optional[Callable[..., dict]] = None) -> dict:
-    """Run one task locally. `diagnosis_fn` is supplied by the hospital image
-    (full DoubleTower) - a clinic uses `forward_diagnosis` instead."""
+    """Run one task locally. `diagnosis_fn` is only an offline-test injection
+    point: no production image supplies one any more, and without it a
+    diagnosis is refused (there is no local execution strategy)."""
     params = params or {}
     if kind == "compute":
         return run_compute(task_id, params, degraded=degraded,
@@ -806,6 +784,11 @@ def run_local_request(kind: str, task_id: str, params: dict, inp: Optional[dict]
     """
     if kind not in LOCAL_KINDS:
         raise ValueError(f"未知任务类型: {kind}（可选 {', '.join(LOCAL_KINDS)}）")
+
+    # 诊断没有本地执行策略：没有显式注入 diagnosis_fn（仅离线测试会注入）时，
+    # 立刻拒绝，让 /local/execute 返回 400 而不是排队去跑一个不可能的完整模型。
+    if kind == "diagnosis" and diagnosis_fn is None:
+        raise ValueError(DIAGNOSIS_NO_LOCAL_EXEC)
 
     cached = store.get(task_id)
     if cached is not None and cached.get("status") in ("completed", "failed"):

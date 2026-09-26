@@ -30,6 +30,10 @@ KIND_META: Dict[str, Dict[str, Any]] = {
         "params": {"patient_cycle": True, "batch": 1},
         "param_note": "每个任务取 1 位患者（按数据集轮换），与固定套件同口径",
         "source_hint": "clinic",
+        # 医疗中心不能执行模型 server 部分推理 → 诊断**没有本地执行策略**，
+        # 只能走云边端协同；本地阶段不含此类任务。
+        "strategies": ["collaborative"],
+        "strategy_note": "无本地执行策略（医疗中心不能执行模型 server 部分推理）",
     },
     "compute": {
         "label": "医疗数据处理（算力）",
@@ -38,6 +42,7 @@ KIND_META: Dict[str, Dict[str, Any]] = {
                    "partition_count": 3},
         "param_note": "8 器械 × 3072 行 × 强度 450，3 分区",
         "source_hint": "clinic",
+        "strategies": ["local", "collaborative"],
     },
     "sync": {
         "label": "患者数据库同步（通信）",
@@ -45,6 +50,7 @@ KIND_META: Dict[str, Dict[str, Any]] = {
         "params": {"bandwidth_mbps": 20.0, "concurrency": 4, "chunk_kb": 4},
         "param_note": "20 Mbps 链路 · 4 并发流 · 4 KB 分块",
         "source_hint": "clinic",
+        "strategies": ["local", "collaborative"],
     },
     "routine": {
         "label": "医疗信息远程查询（日常）",
@@ -52,10 +58,25 @@ KIND_META: Dict[str, Dict[str, Any]] = {
         "params": {"jobs": 4, "rows": 8192, "intensity": 2400},
         "param_note": "每次 4 个日常作业，8192 行 × 强度 2400",
         "source_hint": "clinic",
+        "strategies": ["local", "collaborative"],
     },
 }
 
 KIND_ORDER: List[str] = ["diagnosis", "compute", "sync", "routine"]
+
+# --------------------------------------------------------------------------- #
+# 任务数上限（容错，静默截断——不做任何提示）
+#
+# 为什么必须有上限：方案运行的任务数是由用户输入的，而 run 级校验的 MAX_REPEATS
+# 对方案子 run 不生效。任务数过大时有两个真实故障：
+#   ① 崩溃风险：每个任务一行 attempts，10 万级任务会把 SQLite 与内存打爆；
+#   ② 静默算错：阶段/逐类统计的查询带 limit=20000，超过就被截断，
+#      报出来的均值/总量是错的（比崩溃更危险，因为看不出来）。
+# 因此既截输入、也截总数，保证任何输入都落在"能跑完且算得准"的范围内。
+# --------------------------------------------------------------------------- #
+MAX_TASKS_PER_UNIT = 1000   # 单个「设备 × 任务类型」可输入的任务数上限
+MAX_TASKS_PER_PHASE = 1000  # 每阶段任务总数上限；超出按比例压缩到该值
+MAX_DEVICES = 8             # 发起设备数上限
 
 # 平台侧可自动判定的标准类型：
 #   gain_gt     协同相对本地"总用时"的提速百分比须 > value
@@ -77,6 +98,8 @@ def _kinds(per_device: int, overrides: Optional[Dict[str, Dict[str, Any]]] = Non
             "per_device": int(overrides.get(kind, {}).get("per_device", per_device)),
             "params": {**meta["params"], **overrides.get(kind, {}).get("params", {})},
             "param_note": meta["param_note"],
+            "strategies": list(meta.get("strategies") or ["local", "collaborative"]),
+            "strategy_note": meta.get("strategy_note"),
         })
     return out
 
@@ -113,6 +136,10 @@ PLAN_COLLAB: Dict[str, Any] = {
     # 任务保障：失败自动重传（不含首次的额度）
     "retries": 3,
     "retry_backoff_s": 0.5,
+    "notes": [
+        "诊断类（远端医疗大模型调用）无本地执行策略：医疗中心不能执行模型 server 部分推理，"
+        "本地（未调度）阶段不含诊断任务；总用时对比只计入两阶段共有的任务类型。",
+    ],
     "preconditions": [
         "医疗智联专网稳定运行",
         "云边端协同调度控制系统运作正常",
@@ -157,6 +184,8 @@ PLAN_NETWORK: Dict[str, Any] = {
     "kinds": _kinds(25),
     "total_tasks_declared": 200,
     "notes": [
+        "诊断类（远端医疗大模型调用）无本地执行策略：医疗中心不能执行模型 server 部分推理，"
+        "本地（未调度）阶段不含诊断任务；总用时对比只计入两阶段共有的任务类型。",
         "大纲操作步骤写「各设备每类50个，共200个医疗任务需求」；"
         "按 2 台设备 × 4 类 × 50 个/设备/类 计算为 400 个，与明示的 200 个不一致。"
         "本方案取大纲明示的总数 200（25 个/设备/类），前端「自定义实验配置」可改回 50。",
@@ -210,9 +239,13 @@ PLAN_ORDER: List[str] = [PLAN_COLLAB["plan_id"], PLAN_NETWORK["plan_id"]]
 # --------------------------------------------------------------------------- #
 # 展开 / 校验
 # --------------------------------------------------------------------------- #
-def plan_total_tasks(plan: Dict[str, Any]) -> int:
-    per_device = sum(int(k.get("per_device") or 0) for k in plan.get("kinds") or [])
-    return per_device * len(plan.get("devices") or [])
+def plan_total_tasks(plan: Dict[str, Any], phase: Optional[str] = None) -> int:
+    """一阶段的任务总数——必须与 expand_units() 实际展开的一致（含上限截断），
+    否则界面显示的任务数与真正下发的数量对不上。
+
+    `phase=None` 表示"类型最全的那个阶段"（协同阶段），用于对外展示任务总数。
+    """
+    return sum(int(u["repeats"]) for u in expand_units(plan, phase))
 
 
 def get_plan(plan_id: str) -> Dict[str, Any]:
@@ -239,7 +272,7 @@ def apply_overrides(plan: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str
                             "name": str(d.get("name") or d["source"]),
                             "source": str(d["source"])})
         if devices:
-            out["devices"] = devices
+            out["devices"] = devices[:MAX_DEVICES]
 
     if isinstance(ov.get("kinds"), (dict, list)):
         patch: Dict[str, Dict[str, Any]] = {}
@@ -249,6 +282,9 @@ def apply_overrides(plan: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str
             if kind in KIND_META and isinstance(spec, dict):
                 patch[str(kind)] = spec
         out["kinds"] = _kinds(int(plan["kinds"][0]["per_device"]), patch)
+        for spec in out["kinds"]:      # 单类输入上限（静默截断）
+            spec["per_device"] = max(0, min(MAX_TASKS_PER_UNIT,
+                                            int(spec.get("per_device") or 0)))
 
     # 产生窗口按分钟可以是小数（自定义时常用秒级窗口做缩比验证）
     if ov.get("generate_window_min") is not None:
@@ -284,14 +320,19 @@ def apply_overrides(plan: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str
     return out
 
 
-def expand_units(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
+def expand_units(plan: Dict[str, Any],
+                 phase: Optional[str] = None) -> List[Dict[str, Any]]:
     """方案 → 执行单元列表：一台设备 × 一类任务 = 一个子 run。
 
-    每个单元有自己的任务数与参数；`repeats` 即该单元要产生的任务个数。
+    `phase` 给定时只返回该阶段适用的单元——诊断类没有本地执行策略，
+    因此本地阶段不会出现诊断单元。
     """
     units: List[Dict[str, Any]] = []
-    for device in plan.get("devices") or []:
+    for device in (plan.get("devices") or [])[:MAX_DEVICES]:
         for spec in plan.get("kinds") or []:
+            if phase and phase not in (spec.get("strategies")
+                                       or ["local", "collaborative"]):
+                continue
             count = int(spec.get("per_device") or 0)
             if count <= 0:
                 continue
@@ -302,10 +343,38 @@ def expand_units(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "source": device["source"],
                 "kind": spec["kind"],
                 "label": spec.get("label") or spec["kind"],
-                "repeats": count,
+                "repeats": min(count, MAX_TASKS_PER_UNIT),
                 "params": dict(spec.get("params") or {}),
+                "strategies": list(spec.get("strategies")
+                                   or ["local", "collaborative"]),
             })
+    _apply_phase_budget(units)
     return units
+
+
+def _apply_phase_budget(units: List[Dict[str, Any]]) -> None:
+    """把一阶段的任务总数压到 MAX_TASKS_PER_PHASE（原地修改，静默）。
+
+    按比例压缩而不是直接砍掉尾部单元——否则某个任务类型会整类消失，
+    方案就不再覆盖四类任务了。每个单元至少保留 1 个任务。
+    """
+    total = sum(int(u["repeats"]) for u in units)
+    if total <= MAX_TASKS_PER_PHASE or not units:
+        return
+    scale = MAX_TASKS_PER_PHASE / float(total)
+    for u in units:
+        u["repeats"] = max(1, int(int(u["repeats"]) * scale))
+    # 取整后可能与上限有偏差：按序补齐 / 从最大的单元削减
+    while sum(int(u["repeats"]) for u in units) < MAX_TASKS_PER_PHASE:
+        for u in units:
+            if sum(int(x["repeats"]) for x in units) >= MAX_TASKS_PER_PHASE:
+                break
+            u["repeats"] = int(u["repeats"]) + 1
+    while sum(int(u["repeats"]) for u in units) > MAX_TASKS_PER_PHASE:
+        biggest = max(units, key=lambda u: int(u["repeats"]))
+        if int(biggest["repeats"]) <= 1:
+            break
+        biggest["repeats"] = int(biggest["repeats"]) - 1
 
 
 def validate_plan(plan: Dict[str, Any]) -> List[str]:
@@ -333,6 +402,14 @@ def catalog_entry(plan: Dict[str, Any]) -> Dict[str, Any]:
         "kind_count": len(KIND_ORDER),
         "device_count": len(plan.get("devices") or []),
         "per_device_per_kind": (plan["kinds"][0]["per_device"] if plan.get("kinds") else 0),
+        "tasks_per_phase": {ph: plan_total_tasks(plan, ph)
+                            for ph in ("local", "collaborative")},
+        "collaborative_only_kinds": [
+            k["kind"] for k in plan.get("kinds") or []
+            if "local" not in (k.get("strategies") or ["local", "collaborative"])],
+        "common_kinds": [
+            k["kind"] for k in plan.get("kinds") or []
+            if "local" in (k.get("strategies") or ["local", "collaborative"])],
         "criteria_types": sorted({c["type"] for c in plan.get("criteria") or []}),
     }
 

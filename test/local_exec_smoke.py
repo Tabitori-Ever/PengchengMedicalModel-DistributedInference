@@ -3,7 +3,7 @@
 
 对边缘 Pod 的 /local/* 接口做端到端校验：
   1. 医院就地完整模型诊断 —— 必须与协同路径（前端+云后端）的 bpCR 一致；
-  2. 诊所自助转诊诊断（capability=forward）；
+  2. 诊断的本地执行必须被拒绝（capability=unsupported，医疗中心无 server 半段）；
   3. 本机串行分区计算 / 内联日常作业 / 自编排通信同步；
   4. 结果回查、幂等、队列与能力声明。
 
@@ -97,58 +97,39 @@ def main() -> int:
     ch = http(C + "/local/health")
     check("医院 /local/health", hh.get("entity") is not None, json.dumps(hh.get("capabilities", {}), ensure_ascii=False))
     check("诊所 /local/health", ch.get("entity") is not None, json.dumps(ch.get("capabilities", {}), ensure_ascii=False))
-    check("医院声明 diagnosis=local_full",
-          (hh.get("capabilities") or {}).get("diagnosis") == "local_full")
-    check("诊所声明 diagnosis=forward",
-          (ch.get("capabilities") or {}).get("diagnosis") == "forward")
+    check("医院声明 diagnosis=unsupported（医疗中心不能执行 server 半段）",
+          (hh.get("capabilities") or {}).get("diagnosis") == "unsupported")
+    check("诊所声明 diagnosis=unsupported",
+          (ch.get("capabilities") or {}).get("diagnosis") == "unsupported")
     check("结果目录可写", bool((hh.get("local_mode") or {}).get("results_store", {}).get("writable")))
     print(f"    调度器探测: 医院={hh.get('scheduler', {}).get('reachable')} "
           f"({hh.get('scheduler', {}).get('checked_ms')}ms)")
 
     inp = patient_input(args.patient)
 
-    # ------------------------------------------------- hospital local (full)
-    print(f"\n[2] 医院就地完整模型诊断（患者 {args.patient}）")
-    t0 = time.perf_counter()
+    # ------------------------------------- hospital local diagnosis (refused)
+    print(f"\n[2] 医院就地诊断必须被拒绝（医疗中心不能执行模型 server 半段）")
     r = http(H + "/local/execute", {
         "task_id": f"smoke-h-{tag}", "kind": "diagnosis", "source": "hospital-a",
         "input": inp, "params": {"patient_id": args.patient}})
-    wall_h = (time.perf_counter() - t0) * 1000
-    if "_error" in r or "_http_error" in r:
-        check("医院本地诊断返回结果", False, json.dumps(r, ensure_ascii=False)[:200])
-        bpcr_h = None
-    else:
-        check("医院本地诊断完成", r.get("status") == "completed", summarize(r))
-        bpcr_h = (r.get("result_detail") or {}).get("bpCR_probability")
-        check("返回 bpCR", bpcr_h is not None, f"bpCR={bpcr_h} 客户端墙钟={wall_h:.0f}ms")
-        if args.expect_bpcr is not None and bpcr_h is not None:
-            d = abs(bpcr_h - args.expect_bpcr)
-            check("与协同路径 bpCR 一致(±1e-3)", d < 1e-3,
-                  f"local={bpcr_h} collab={args.expect_bpcr} Δ={d:.6f}")
-        check("阶段只有本机一跳", len(r.get("stages") or []) == 1,
-              json.dumps(r.get("stages"), ensure_ascii=False)[:160])
-        check("无跨节点特征传输(compute=network 口径)",
-              float((r.get("metrics") or {}).get("network_ms_total", -1)) == 0.0)
+    rejected = ("_error" in r or "_http_error" in r
+                or str(r.get("status")) in ("failed", "rejected"))
+    check("医院本地诊断被拒绝", rejected, json.dumps(r, ensure_ascii=False)[:200])
+    # /medical/infer_full（医院整段执行）也必须拒绝
+    rf = http(H + "/medical/infer_full", {
+        "patient_id": args.patient, "input": inp, "task_id": f"smoke-hf-{tag}"})
+    check("医院 /medical/infer_full 被拒绝",
+          ("_error" in rf or "_http_error" in rf), json.dumps(rf, ensure_ascii=False)[:200])
+    bpcr_h = None
 
-    # ------------------------------------------------ clinic local (forward)
-    print(f"\n[3] 诊所本地执行诊断（无模型 → 自助转诊最近医院）")
-    t0 = time.perf_counter()
+    # ------------------------------------- clinic local diagnosis (refused)
+    print(f"\n[3] 诊所本地诊断也必须被拒绝（转诊到医院也完不成 server 半段）")
     r2 = http(C + "/local/execute", {
         "task_id": f"smoke-c-{tag}", "kind": "diagnosis", "source": "clinic-1",
         "input": inp, "params": {"patient_id": args.patient}})
-    wall_c = (time.perf_counter() - t0) * 1000
-    if "_error" in r2 or "_http_error" in r2:
-        check("诊所本地诊断返回结果", False, json.dumps(r2, ensure_ascii=False)[:200])
-    else:
-        check("诊所本地诊断完成", r2.get("status") == "completed", summarize(r2))
-        rd = r2.get("result_detail") or {}
-        check("标注转诊目标", rd.get("forwarded_to") in ("hospital-a", "hospital-b"),
-              f"forwarded_to={rd.get('forwarded_to')} capability={rd.get('capability')}")
-        bpcr_c = rd.get("bpCR_probability")
-        if bpcr_h is not None:
-            check("与医院本地结果一致", bpcr_c == bpcr_h,
-                  f"clinic={bpcr_c} hospital={bpcr_h}")
-        print(f"    客户端墙钟={wall_c:.0f}ms")
+    rejected_c = ("_error" in r2 or "_http_error" in r2
+                  or str(r2.get("status")) in ("failed", "rejected"))
+    check("诊所本地诊断被拒绝", rejected_c, json.dumps(r2, ensure_ascii=False)[:200])
 
     # ------------------------------------------------------- local compute
     print("\n[4] 本机串行分区计算（4 仪器 / 256 行 / 强度 40 / 3 分区, seed=11）")

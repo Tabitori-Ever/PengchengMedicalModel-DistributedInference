@@ -13,7 +13,6 @@ import json
 import os
 import struct
 import sys
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 import urllib.request
@@ -82,14 +81,13 @@ class DoubleTowerWorkerFront(nn.Module):
 
 worker_front = None
 medical_loaded = False
-# v3.2: the *complete* DoubleTower is kept resident so this pod can also run the
-# whole diagnosis locally (local execution / scheduler degradation). The image
-# already ships the full state_dict - previously only the front half was used.
-FULL_MODEL = None
+# v3.14: 医疗中心只能执行模型前端。完整 DoubleTower 不再常驻本 Pod：后段
+# （layer4 + 融合 + 分类器）只有数据中心 medical-server 能执行，因此诊断没有
+# 本地执行策略，本 Pod 只保留前端子模块 worker_front。
 
 
 def load_medical_model():
-    global worker_front, medical_loaded, FULL_MODEL
+    global worker_front, medical_loaded
     full_model = DoubleTower(in_channel=1, clinical_dim=23, rad_dim=2264,
                              d_model=256, dropout_rate=0.25, num_classes=2,
                              weights_path=None, focal_alpha=[0.7, 0.3],
@@ -100,11 +98,14 @@ def load_medical_model():
         sd = {k[len("module."):]: v for k, v in sd.items()}
     full_model.load_state_dict(sd, strict=True)
     full_model.eval()
+    # 只把前端子模块挂到 worker_front；full_model 出栈后，后段权重随即释放，
+    # 本 Pod 不再具备完整模型（也无法本地完成诊断）。
     worker_front = DoubleTowerWorkerFront(full_model).to(DEVICE)
     worker_front.eval()
-    FULL_MODEL = full_model
+    del full_model
     medical_loaded = True
-    print(f"[{HOSPITAL_NAME}] medical worker model loaded (full model kept resident)")
+    print(f"[{HOSPITAL_NAME}] medical worker front-end loaded "
+          f"(server half runs in 数据中心 only, no local diagnosis)")
 
 
 try:
@@ -207,9 +208,10 @@ _accepted: set = set()
 
 # ====================== v3.2 local execution runtime ========================
 # Local execution = this pod takes over the scheduler's orchestration role.
-# Diagnosis runs the FULL DoubleTower here; compute/sync/routine are shared
-# implementations from common/local_exec.py. Work runs on a bounded background
-# queue so request threads, probes and /health stay responsive.
+# 诊断没有本地执行策略（医疗中心无法执行模型的 server 半段），因此 diagnosis
+# 一律拒绝；compute/sync/routine 是 common/local_exec.py 的共享实现。Work runs
+# on a bounded background queue so request threads, probes and /health stay
+# responsive.
 local_store = lx.ResultStore()
 local_compute_requests = Counter("local_exec_requests_total",
                                  "local executions", ["entity", "kind"])
@@ -217,110 +219,7 @@ local_compute_latency = Histogram("local_exec_latency_seconds",
                                   "local execution latency", ["kind"])
 
 
-def _local_diagnosis(task_id: str, params: dict, inp: dict, *,
-                     degraded: bool = False, degrade_reason=None,
-                     mode_requested: str = "local") -> dict:
-    """End-to-end diagnosis on this hospital pod: front + back in one forward.
-
-    v3.3: a `batch` of patients is executed serially here - that is what "本地
-    执行" means (one pod, no cloud back-end), and it is the honest local
-    baseline for the batched collaborative pipeline.
-    """
-    if isinstance(inp.get("batch"), list) and inp["batch"]:
-        created = lx.now_iso()
-        t0 = time.perf_counter()
-        per_patient, predictions, started = [], [], lx.now_iso()
-        # v3.13 公平性：本地批量按 Pod 的 CPU 配额并行（默认 4 路），
-        # 否则"本地串行 vs 协同并行"的比较对协同有失公允。
-        batch = list(inp["batch"])
-        parallel = max(1, min(int(os.environ.get("LOCAL_BATCH_PARALLEL", "4")), len(batch)))
-
-        def _one(item):
-            one = dict(item)
-            t1 = time.perf_counter()
-            try:
-                sub = _local_diagnosis(task_id, params, one, degraded=degraded,
-                                       degrade_reason=degrade_reason,
-                                       mode_requested=mode_requested)
-                rd = sub.get("result_detail") or {}
-                return {"patient_id": item.get("patient_id"), "state": "succeeded",
-                        "ms": round((time.perf_counter() - t1) * 1000, 2),
-                        "predictions": rd.get("predictions") or [],
-                        "compute_ms": (sub.get("metrics") or {}).get("compute_ms_total")}
-            except Exception as e:  # noqa: BLE001
-                return {"patient_id": item.get("patient_id"), "state": "failed",
-                        "error": str(e)[:140]}
-
-        with ThreadPoolExecutor(max_workers=parallel,
-                                thread_name_prefix="local-batch") as pool:
-            for rec in pool.map(_one, batch):
-                predictions.extend(rec.pop("predictions", []) or [])
-                per_patient.append(rec)
-        pipeline = (time.perf_counter() - t0) * 1000
-        compute_total = sum(float(p.get("compute_ms") or 0) for p in per_patient)
-        return lx.envelope(
-            task_id, "diagnosis", mode="local", mode_requested=mode_requested,
-            degraded=degraded, degrade_reason=degrade_reason, orchestrator="pod",
-            executor=HOSPITAL_NAME, created_at=created,
-            stages=[lx.stage("local-diagnosis", HOSPITAL_NAME, NODE_NAME, pipeline,
-                             detail=f"医院就地完整模型 × {len(inp['batch'])} 例（串行）",
-                             compute_ms=compute_total, network_ms=0.0)],
-            result_detail={"batch_size": len(inp["batch"]),
-                           "predictions": predictions,
-                           "bpCR_probability": (predictions[0]["bpCR_probability"]
-                                                if predictions else None),
-                           "per_patient": per_patient,
-                           "local_full_model": True, "serial_batch": True,
-                           "server_stage_skipped": True},
-            metrics={"pipeline_total_ms": pipeline,
-                     "compute_ms_total": compute_total, "network_ms_total": 0.0})
-
-    if FULL_MODEL is None or not medical_loaded:
-        raise RuntimeError("完整双塔模型未加载，无法本地执行诊断")
-    missing = [k for k in ("dce_image", "dwi_image", "clinical", "radiomics")
-               if not inp.get(k)]
-    if missing:
-        raise ValueError(f"缺少输入字段: {', '.join(missing)}")
-    created = lx.now_iso()
-    t0 = time.perf_counter()
-    dce = _as_tensor(inp["dce_image"], DEVICE)
-    dwi = _as_tensor(inp["dwi_image"], DEVICE)
-    clin = _as_tensor(inp["clinical"], DEVICE)
-    rad = _as_tensor(inp["radiomics"], DEVICE)
-    for t in (dce, dwi, clin, rad):
-        if t.ndim == 3:
-            t.unsqueeze_(0)
-    if clin.ndim == 1:
-        clin.unsqueeze_(0)
-    if rad.ndim == 1:
-        rad.unsqueeze_(0)
-    with torch.inference_mode():
-        logits = FULL_MODEL(dce, dwi, clin, rad)
-        probs = torch.softmax(logits, dim=1)[:, 1]
-    compute_ms = (time.perf_counter() - t0) * 1000
-    worker_latency.observe(compute_ms / 1000)
-    probs = probs.cpu().numpy().tolist()
-    ids = inp.get("patient_ids") or [f"p{i}" for i in range(len(probs))]
-    predictions = [{"patient_id": str(pid), "bpCR_probability": round(float(p), 6),
-                    "prediction": int(float(p) >= 0.5)}
-                   for pid, p in zip(ids, probs)]
-    bpcr = round(float(probs[0]), 6) if probs else None
-    return lx.envelope(
-        task_id, "diagnosis", mode="local", mode_requested=mode_requested,
-        degraded=degraded, degrade_reason=degrade_reason, orchestrator="pod",
-        executor=HOSPITAL_NAME, created_at=created,
-        stages=[lx.stage("local-diagnosis", HOSPITAL_NAME, NODE_NAME, compute_ms,
-                         detail="医院 Pod 就地完整 DoubleTower（无云侧后端、无跨节点特征传输）",
-                         compute_ms=compute_ms, network_ms=0.0)],
-        result_detail={"predictions": predictions, "bpCR_probability": bpcr,
-                       "local_full_model": True,
-                       "server_stage_skipped": True,
-                       "single_forward": True},
-        metrics={"pipeline_total_ms": compute_ms,
-                 "compute_ms_total": compute_ms, "network_ms_total": 0.0})
-
-
-local_runner = lx.queue_runner_factory(local_store, diagnosis_fn=_local_diagnosis)
+local_runner = lx.queue_runner_factory(local_store)
 local_queue = lx.LocalQueue(local_runner, store=local_store)
 
 # ============================== request models ===============================
@@ -412,43 +311,13 @@ def medical_infer(req: MedicalWorkerRequest):
 
 @app.post("/medical/infer_full")
 def medical_infer_full(req: MedicalWorkerRequest):
-    """v3.12: 医院整段执行完整模型（数据并行分片用，与 /medical/infer_forward 互斥选择）。
+    """v3.14: 拒绝医院整段执行完整模型。
 
-    把批量患者分片给医院与云端各自独立跑完整模型，聚合两端算力；
-    相比「模型前后两段串行拆分」，数据并行没有中间特征跨节点搬运。
+    医疗中心只能执行 DoubleTower 前端（conv1..layer3），后段（layer4 + 融合 +
+    分类器）只有数据中心 medical-server 能执行，因此数据并行的「医院整段跑」
+    路径不再成立。诊断必须走云边端协同（前端 /medical/infer_forward → 云端后端）。
     """
-    if FULL_MODEL is None or not medical_loaded:
-        raise HTTPException(status_code=503, detail="完整模型未加载")
-    worker_requests.inc()
-    t0 = time.perf_counter()
-    try:
-        dce = _as_tensor(req.dce_image, DEVICE)
-        dwi = _as_tensor(req.dwi_image, DEVICE)
-        clin = _as_tensor(req.clinical, DEVICE)
-        rad = _as_tensor(req.radiomics, DEVICE)
-        for t in (dce, dwi, clin, rad):
-            if t.ndim == 3:
-                t.unsqueeze_(0)
-        if clin.ndim == 1:
-            clin.unsqueeze_(0)
-        if rad.ndim == 1:
-            rad.unsqueeze_(0)
-        with torch.inference_mode():
-            logits = FULL_MODEL(dce, dwi, clin, rad)
-            probs = torch.softmax(logits, dim=1)[:, 1]
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(e))
-    latency_ms = (time.perf_counter() - t0) * 1000
-    worker_latency.observe(latency_ms / 1000)
-    probs = probs.cpu().numpy().tolist()
-    ids = req.patient_ids or [f"p{i}" for i in range(len(probs))]
-    predictions = [{"patient_id": str(pid), "bpCR_probability": round(float(p), 6),
-                    "prediction": int(float(p) >= 0.5)}
-                   for pid, p in zip(ids, probs)]
-    return {"predictions": predictions,
-            "bpCR_probability": round(float(probs[0]), 6) if probs else None,
-            "latency_ms": latency_ms, "num_patients": len(predictions),
-            "executor": HOSPITAL_NAME, "model": "full"}
+    raise HTTPException(status_code=409, detail=lx.DIAGNOSIS_NO_LOCAL_EXEC)
 
 
 @app.post("/medical/infer_forward")
@@ -614,9 +483,13 @@ def local_execute(req: LocalExecuteRequest):
 
 @app.post("/local/diagnosis")
 def local_diagnosis(req: LocalDiagnosisRequest):
-    """Full DoubleTower diagnosis performed entirely on this hospital pod.
-    A clinic reaches the same capability by forwarding here (capability=forward)."""
-    return _run_local("diagnosis", req)
+    """v3.14: 医疗中心无法本地完成诊断，明确拒绝。
+
+    本 Pod 只保留 DoubleTower 前端，后段（layer4 + 融合 + 分类器）只有数据中心
+    medical-server 能执行，因此诊断没有本地执行策略；此前诊所转诊到医院就地
+    跑完整模型的 capability=forward 路径同样不再成立。
+    """
+    raise HTTPException(status_code=409, detail=lx.DIAGNOSIS_NO_LOCAL_EXEC)
 
 
 @app.get("/local/result/{task_id}")

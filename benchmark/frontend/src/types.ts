@@ -596,8 +596,8 @@ export interface PlanKindMode {
   retried_tasks?: number;
   /** 失败尝试累计浪费的墙钟 */
   retry_ms_total?: number;
-  /** 含重传代价的处理总用时（判定口径） */
-  processing_ms?: number;
+  /** 含重传代价的处理总用时（判定口径）；该阶段无此类任务时为 null */
+  processing_ms?: number | null;
 }
 
 /** 逐类对比：同一类任务在两种策略下的表现 */

@@ -103,6 +103,7 @@ SUITES: Dict[str, Dict[str, Any]] = {
         "default_source": "clinic-1",
         "default_concurrency": 1,
         "description": "5 档算力负载 × 4 次重复，固定 3 分区",
+        "strategies": ["collaborative", "local"],
         "specs": _compute_specs(),
     },
     "suite-diagnosis-20": {
@@ -112,6 +113,9 @@ SUITES: Dict[str, Dict[str, Any]] = {
         "default_source": "hospital-a",
         "default_concurrency": 1,
         "description": "批量 1/2/4/8 例 × 5 次重复",
+        # 诊断无本地执行策略：医疗中心不能执行模型 server 部分推理
+        "strategies": ["collaborative"],
+        "strategy_note": "无本地执行策略（医疗中心不能执行模型 server 部分推理）",
         "specs": _diagnosis_specs(),
     },
     "suite-sync-20": {
@@ -121,6 +125,7 @@ SUITES: Dict[str, Dict[str, Any]] = {
         "default_source": "clinic-2",
         "default_concurrency": 1,
         "description": "4 档链路带宽 × 5 次重复",
+        "strategies": ["collaborative", "local"],
         "specs": _sync_specs(),
     },
     "suite-routine-20": {
@@ -130,6 +135,7 @@ SUITES: Dict[str, Dict[str, Any]] = {
         "default_source": "clinic-1",
         "default_concurrency": 1,
         "description": "2/4/6/8 个一次性作业 × 5 次重复",
+        "strategies": ["collaborative", "local"],
         "specs": _routine_specs(),
     },
 }
@@ -154,6 +160,8 @@ def list_suites() -> List[Dict[str, Any]]:
             "default_source": s["default_source"],
             "default_concurrency": s["default_concurrency"],
             "description": s["description"],
+            "strategies": list(s.get("strategies") or ["collaborative", "local"]),
+            "strategy_note": s.get("strategy_note"),
             "task_count": total,
             "specs": [{"label": sp["label"], "repeats": sp["repeats"],
                        "params": sp["params"]} for sp in s["specs"]],

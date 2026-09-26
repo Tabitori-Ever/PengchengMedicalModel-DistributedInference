@@ -16,6 +16,7 @@
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -133,11 +134,21 @@ def main() -> int:
     runs_by_suite: Dict[str, List[str]] = {}
     print(f"站点 {site}｜套件 {len(suites)} 个｜策略 {modes}")
 
+    skipped: List[str] = []
     for s in suites:
         kind = s["kind"]
         source = s["default_source"]
-        print(f"\n[{s.get(chr(39)+chr(39)) or s.get('name')}] {s['task_count']} 个任务，发起方 {source}")
-        for mode in modes:
+        # 每个套件声明的可用策略：诊断没有本地执行策略（医疗中心不能执行模型的
+        # server 半段），只跑协同，不会去下发一个必然被拒的运行。
+        allowed = list(s.get("strategies") or ["collaborative", "local"])
+        use_modes = [m for m in modes if m in allowed]
+        dropped = [m for m in modes if m not in allowed]
+        print(f"\n[{s.get('name')}] {s['task_count']} 个任务，发起方 {source}")
+        if dropped:
+            note = s.get("strategy_note") or "该套件不支持此策略"
+            print(f"    跳过 {dropped}：{note}")
+            skipped.append(f"{s['suite_id']}:{','.join(dropped)}")
+        for mode in use_modes:
             if not args.no_warmup:
                 print(f"    预热 {kind}/{mode} …", flush=True)
                 warmup(site, kind, mode, source)
@@ -153,6 +164,7 @@ def main() -> int:
         "site": site,
         "scheduler": args.scheduler,
         "load_axis": LOAD_AXIS,
+        "skipped_strategies": skipped,
         "cluster": cluster_facts(),
         "suites": [],
     }
